@@ -3,6 +3,9 @@ import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory.db")
 
+# Ensure the data directory exists (git does not track empty folders)
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
 
 async def get_db():
     db = await aiosqlite.connect(DB_PATH)
