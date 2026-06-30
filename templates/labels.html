@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Print Labels – ABC Inventory{% endblock %}
+{% block content %}
+<div class="page-header no-print">
+    <h1>Barcode Labels</h1>
+    <div class="header-actions">
+        <a href="/locations" class="btn btn-outline">← Back</a>
+        <button onclick="window.print()" class="btn btn-primary">🖨 Print These Labels</button>
+    </div>
+</div>
+
+<div class="no-print info-banner">
+    Cut these out and stick them on your shelves and showcases. Scan the barcode
+    during an audit to set your current location. Use your browser's print dialog
+    (set margins to "Default" and scale to 100%).
+</div>
+
+{% if not locations and not sublocations %}
+<div class="card no-print">
+    <div class="empty-state">
+        No locations yet. <a href="/locations">Add locations and sublocations first</a>,
+        then come back here to print their labels.
+    </div>
+</div>
+{% endif %}
+
+<div class="label-sheet">
+    {% for loc in locations %}
+    <div class="label label-location">
+        <div class="label-type">LOCATION</div>
+        <img src="/barcode/{{ loc.id }}?height=45&text=0" alt="{{ loc.id }}" class="label-barcode">
+        <div class="label-code">{{ loc.id }}</div>
+        <div class="label-name">{{ loc.name }}</div>
+    </div>
+    {% endfor %}
+
+    {% for sub in sublocations %}
+    <div class="label label-sublocation">
+        <div class="label-type">SUBLOCATION</div>
+        <img src="/barcode/{{ sub.id }}?height=45&text=0" alt="{{ sub.id }}" class="label-barcode">
+        <div class="label-code">{{ sub.id }}</div>
+        <div class="label-name">{{ sub.name }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.info-banner {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+.label-sheet {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.label {
+    border: 2px dashed #9ca3af;
+    border-radius: 6px;
+    padding: 12px 10px;
+    text-align: center;
+    background: white;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+.label-location { border-color: #1a56db; }
+.label-sublocation { border-color: #7c3aed; }
+.label-type {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+.label-location .label-type { color: #1a56db; }
+.label-sublocation .label-type { color: #7c3aed; }
+.label-barcode { width: 100%; max-width: 200px; height: auto; }
+.label-code {
+    font-family: monospace;
+    font-size: 22px;
+    font-weight: 800;
+    color: #111827;
+    margin-top: 2px;
+}
+.label-name { font-size: 12px; color: #4b5563; margin-top: 2px; }
+
+@media print {
+    .navbar, .no-print { display: none !important; }
+    .container { max-width: 100%; padding: 0; }
+    .label-sheet { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .label { border: 1px dashed #999; }
+}
+</style>
+{% endblock %}

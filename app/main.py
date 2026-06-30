@@ -139,7 +139,26 @@ async def locations_page(request: Request, db=Depends(get_db)):
         GROUP BY l.id ORDER BY l.id
     """) as cur:
         locations = await cur.fetchall()
-    return templates.TemplateResponse("locations.html", {"request": request, "locations": locations})
+    async with db.execute("SELECT * FROM sublocations ORDER BY id") as cur:
+        sublocations = await cur.fetchall()
+    return templates.TemplateResponse("locations.html", {
+        "request": request,
+        "locations": locations,
+        "sublocations": sublocations,
+    })
+
+
+@app.get("/labels", response_class=HTMLResponse)
+async def labels_page(request: Request, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM locations ORDER BY id") as cur:
+        locations = await cur.fetchall()
+    async with db.execute("SELECT * FROM sublocations ORDER BY id") as cur:
+        sublocations = await cur.fetchall()
+    return templates.TemplateResponse("labels.html", {
+        "request": request,
+        "locations": locations,
+        "sublocations": sublocations,
+    })
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -372,6 +391,29 @@ async def create_location(location_id: str = Form(...), name: str = Form(...), d
     await db.execute(
         "INSERT OR REPLACE INTO locations (id, name) VALUES (?, ?)",
         (location_id.upper(), name)
+    )
+    await db.commit()
+    return RedirectResponse("/locations", status_code=303)
+
+
+@app.post("/api/sublocations")
+async def create_sublocation(
+    location_id: str = Form(...),
+    section: str = Form(...),
+    name: str = Form(default=""),
+    db=Depends(get_db)
+):
+    location_id = location_id.strip().upper()
+    section = section.strip()
+    sub_id = f"{location_id}-{section}"
+    # Make sure the parent location exists
+    await db.execute(
+        "INSERT OR IGNORE INTO locations (id, name) VALUES (?, ?)",
+        (location_id, f"SalesFloor {location_id}")
+    )
+    await db.execute(
+        "INSERT OR REPLACE INTO sublocations (id, location_id, name) VALUES (?, ?, ?)",
+        (sub_id, location_id, name or f"Section {sub_id}")
     )
     await db.commit()
     return RedirectResponse("/locations", status_code=303)

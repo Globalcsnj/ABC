@@ -2,49 +2,97 @@
 {% block title %}Locations – ABC Inventory{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Locations</h1>
+    <h1>Locations &amp; Labels</h1>
+    <a href="/labels" class="btn btn-primary">🖨 Print Barcode Labels</a>
 </div>
 
 <div class="card-grid">
     <div class="card">
         <h2>Add Location</h2>
+        <p class="card-subtitle">A main spot in the store (showcase, room, wall).</p>
         <form method="POST" action="/api/locations">
             <div class="form-group">
-                <label>Location ID (e.g. 001)</label>
+                <label>Location ID (3 digits)</label>
                 <input type="text" name="location_id" placeholder="001" pattern="\d{3}" required>
             </div>
             <div class="form-group">
                 <label>Display Name</label>
                 <input type="text" name="name" placeholder="SalesFloor 001" required>
             </div>
-            <button type="submit" class="btn btn-primary">Add</button>
+            <button type="submit" class="btn btn-primary">Add Location</button>
         </form>
     </div>
+
     <div class="card">
-        <h2>Barcode Format</h2>
-        <p>Print and stick these labels on your shelves/showcases:</p>
+        <h2>Add Sublocation</h2>
+        <p class="card-subtitle">A section inside a location (shelf, drawer, tray).</p>
+        <form method="POST" action="/api/sublocations">
+            <div class="form-group">
+                <label>Location ID</label>
+                <input type="text" name="location_id" placeholder="001" pattern="\d{3}" required>
+            </div>
+            <div class="form-group">
+                <label>Section Number</label>
+                <input type="text" name="section" placeholder="1" required>
+            </div>
+            <div class="form-group">
+                <label>Name (optional)</label>
+                <input type="text" name="name" placeholder="Top Shelf">
+            </div>
+            <button type="submit" class="btn btn-secondary">Add Sublocation</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>How Labels Work</h2>
+        <p>Print labels and stick them on each shelf/showcase. During the audit you scan:</p>
         <ul class="format-list">
-            <li><code>001</code> → Location (SalesFloor 001)</li>
-            <li><code>001-1</code> → Sublocation (SalesFloor 001, Section 1)</li>
-            <li><code>001-2</code> → Sublocation (SalesFloor 001, Section 2)</li>
-            <li><code>002</code> → Location (SalesFloor 002)</li>
+            <li><code>001</code> → Location</li>
+            <li><code>001-1</code> → Sublocation (section 1)</li>
+            <li><code>001-2</code> → Sublocation (section 2)</li>
         </ul>
+        <p class="card-subtitle">Then scan each item — it gets recorded under that spot.</p>
     </div>
 </div>
 
 {% if locations %}
 <div class="card mt">
-    <h2>Existing Locations</h2>
+    <h2>Locations</h2>
     <table class="table">
         <thead>
-            <tr><th>ID</th><th>Name</th><th>Sublocations</th></tr>
+            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Sublocations</th></tr>
         </thead>
         <tbody>
             {% for loc in locations %}
             <tr>
+                <td>
+                    <img src="/barcode/{{ loc.id }}?height=28&text=0" alt="{{ loc.id }}" class="barcode-thumb">
+                </td>
                 <td><code>{{ loc.id }}</code></td>
                 <td>{{ loc.name }}</td>
                 <td>{{ loc.sublocation_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if sublocations %}
+<div class="card mt">
+    <h2>Sublocations</h2>
+    <table class="table">
+        <thead>
+            <tr><th>Barcode</th><th>ID</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+            {% for sub in sublocations %}
+            <tr>
+                <td>
+                    <img src="/barcode/{{ sub.id }}?height=28&text=0" alt="{{ sub.id }}" class="barcode-thumb">
+                </td>
+                <td><code>{{ sub.id }}</code></td>
+                <td>{{ sub.name }}</td>
             </tr>
             {% endfor %}
         </tbody>
