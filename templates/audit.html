@@ -53,6 +53,9 @@
         <div class="item-field"><span class="field-label">Location</span><span class="field-val" id="cardLoc"></span></div>
         <div class="item-field"><span class="field-label">Scanned</span><span class="field-val" id="cardTime"></span></div>
     </div>
+    <div class="item-barcode-wrap">
+        <img id="cardBarcode" class="item-barcode-img" src="" alt="barcode">
+    </div>
 </div>
 
 <!-- Scan list -->
@@ -179,6 +182,7 @@ function showItemCard(data) {
     document.getElementById('cardDate').textContent = data.item_date || '—';
     document.getElementById('cardLoc').textContent = [currentLocation, currentSublocation].filter(Boolean).join(' › ') || '—';
     document.getElementById('cardTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('cardBarcode').src = `/barcode/${data.barcode}`;
 }
 
 function hideItemCard() {

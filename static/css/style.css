@@ -327,6 +327,31 @@ body {
 .s-found { font-size: 13px; font-weight: 700; color: #065f46; background: #d1fae5; padding: 2px 8px; border-radius: 10px; }
 .s-unknown { font-size: 13px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 2px 8px; border-radius: 10px; }
 
+/* Barcode display */
+.item-barcode-wrap {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-100);
+    text-align: center;
+}
+.item-barcode-img {
+    max-width: 280px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+.barcode-thumb {
+    max-width: 120px;
+    height: 32px;
+    display: block;
+}
+.barcode-num {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 2px;
+}
+
 /* Print */
 @media print {
     .navbar, .btn, .page-header form { display: none; }

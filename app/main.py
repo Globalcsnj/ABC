@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request, Depends, Form, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import aiosqlite
+import barcode
+from barcode.writer import SVGWriter
 import csv
 import io
 import os
@@ -339,6 +341,30 @@ async def import_items(
 
     await db.commit()
     return JSONResponse({"imported": inserted, "skipped": skipped})
+
+
+@app.get("/barcode/{code}")
+async def generate_barcode(code: str, height: int = 40, text: int = 1):
+    """Return an SVG barcode image for any code string."""
+    code = code.strip().upper()
+    buf = io.BytesIO()
+    options = {
+        "module_height": height,
+        "font_size": 8 if text else 0,
+        "text_distance": 3 if text else 0,
+        "quiet_zone": 3,
+        "write_text": bool(text),
+    }
+    try:
+        Code128 = barcode.get_barcode_class("code128")
+        bc = Code128(code, writer=SVGWriter())
+        bc.write(buf, options=options)
+    except Exception:
+        # Fallback: plain text if barcode generation fails
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><text y="30" font-size="12">{code}</text></svg>'
+        return Response(content=svg, media_type="image/svg+xml")
+
+    return Response(content=buf.getvalue(), media_type="image/svg+xml")
 
 
 @app.post("/api/locations")

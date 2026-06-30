@@ -83,7 +83,11 @@
                 </td>
                 <td><code>{{ scan.full_ref }}</code></td>
                 <td>{{ scan.item_number or '—' }}</td>
-                <td><code>{{ scan.barcode }}</code></td>
+                <td>
+                    <img src="/barcode/{{ scan.barcode }}?height=28&text=0"
+                         alt="{{ scan.barcode }}" class="barcode-thumb">
+                    <div class="barcode-num">{{ scan.barcode }}</div>
+                </td>
                 <td>{{ scan.description or '—' }}</td>
                 <td>{{ scan.category or '—' }}</td>
                 <td>{{ scan.item_status or '—' }}</td>
@@ -117,7 +121,11 @@
             {% for item in missing %}
             <tr class="row-missing">
                 <td>{{ item.item_number }}</td>
-                <td><code>{{ item.barcode }}</code></td>
+                <td>
+                    <img src="/barcode/{{ item.barcode }}?height=28&text=0"
+                         alt="{{ item.barcode }}" class="barcode-thumb">
+                    <div class="barcode-num">{{ item.barcode }}</div>
+                </td>
                 <td>{{ item.description or '—' }}</td>
                 <td>{{ item.category or '—' }}</td>
                 <td>{{ item.item_status or '—' }}</td>
