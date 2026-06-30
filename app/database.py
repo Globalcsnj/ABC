@@ -43,9 +43,15 @@ async def init_db():
                 session_id INTEGER NOT NULL,
                 location_id TEXT,
                 sublocation_id TEXT,
-                item_code TEXT NOT NULL,
+                barcode TEXT NOT NULL,
+                item_number TEXT,
                 full_ref TEXT NOT NULL,
+                match_status TEXT DEFAULT 'unknown',
                 description TEXT,
+                category TEXT,
+                item_status TEXT,
+                cost REAL,
+                item_date TEXT,
                 scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES audit_sessions(id),
                 FOREIGN KEY (location_id) REFERENCES locations(id),
@@ -53,12 +59,18 @@ async def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS items (
-                code TEXT PRIMARY KEY,
+                item_number TEXT PRIMARY KEY,
+                barcode TEXT UNIQUE,
                 description TEXT,
                 category TEXT,
-                price REAL,
+                item_type TEXT,
+                item_status TEXT,
+                cost REAL,
+                item_date TEXT,
                 source TEXT,
                 imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
         """)
         await db.commit()

@@ -4,58 +4,74 @@
 <div class="page-header">
     <h1>{{ session.name }}</h1>
     <form method="POST" action="/api/sessions/{{ session.id }}/close"
-          onsubmit="return confirm('Close this session and view report?')">
-        <button type="submit" class="btn btn-outline">Close & View Report</button>
+          onsubmit="return confirm('Close this session and view the report?')">
+        <button type="submit" class="btn btn-outline">Close &amp; View Report</button>
     </form>
 </div>
 
-<!-- Context bar -->
+<!-- Location context bar -->
 <div class="context-bar" id="contextBar">
     <div class="context-item">
         <span class="context-label">Location</span>
-        <span class="context-value" id="currentLocation">— not set —</span>
+        <span class="context-value" id="currentLocationLabel">— scan location —</span>
     </div>
     <div class="context-arrow">›</div>
     <div class="context-item">
         <span class="context-label">Sublocation</span>
-        <span class="context-value" id="currentSublocation">— not set —</span>
+        <span class="context-value" id="currentSublocationLabel">— scan sublocation —</span>
     </div>
     <div class="context-arrow">›</div>
-    <div class="context-item">
-        <span class="context-label">Items scanned here</span>
-        <span class="context-value" id="itemCount">0</span>
+    <div class="context-counters">
+        <div class="counter-pill counter-found"><span id="foundCount">0</span> Found</div>
+        <div class="counter-pill counter-unknown"><span id="unknownCount">0</span> Unknown</div>
     </div>
 </div>
 
 <!-- Scan input -->
 <div class="scan-area">
-    <div class="scan-hint">Point scanner at any barcode and scan — location, sublocation, or item</div>
-    <input
-        type="text"
-        id="scanInput"
-        class="scan-input"
-        placeholder="Waiting for scan..."
-        autocomplete="off"
-        autofocus
-    >
+    <div class="scan-hint">Scan location → sublocation → items &nbsp;|&nbsp; Scanner types here automatically</div>
+    <input type="text" id="scanInput" class="scan-input"
+           placeholder="Waiting for scan..." autocomplete="off" autofocus>
     <div id="scanFeedback" class="scan-feedback"></div>
 </div>
 
-<!-- Recent scans -->
+<!-- Last scanned item card -->
+<div id="lastItemCard" class="item-card hidden">
+    <div class="item-card-header">
+        <div>
+            <div class="item-card-ref" id="cardRef"></div>
+            <div class="item-card-number" id="cardNumber"></div>
+        </div>
+        <div class="item-card-badge" id="cardBadge"></div>
+    </div>
+    <div class="item-card-body">
+        <div class="item-field"><span class="field-label">Description</span><span class="field-val" id="cardDesc"></span></div>
+        <div class="item-field"><span class="field-label">Category</span><span class="field-val" id="cardCat"></span></div>
+        <div class="item-field"><span class="field-label">Status</span><span class="field-val" id="cardStatus"></span></div>
+        <div class="item-field"><span class="field-label">Cost</span><span class="field-val" id="cardCost"></span></div>
+        <div class="item-field"><span class="field-label">Date In</span><span class="field-val" id="cardDate"></span></div>
+        <div class="item-field"><span class="field-label">Location</span><span class="field-val" id="cardLoc"></span></div>
+        <div class="item-field"><span class="field-label">Scanned</span><span class="field-val" id="cardTime"></span></div>
+    </div>
+</div>
+
+<!-- Scan list -->
 <div class="card mt">
     <div class="card-header">
         <h2>Items at current location</h2>
         <span class="total-badge" id="totalBadge">Total: 0</span>
     </div>
     <div id="scanList" class="scan-list">
-        <div class="empty-state">Scan a location barcode to begin</div>
+        <div class="empty-state">Scan a location barcode to begin (e.g. 001)</div>
     </div>
 </div>
 
-<!-- Location summary -->
+<!-- Session summary -->
 <div class="card mt">
     <h2>Session Summary</h2>
-    <div id="sessionSummary" class="summary-grid"></div>
+    <div id="sessionSummary" class="summary-grid">
+        <div class="empty-state">No items yet</div>
+    </div>
 </div>
 {% endblock %}
 
@@ -64,24 +80,24 @@
 const SESSION_ID = {{ session.id }};
 let currentLocation = '';
 let currentSublocation = '';
-let itemCount = 0;
+let foundCount = 0;
+let unknownCount = 0;
 
 const scanInput = document.getElementById('scanInput');
-const feedback = document.getElementById('scanFeedback');
-const scanList = document.getElementById('scanList');
+const feedback  = document.getElementById('scanFeedback');
+const scanList  = document.getElementById('scanList');
 const totalBadge = document.getElementById('totalBadge');
 
-// Keep focus on scan input always
+// Keep focus on input at all times
 document.addEventListener('click', () => scanInput.focus());
-document.addEventListener('keydown', () => scanInput.focus());
+document.addEventListener('keydown', (e) => { if (e.target !== scanInput) scanInput.focus(); });
 scanInput.focus();
 
 scanInput.addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
     const code = scanInput.value.trim();
-    if (!code) return;
     scanInput.value = '';
-    await processScan(code);
+    if (code) await processScan(code);
 });
 
 async function processScan(code) {
@@ -91,45 +107,56 @@ async function processScan(code) {
     body.append('current_location', currentLocation);
     body.append('current_sublocation', currentSublocation);
 
+    let data;
     try {
         const res = await fetch('/api/scan', { method: 'POST', body });
-        const data = await res.json();
-
-        showFeedback(data.message, data.type);
-
-        if (data.type === 'location') {
-            currentLocation = data.location_id;
-            currentSublocation = '';
-            itemCount = 0;
-            document.getElementById('currentLocation').textContent = 'SalesFloor ' + data.location_id;
-            document.getElementById('currentSublocation').textContent = '— not set —';
-            document.getElementById('itemCount').textContent = '0';
-            clearScanList();
-        } else if (data.type === 'sublocation') {
-            currentLocation = data.location_id;
-            currentSublocation = data.sublocation_id;
-            itemCount = 0;
-            document.getElementById('currentLocation').textContent = 'SalesFloor ' + data.location_id;
-            document.getElementById('currentSublocation').textContent = data.sublocation_id;
-            document.getElementById('itemCount').textContent = '0';
-            await loadScans();
-        } else if (data.type === 'item') {
-            itemCount++;
-            document.getElementById('itemCount').textContent = itemCount;
-            prependScanItem(data);
-            await updateSummary();
-        } else if (data.type === 'error') {
-            showFeedback(data.message, 'error');
-        }
-    } catch (err) {
+        data = await res.json();
+    } catch {
         showFeedback('❌ Connection error', 'error');
+        return;
+    }
+
+    showFeedback(data.message, data.type === 'item' ? data.match_status : data.type);
+
+    if (data.type === 'location') {
+        currentLocation = data.location_id;
+        currentSublocation = '';
+        foundCount = 0; unknownCount = 0;
+        document.getElementById('currentLocationLabel').textContent = 'SalesFloor ' + data.location_id;
+        document.getElementById('currentSublocationLabel').textContent = '— scan sublocation —';
+        updateCounters();
+        clearScanList();
+        hideItemCard();
+    } else if (data.type === 'sublocation') {
+        currentLocation = data.location_id;
+        currentSublocation = data.sublocation_id;
+        foundCount = 0; unknownCount = 0;
+        document.getElementById('currentLocationLabel').textContent = 'SalesFloor ' + data.location_id;
+        document.getElementById('currentSublocationLabel').textContent = data.sublocation_id;
+        updateCounters();
+        await loadScans();
+        hideItemCard();
+    } else if (data.type === 'item') {
+        if (data.match_status === 'found') foundCount++;
+        else unknownCount++;
+        updateCounters();
+        showItemCard(data);
+        prependScanRow(data);
+        updateSummary();
+    } else if (data.type === 'error') {
+        showFeedback(data.message, 'error');
     }
 }
 
 function showFeedback(msg, type) {
     feedback.textContent = msg;
     feedback.className = 'scan-feedback feedback-' + type;
-    setTimeout(() => { feedback.className = 'scan-feedback'; }, 3000);
+    setTimeout(() => { feedback.className = 'scan-feedback'; }, 4000);
+}
+
+function updateCounters() {
+    document.getElementById('foundCount').textContent = foundCount;
+    document.getElementById('unknownCount').textContent = unknownCount;
 }
 
 function clearScanList() {
@@ -137,19 +164,43 @@ function clearScanList() {
     totalBadge.textContent = 'Total: 0';
 }
 
-function prependScanItem(data) {
+function showItemCard(data) {
+    const card = document.getElementById('lastItemCard');
+    card.className = 'item-card item-card-' + data.match_status;
+
+    document.getElementById('cardRef').textContent = data.full_ref;
+    document.getElementById('cardNumber').textContent = data.item_number ? 'Bravo: ' + data.item_number : 'Barcode: ' + data.barcode;
+    document.getElementById('cardBadge').textContent = data.match_status === 'found' ? '✅ FOUND' : '⚠️ NOT IN BRAVO';
+    document.getElementById('cardBadge').className = 'item-card-badge badge-' + data.match_status;
+    document.getElementById('cardDesc').textContent = data.description || '—';
+    document.getElementById('cardCat').textContent = data.category || '—';
+    document.getElementById('cardStatus').textContent = data.item_status || '—';
+    document.getElementById('cardCost').textContent = data.cost != null ? '$' + parseFloat(data.cost).toFixed(2) : '—';
+    document.getElementById('cardDate').textContent = data.item_date || '—';
+    document.getElementById('cardLoc').textContent = [currentLocation, currentSublocation].filter(Boolean).join(' › ') || '—';
+    document.getElementById('cardTime').textContent = new Date().toLocaleTimeString();
+}
+
+function hideItemCard() {
+    document.getElementById('lastItemCard').className = 'item-card hidden';
+}
+
+function prependScanRow(data) {
     const empty = scanList.querySelector('.empty-state');
     if (empty) empty.remove();
 
     const row = document.createElement('div');
-    row.className = 'scan-row new-scan';
+    row.className = 'scan-row scan-row-' + data.match_status + ' new-scan';
     row.innerHTML = `
+        <span class="scan-dot dot-${data.match_status}"></span>
         <span class="scan-ref">${data.full_ref}</span>
-        <span class="scan-desc">${data.description}</span>
+        <span class="scan-desc">${data.description || 'Not in Bravo'}</span>
+        <span class="scan-cat">${data.category || ''}</span>
+        <span class="scan-cost">${data.cost != null ? '$' + parseFloat(data.cost).toFixed(2) : ''}</span>
         <span class="scan-time">${new Date().toLocaleTimeString()}</span>
     `;
     scanList.prepend(row);
-    setTimeout(() => row.classList.remove('new-scan'), 1000);
+    setTimeout(() => row.classList.remove('new-scan'), 1200);
 
     const count = scanList.querySelectorAll('.scan-row').length;
     totalBadge.textContent = `Total: ${count}`;
@@ -162,21 +213,25 @@ async function loadScans() {
     const scans = await res.json();
 
     if (!scans.length) {
-        scanList.innerHTML = '<div class="empty-state">No items scanned here yet</div>';
-        totalBadge.textContent = 'Total: 0';
+        clearScanList();
         return;
     }
 
     scanList.innerHTML = scans.map(s => `
-        <div class="scan-row">
+        <div class="scan-row scan-row-${s.match_status}">
+            <span class="scan-dot dot-${s.match_status}"></span>
             <span class="scan-ref">${s.full_ref}</span>
-            <span class="scan-desc">${s.description || 'Unknown item'}</span>
+            <span class="scan-desc">${s.description || 'Not in Bravo'}</span>
+            <span class="scan-cat">${s.category || ''}</span>
+            <span class="scan-cost">${s.cost != null ? '$' + parseFloat(s.cost).toFixed(2) : ''}</span>
             <span class="scan-time">${s.scanned_at.substring(11, 19)}</span>
         </div>
     `).join('');
+
     totalBadge.textContent = `Total: ${scans.length}`;
-    itemCount = scans.length;
-    document.getElementById('itemCount').textContent = itemCount;
+    foundCount = scans.filter(s => s.match_status === 'found').length;
+    unknownCount = scans.filter(s => s.match_status === 'unknown').length;
+    updateCounters();
 }
 
 async function updateSummary() {
@@ -185,15 +240,20 @@ async function updateSummary() {
 
     const groups = {};
     scans.forEach(s => {
-        const key = s.location_id + (s.sublocation_id ? ' › ' + s.sublocation_id : '');
-        groups[key] = (groups[key] || 0) + 1;
+        const key = (s.location_id || '?') + (s.sublocation_id ? ' › ' + s.sublocation_id : '');
+        if (!groups[key]) groups[key] = { found: 0, unknown: 0 };
+        if (s.match_status === 'found') groups[key].found++;
+        else groups[key].unknown++;
     });
 
     const summaryEl = document.getElementById('sessionSummary');
-    summaryEl.innerHTML = Object.entries(groups).map(([loc, cnt]) => `
+    summaryEl.innerHTML = Object.entries(groups).map(([loc, counts]) => `
         <div class="summary-card">
             <div class="summary-loc">${loc}</div>
-            <div class="summary-count">${cnt}</div>
+            <div class="summary-counts">
+                <span class="s-found">${counts.found} found</span>
+                ${counts.unknown ? `<span class="s-unknown">${counts.unknown} unknown</span>` : ''}
+            </div>
         </div>
     `).join('') || '<div class="empty-state">No items yet</div>';
 }

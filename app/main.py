@@ -6,6 +6,7 @@ import aiosqlite
 import csv
 import io
 import os
+import re
 from contextlib import asynccontextmanager
 from .database import init_db, get_db, DB_PATH
 
@@ -23,21 +24,32 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def classify_scan(code: str):
-    """Determine if a scan is a location, sublocation, or item.
-
-    Location:    matches \d{3}  e.g. 001
-    Sublocation: matches \d{3}-\d+  e.g. 001-1
-    Item:        anything else
-    """
-    import re
+    """Location: 3 digits. Sublocation: 3 digits dash number. Item: everything else."""
     if re.fullmatch(r"\d{3}", code.strip()):
         return "location"
     if re.fullmatch(r"\d{3}-\d+", code.strip()):
         return "sublocation"
     return "item"
+
+
+def clean_money(val: str) -> float:
+    try:
+        return float(str(val).replace("$", "").replace(",", "").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
+
+def find_column(row: dict, *candidates):
+    """Return first matching column value (case-insensitive)."""
+    row_lower = {k.lower().strip(): v for k, v in row.items()}
+    for c in candidates:
+        v = row_lower.get(c.lower().strip())
+        if v is not None and str(v).strip():
+            return str(v).strip()
+    return ""
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -46,7 +58,13 @@ def classify_scan(code: str):
 async def home(request: Request, db=Depends(get_db)):
     async with db.execute("SELECT * FROM audit_sessions ORDER BY created_at DESC") as cur:
         sessions = await cur.fetchall()
-    return templates.TemplateResponse("index.html", {"request": request, "sessions": sessions})
+    async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
+        item_count = (await cur.fetchone())["cnt"]
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "sessions": sessions,
+        "item_count": item_count,
+    })
 
 
 @app.get("/audit/{session_id}", response_class=HTMLResponse)
@@ -55,39 +73,58 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
         session = await cur.fetchone()
     if not session:
         raise HTTPException(404, "Session not found")
-    async with db.execute("SELECT * FROM locations ORDER BY id") as cur:
-        locations = await cur.fetchall()
-    return templates.TemplateResponse("audit.html", {
-        "request": request,
-        "session": session,
-        "locations": locations,
-    })
+    return templates.TemplateResponse("audit.html", {"request": request, "session": session})
 
 
 @app.get("/report/{session_id}", response_class=HTMLResponse)
 async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     async with db.execute("SELECT * FROM audit_sessions WHERE id = ?", (session_id,)) as cur:
         session = await cur.fetchone()
+    if not session:
+        raise HTTPException(404)
+
     async with db.execute("""
-        SELECT s.full_ref, s.item_code, s.description, s.scanned_at,
-               s.location_id, s.sublocation_id
+        SELECT s.*, i.item_number as bravo_number
         FROM audit_scans s
+        LEFT JOIN items i ON i.barcode = s.barcode
         WHERE s.session_id = ?
         ORDER BY s.location_id, s.sublocation_id, s.scanned_at
     """, (session_id,)) as cur:
         scans = await cur.fetchall()
+
     async with db.execute("""
-        SELECT location_id, sublocation_id, COUNT(*) as cnt
+        SELECT location_id, sublocation_id, COUNT(*) as total,
+               SUM(CASE WHEN match_status='found' THEN 1 ELSE 0 END) as found,
+               SUM(CASE WHEN match_status='unknown' THEN 1 ELSE 0 END) as unknown
         FROM audit_scans WHERE session_id = ?
         GROUP BY location_id, sublocation_id
         ORDER BY location_id, sublocation_id
     """, (session_id,)) as cur:
         summary = await cur.fetchall()
+
+    # Items in Bravo that were NOT scanned in this session
+    async with db.execute("""
+        SELECT i.item_number, i.barcode, i.description, i.category, i.item_status, i.cost
+        FROM items i
+        WHERE i.barcode NOT IN (
+            SELECT barcode FROM audit_scans WHERE session_id = ? AND match_status = 'found'
+        )
+        ORDER BY i.item_number
+    """, (session_id,)) as cur:
+        missing = await cur.fetchall()
+
+    found_count = sum(1 for s in scans if s["match_status"] == "found")
+    unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
+
     return templates.TemplateResponse("report.html", {
         "request": request,
         "session": session,
         "scans": scans,
         "summary": summary,
+        "missing": missing,
+        "found_count": found_count,
+        "unknown_count": unknown_count,
+        "missing_count": len(missing),
     })
 
 
@@ -135,7 +172,6 @@ async def process_scan(
     kind = classify_scan(code)
 
     if kind == "location":
-        # Auto-create location if new
         await db.execute(
             "INSERT OR IGNORE INTO locations (id, name) VALUES (?, ?)",
             (code, f"SalesFloor {code}")
@@ -145,7 +181,7 @@ async def process_scan(
             "type": "location",
             "location_id": code,
             "sublocation_id": "",
-            "message": f"📍 Location set: SalesFloor {code}"
+            "message": f"📍 Location: SalesFloor {code}"
         })
 
     if kind == "sublocation":
@@ -163,32 +199,73 @@ async def process_scan(
             "type": "sublocation",
             "location_id": loc_id,
             "sublocation_id": code,
-            "message": f"📦 Sublocation set: {code}"
+            "message": f"📦 Sublocation: {code}"
         })
 
-    # It's an item
+    # ── Item scan ─────────────────────────────────────────────────────────────
     if not current_location:
         return JSONResponse({"type": "error", "message": "⚠️ Scan a location first (e.g. 001)"}, status_code=400)
 
-    full_ref = f"{current_location}-{current_sublocation}-{code}" if current_sublocation else f"{current_location}-{code}"
-
-    # Look up item description from imported items
-    async with db.execute("SELECT description FROM items WHERE code = ?", (code,)) as cur:
+    # Lookup by barcode in items table
+    async with db.execute(
+        "SELECT * FROM items WHERE barcode = ?", (code,)
+    ) as cur:
         item = await cur.fetchone()
-    description = item["description"] if item else None
+
+    full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
+
+    if item:
+        match_status = "found"
+        description = item["description"]
+        category = item["category"]
+        item_status = item["item_status"]
+        cost = item["cost"]
+        item_date = item["item_date"]
+        item_number = item["item_number"]
+        msg = f"✅ FOUND — {item['item_number']} | {description}"
+    else:
+        match_status = "unknown"
+        description = None
+        category = None
+        item_status = None
+        cost = None
+        item_date = None
+        item_number = None
+        msg = f"⚠️ NOT IN BRAVO — {code}"
 
     await db.execute("""
-        INSERT INTO audit_scans (session_id, location_id, sublocation_id, item_code, full_ref, description)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (session_id, current_location or None, current_sublocation or None, code, full_ref, description))
+        INSERT INTO audit_scans
+          (session_id, location_id, sublocation_id, barcode, item_number,
+           full_ref, match_status, description, category, item_status, cost, item_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        session_id,
+        current_location or None,
+        current_sublocation or None,
+        code,
+        item_number,
+        full_ref,
+        match_status,
+        description,
+        category,
+        item_status,
+        cost,
+        item_date,
+    ))
     await db.commit()
 
     return JSONResponse({
         "type": "item",
-        "item_code": code,
+        "match_status": match_status,
+        "barcode": code,
+        "item_number": item_number,
         "full_ref": full_ref,
-        "description": description or "Unknown item",
-        "message": f"✅ {full_ref}"
+        "description": description or "Not in Bravo",
+        "category": category or "",
+        "item_status": item_status or "",
+        "cost": cost,
+        "item_date": item_date or "",
+        "message": msg,
     })
 
 
@@ -202,41 +279,73 @@ async def get_scans(session_id: int, location_id: str = "", sublocation_id: str 
     if sublocation_id:
         query += " AND sublocation_id = ?"
         params.append(sublocation_id)
-    query += " ORDER BY scanned_at DESC LIMIT 50"
+    query += " ORDER BY scanned_at DESC LIMIT 100"
     async with db.execute(query, params) as cur:
         scans = await cur.fetchall()
     return [dict(s) for s in scans]
 
 
 @app.post("/api/import")
-async def import_items(file: UploadFile = File(...), source: str = Form(default="bravo"), db=Depends(get_db)):
+async def import_items(
+    file: UploadFile = File(...),
+    source: str = Form(default="retail"),
+    db=Depends(get_db)
+):
     content = await file.read()
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
     inserted = 0
+    skipped = 0
+
     for row in reader:
-        # Try common Bravo column names
-        code = row.get("Item #") or row.get("ItemNumber") or row.get("SKU") or row.get("Barcode") or ""
-        desc = row.get("Description") or row.get("Item Description") or ""
-        cat = row.get("Category") or row.get("Type") or ""
-        price = row.get("Price") or row.get("Retail Price") or "0"
-        if not code:
+        # Bravo column names from the screenshot
+        item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
+        barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
+        description = find_column(row, "Description", "Item Description", "Desc")
+        category = find_column(row, "Category", "Cat")
+        item_type = find_column(row, "Type")
+        item_status = find_column(row, "Status")
+        cost_raw = find_column(row, "Cost", "Price", "Retail Price", "Amount")
+        item_date = find_column(row, "Date", "Date In", "Created")
+
+        if not item_number and not barcode:
+            skipped += 1
             continue
-        try:
-            price_val = float(str(price).replace("$", "").replace(",", ""))
-        except ValueError:
-            price_val = 0.0
+
+        # If no barcode column, try to derive from item number
+        # Bravo pattern: AB1007081 → barcode contains 1007081 → padded as 2000007081
+        if not barcode and item_number:
+            digits = re.sub(r"[^0-9]", "", item_number)
+            barcode = digits  # store raw digits; scanner will send full barcode
+
+        cost_val = clean_money(cost_raw)
+
         await db.execute("""
-            INSERT OR REPLACE INTO items (code, description, category, price, source)
-            VALUES (?, ?, ?, ?, ?)
-        """, (code.strip().upper(), desc.strip(), cat.strip(), price_val, source))
+            INSERT OR REPLACE INTO items
+              (item_number, barcode, description, category, item_type, item_status, cost, item_date, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            item_number.upper() if item_number else None,
+            barcode.upper() if barcode else None,
+            description,
+            category,
+            item_type,
+            item_status,
+            cost_val,
+            item_date,
+            source,
+        ))
         inserted += 1
+
     await db.commit()
-    return JSONResponse({"imported": inserted})
+    return JSONResponse({"imported": inserted, "skipped": skipped})
 
 
 @app.post("/api/locations")
 async def create_location(location_id: str = Form(...), name: str = Form(...), db=Depends(get_db)):
-    await db.execute("INSERT OR REPLACE INTO locations (id, name) VALUES (?, ?)", (location_id.upper(), name))
+    await db.execute(
+        "INSERT OR REPLACE INTO locations (id, name) VALUES (?, ?)",
+        (location_id.upper(), name)
+    )
     await db.commit()
     return RedirectResponse("/locations", status_code=303)

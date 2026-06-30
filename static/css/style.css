@@ -249,8 +249,88 @@ body {
 .import-result { margin-top: 10px; font-size: 14px; font-weight: 600; }
 .import-result.success { color: var(--success); }
 
+/* Item card (last scanned) */
+.item-card {
+    border-radius: var(--radius);
+    border: 2px solid var(--gray-200);
+    background: white;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    transition: border-color .2s, background .2s;
+}
+.item-card.hidden { display: none; }
+.item-card-found { border-color: #10b981; background: #f0fdf4; }
+.item-card-unknown { border-color: #f59e0b; background: #fffbeb; }
+.item-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.item-card-ref { font-size: 18px; font-weight: 800; font-family: monospace; color: var(--gray-800); }
+.item-card-number { font-size: 13px; color: var(--gray-400); margin-top: 2px; }
+.item-card-badge { font-size: 14px; font-weight: 700; padding: 5px 14px; border-radius: 20px; }
+.badge-found { background: #d1fae5; color: #065f46; }
+.badge-unknown { background: #fef3c7; color: #92400e; }
+.item-card-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.item-field { display: flex; flex-direction: column; }
+.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-400); }
+.field-val { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+
+/* Scan rows with status colors */
+.scan-row {
+    display: grid;
+    grid-template-columns: 18px 200px 1fr auto auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: background .4s;
+}
+.scan-row-found { background: #f0fdf4; }
+.scan-row-unknown { background: #fffbeb; }
+.scan-row.new-scan { animation: flashIn .6s ease; }
+@keyframes flashIn { 0%{opacity:0;transform:translateY(-6px)} 100%{opacity:1;transform:translateY(0)} }
+.scan-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-found { background: #10b981; }
+.dot-unknown { background: #f59e0b; }
+.scan-ref { font-family: monospace; font-weight: 700; color: var(--primary); font-size: 12px; }
+.scan-desc { color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scan-cat { color: var(--gray-600); font-size: 12px; }
+.scan-cost { color: var(--success); font-weight: 600; white-space: nowrap; }
+.scan-time { color: var(--gray-400); font-size: 11px; white-space: nowrap; }
+
+/* Counter pills */
+.context-counters { display: flex; gap: 8px; align-items: center; }
+.counter-pill { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; }
+.counter-found { background: #d1fae5; color: #065f46; }
+.counter-unknown { background: #fef3c7; color: #92400e; }
+
+/* Report stats */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.stat-card { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 20px; text-align: center; }
+.stat-found { border-top: 4px solid #10b981; }
+.stat-unknown { border-top: 4px solid #f59e0b; }
+.stat-missing { border-top: 4px solid #ef4444; }
+.stat-num { font-size: 42px; font-weight: 800; color: var(--gray-800); }
+.stat-label { font-size: 13px; color: var(--gray-600); margin-top: 4px; }
+
+/* Report table row colors */
+.row-found td { background: #f0fdf4; }
+.row-unknown td { background: #fffbeb; }
+.row-missing td { background: #fef2f2; }
+.found-text { color: #065f46; font-weight: 700; }
+.unknown-text { color: #92400e; }
+.status-dot { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.card-subtitle { font-size: 13px; color: var(--gray-600); margin: -8px 0 14px; }
+
+/* Summary card */
+.summary-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 6px; padding: 10px 16px; min-width: 160px; }
+.summary-loc { font-size: 12px; color: var(--gray-600); font-weight: 600; margin-bottom: 4px; }
+.summary-counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.s-found { font-size: 13px; font-weight: 700; color: #065f46; background: #d1fae5; padding: 2px 8px; border-radius: 10px; }
+.s-unknown { font-size: 13px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 2px 8px; border-radius: 10px; }
+
 /* Print */
 @media print {
     .navbar, .btn, .page-header form { display: none; }
     .card { border: 1px solid #ccc; break-inside: avoid; }
+    .row-found td { background: #f0fdf4 !important; }
+    .row-missing td { background: #fef2f2 !important; }
 }

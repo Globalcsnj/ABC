@@ -5,21 +5,27 @@
     <h1>Report: {{ session.name }}</h1>
     <div class="header-actions">
         <span class="badge badge-{{ session.status }}">{{ session.status }}</span>
-        <button onclick="window.print()" class="btn btn-outline">Print</button>
+        <button onclick="window.print()" class="btn btn-outline">🖨 Print</button>
     </div>
 </div>
 
-<div class="card-grid">
-    <div class="stat-card">
-        <div class="stat-num">{{ scans|length }}</div>
-        <div class="stat-label">Total Items Scanned</div>
+<!-- Stats -->
+<div class="stat-row">
+    <div class="stat-card stat-found">
+        <div class="stat-num">{{ found_count }}</div>
+        <div class="stat-label">✅ Found in Bravo</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-num">{{ summary|length }}</div>
-        <div class="stat-label">Locations/Sublocations</div>
+    <div class="stat-card stat-unknown">
+        <div class="stat-num">{{ unknown_count }}</div>
+        <div class="stat-label">⚠️ Not in Bravo</div>
+    </div>
+    <div class="stat-card stat-missing">
+        <div class="stat-num">{{ missing_count }}</div>
+        <div class="stat-label">❌ Missing (in Bravo, not scanned)</div>
     </div>
 </div>
 
+<!-- Location summary -->
 <div class="card mt">
     <h2>Summary by Location</h2>
     <table class="table">
@@ -27,7 +33,9 @@
             <tr>
                 <th>Location</th>
                 <th>Sublocation</th>
-                <th>Item Count</th>
+                <th>Found</th>
+                <th>Unknown</th>
+                <th>Total</th>
             </tr>
         </thead>
         <tbody>
@@ -35,38 +43,89 @@
             <tr>
                 <td>{{ row.location_id or '—' }}</td>
                 <td>{{ row.sublocation_id or '—' }}</td>
-                <td><strong>{{ row.cnt }}</strong></td>
+                <td class="found-text"><strong>{{ row.found }}</strong></td>
+                <td class="unknown-text">{{ row.unknown }}</td>
+                <td>{{ row.total }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<!-- All scanned items -->
 <div class="card mt">
     <h2>All Scanned Items</h2>
     <table class="table">
         <thead>
             <tr>
+                <th>Status</th>
                 <th>Reference</th>
-                <th>Item Code</th>
+                <th>Bravo #</th>
+                <th>Barcode</th>
                 <th>Description</th>
+                <th>Category</th>
+                <th>Item Status</th>
+                <th>Cost</th>
+                <th>Date In</th>
                 <th>Location</th>
-                <th>Sublocation</th>
-                <th>Time</th>
+                <th>Scanned At</th>
             </tr>
         </thead>
         <tbody>
             {% for scan in scans %}
-            <tr>
+            <tr class="row-{{ scan.match_status }}">
+                <td>
+                    {% if scan.match_status == 'found' %}
+                    <span class="status-dot dot-found">✅ Found</span>
+                    {% else %}
+                    <span class="status-dot dot-unknown">⚠️ Unknown</span>
+                    {% endif %}
+                </td>
                 <td><code>{{ scan.full_ref }}</code></td>
-                <td>{{ scan.item_code }}</td>
+                <td>{{ scan.item_number or '—' }}</td>
+                <td><code>{{ scan.barcode }}</code></td>
                 <td>{{ scan.description or '—' }}</td>
-                <td>{{ scan.location_id or '—' }}</td>
-                <td>{{ scan.sublocation_id or '—' }}</td>
+                <td>{{ scan.category or '—' }}</td>
+                <td>{{ scan.item_status or '—' }}</td>
+                <td>{% if scan.cost %}${{ "%.2f"|format(scan.cost) }}{% else %}—{% endif %}</td>
+                <td>{{ scan.item_date or '—' }}</td>
+                <td>{{ scan.location_id or '' }}{% if scan.sublocation_id %} › {{ scan.sublocation_id }}{% endif %}</td>
                 <td>{{ scan.scanned_at[11:19] }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<!-- Missing items -->
+{% if missing %}
+<div class="card mt">
+    <h2>❌ Items in Bravo NOT Found During Audit</h2>
+    <p class="card-subtitle">These items exist in Bravo but were not scanned. They may be misplaced, sold, or on loan.</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Bravo #</th>
+                <th>Barcode</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in missing %}
+            <tr class="row-missing">
+                <td>{{ item.item_number }}</td>
+                <td><code>{{ item.barcode }}</code></td>
+                <td>{{ item.description or '—' }}</td>
+                <td>{{ item.category or '—' }}</td>
+                <td>{{ item.item_status or '—' }}</td>
+                <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endblock %}
