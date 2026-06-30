@@ -93,14 +93,36 @@ const totalBadge = document.getElementById('totalBadge');
 
 // Keep focus on input at all times
 document.addEventListener('click', () => scanInput.focus());
-document.addEventListener('keydown', (e) => { if (e.target !== scanInput) scanInput.focus(); });
 scanInput.focus();
+// Re-grab focus if it ever drifts away (keeps scanner input landing here)
+setInterval(() => {
+    if (document.activeElement !== scanInput) scanInput.focus();
+}, 400);
 
-scanInput.addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter') return;
+// A scanner sends characters very fast then (optionally) an Enter.
+// We submit on Enter OR when typing pauses ~90ms — so it works whether or
+// not the Zebra is set to add an Enter/CR suffix.
+let submitTimer = null;
+
+function submitScan() {
+    clearTimeout(submitTimer);
+    submitTimer = null;
     const code = scanInput.value.trim();
     scanInput.value = '';
-    if (code) await processScan(code);
+    if (code) processScan(code);
+}
+
+scanInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        submitScan();
+    }
+});
+
+scanInput.addEventListener('input', () => {
+    clearTimeout(submitTimer);
+    // If no Enter arrives, auto-submit shortly after the burst ends
+    submitTimer = setTimeout(submitScan, 90);
 });
 
 async function processScan(code) {
