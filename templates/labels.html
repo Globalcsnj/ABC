@@ -10,9 +10,9 @@
 </div>
 
 <div class="no-print info-banner">
-    Cut these out and stick them on your shelves and showcases. Scan the barcode
-    during an audit to set your current location. Use your browser's print dialog
-    (set margins to "Default" and scale to 100%).
+    Each label is <strong>2″ wide × 1″ tall</strong> — sized for standard
+    address/shelf sticker sheets. Print at <strong>100% scale</strong> (no "fit to page")
+    so the size stays exact, then stick one on each shelf and showcase.
 </div>
 
 {% if not locations and not sublocations %}
@@ -57,45 +57,70 @@
     margin-bottom: 16px;
 }
 .label-sheet {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1in;
 }
+/* Exact sticker size: 2 inches wide, 1 inch tall */
 .label {
-    border: 2px dashed #9ca3af;
-    border-radius: 6px;
-    padding: 12px 10px;
-    text-align: center;
+    width: 2in;
+    height: 1in;
+    box-sizing: border-box;
+    border: 1px dashed #9ca3af;
+    border-radius: 4px;
+    padding: 0.04in 0.06in;
     background: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     break-inside: avoid;
     page-break-inside: avoid;
 }
 .label-location { border-color: #1a56db; }
 .label-sublocation { border-color: #7c3aed; }
 .label-type {
-    font-size: 10px;
+    font-size: 6px;
     font-weight: 700;
-    letter-spacing: .1em;
+    letter-spacing: .12em;
     color: #6b7280;
-    margin-bottom: 4px;
+    line-height: 1;
 }
 .label-location .label-type { color: #1a56db; }
 .label-sublocation .label-type { color: #7c3aed; }
-.label-barcode { width: 100%; max-width: 200px; height: auto; }
+/* Barcode fills the width evenly, fixed height band */
+.label-barcode {
+    width: 100%;
+    height: 0.45in;
+    object-fit: contain;
+    display: block;
+    margin: 0.02in 0;
+}
 .label-code {
     font-family: monospace;
-    font-size: 22px;
+    font-size: 15px;
     font-weight: 800;
     color: #111827;
-    margin-top: 2px;
+    line-height: 1;
 }
-.label-name { font-size: 12px; color: #4b5563; margin-top: 2px; }
+.label-name {
+    font-size: 8px;
+    color: #4b5563;
+    line-height: 1;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
 
 @media print {
+    @page { margin: 0.3in; }
     .navbar, .no-print { display: none !important; }
-    .container { max-width: 100%; padding: 0; }
-    .label-sheet { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .label { border: 1px dashed #999; }
+    .container { max-width: 100%; padding: 0; margin: 0; }
+    .label-sheet { gap: 0.08in; }
+    .label { border: 1px dashed #bbb; }
 }
 </style>
 {% endblock %}

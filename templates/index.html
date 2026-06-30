@@ -76,13 +76,35 @@
 <script>
 document.getElementById('importForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const form = e.target;
-    const data = new FormData(form);
-    const res = await fetch('/api/import', { method: 'POST', body: data });
-    const json = await res.json();
     const el = document.getElementById('importResult');
-    el.textContent = `✅ Imported ${json.imported} items`;
-    el.className = 'import-result success';
+    el.textContent = '⏳ Uploading...';
+    el.className = 'import-result';
+
+    try {
+        const res = await fetch('/api/import', { method: 'POST', body: new FormData(e.target) });
+        const json = await res.json();
+
+        if (!res.ok || json.error) {
+            el.textContent = '❌ ' + (json.error || 'Import failed');
+            el.className = 'import-result error';
+            return;
+        }
+
+        if (json.imported === 0) {
+            el.innerHTML = `⚠️ Imported 0 items. The file columns didn't match.<br>`
+                + `<small>Columns found: ${(json.columns_found || []).join(', ') || 'none'}</small>`;
+            el.className = 'import-result error';
+            return;
+        }
+
+        let msg = `✅ Imported ${json.imported} items`;
+        if (json.skipped) msg += ` (skipped ${json.skipped} rows with no item/barcode)`;
+        el.textContent = msg;
+        el.className = 'import-result success';
+    } catch (err) {
+        el.textContent = '❌ Upload error: ' + err.message;
+        el.className = 'import-result error';
+    }
 });
 </script>
 {% endblock %}

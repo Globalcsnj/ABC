@@ -248,6 +248,8 @@ body {
 /* Import result */
 .import-result { margin-top: 10px; font-size: 14px; font-weight: 600; }
 .import-result.success { color: var(--success); }
+.import-result.error { color: var(--danger); }
+.import-result small { color: var(--gray-600); font-weight: 400; }
 
 /* Item card (last scanned) */
 .item-card {

@@ -312,7 +312,11 @@ async def import_items(
     source: str = Form(default="retail"),
     db=Depends(get_db)
 ):
-    content = await file.read()
+    try:
+        content = await file.read()
+    except Exception as e:
+        return JSONResponse({"error": f"Could not read file: {e}"}, status_code=400)
+
     # Bravo exports are usually Windows-1252, not UTF-8. Try encodings in order.
     text = None
     for enc in ("utf-8-sig", "cp1252", "latin-1"):
@@ -324,6 +328,7 @@ async def import_items(
     if text is None:
         text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
+    columns_found = reader.fieldnames or []
     inserted = 0
     skipped = 0
 
@@ -368,7 +373,11 @@ async def import_items(
         inserted += 1
 
     await db.commit()
-    return JSONResponse({"imported": inserted, "skipped": skipped})
+    return JSONResponse({
+        "imported": inserted,
+        "skipped": skipped,
+        "columns_found": columns_found,
+    })
 
 
 @app.get("/barcode/{code}")
