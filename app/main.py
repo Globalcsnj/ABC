@@ -313,7 +313,16 @@ async def import_items(
     db=Depends(get_db)
 ):
     content = await file.read()
-    text = content.decode("utf-8-sig")
+    # Bravo exports are usually Windows-1252, not UTF-8. Try encodings in order.
+    text = None
+    for enc in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            text = content.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     inserted = 0
     skipped = 0
