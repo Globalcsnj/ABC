@@ -329,6 +329,28 @@ body {
 .s-found { font-size: 13px; font-weight: 700; color: #065f46; background: #d1fae5; padding: 2px 8px; border-radius: 10px; }
 .s-unknown { font-size: 13px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 2px 8px; border-radius: 10px; }
 
+/* Inventory page */
+.count-pill {
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--gray-100);
+    color: var(--gray-600);
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: 15px;
+    outline: none;
+}
+.search-input:focus { border-color: var(--primary); }
+
 /* Barcode display */
 .item-barcode-wrap {
     margin-top: 14px;

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Inventory – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Inventory <span class="count-pill">{{ total }} items</span></h1>
+    <div class="header-actions">
+        {% if active_session %}
+        <a href="/audit/{{ active_session }}" class="btn btn-primary">▶ Continue Scanning</a>
+        {% else %}
+        <form method="POST" action="/api/sessions" style="display:flex; gap:8px;">
+            <input type="hidden" name="name" value="Audit {{ total }}-item count">
+            <button type="submit" class="btn btn-primary">▶ Start Scanning</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if total == 0 %}
+<div class="card">
+    <div class="empty-state">
+        No items uploaded yet.<br>
+        <a href="/">Go to Home → Import Bravo Data</a> to upload your export first.
+    </div>
+</div>
+{% else %}
+
+<div class="card">
+    <form method="GET" action="/inventory" class="search-bar">
+        <input type="text" name="q" value="{{ q }}"
+               placeholder="Search by item number, barcode, description, or category..."
+               class="search-input" autofocus>
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if q %}<a href="/inventory" class="btn btn-outline">Clear</a>{% endif %}
+    </form>
+
+    <p class="card-subtitle">
+        {% if q %}Showing {{ showing }} result(s) for "{{ q }}"{% else %}Showing first {{ showing }} of {{ total }} items{% endif %}
+    </p>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Bravo #</th>
+                <th>Barcode</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Cost</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td><strong>{{ item.item_number }}</strong></td>
+                <td>
+                    <img src="/barcode/{{ item.barcode }}?height=26&text=0" alt="{{ item.barcode }}" class="barcode-thumb">
+                    <div class="barcode-num">{{ item.barcode }}</div>
+                </td>
+                <td>{{ item.description or '—' }}</td>
+                <td>{{ item.category or '—' }}</td>
+                <td>{{ item.item_status or '—' }}</td>
+                <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
+                <td>{{ item.item_date or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if total > showing and not q %}
+    <p class="card-subtitle">Only the first {{ showing }} are shown. Use search to find a specific item.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

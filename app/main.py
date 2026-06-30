@@ -148,6 +148,38 @@ async def locations_page(request: Request, db=Depends(get_db)):
     })
 
 
+@app.get("/inventory", response_class=HTMLResponse)
+async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
+    if q:
+        like = f"%{q}%"
+        query = """
+            SELECT * FROM items
+            WHERE item_number LIKE ? OR barcode LIKE ? OR description LIKE ? OR category LIKE ?
+            ORDER BY item_number LIMIT 500
+        """
+        params = [like, like, like, like]
+    else:
+        query = "SELECT * FROM items ORDER BY item_number LIMIT 500"
+        params = []
+    async with db.execute(query, params) as cur:
+        items = await cur.fetchall()
+    async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
+        total = (await cur.fetchone())["cnt"]
+    # Latest active session so the user can jump straight into scanning
+    async with db.execute(
+        "SELECT id FROM audit_sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1"
+    ) as cur:
+        active = await cur.fetchone()
+    return templates.TemplateResponse("inventory.html", {
+        "request": request,
+        "items": items,
+        "total": total,
+        "showing": len(items),
+        "q": q,
+        "active_session": active["id"] if active else None,
+    })
+
+
 @app.get("/labels", response_class=HTMLResponse)
 async def labels_page(request: Request, db=Depends(get_db)):
     async with db.execute("SELECT * FROM locations ORDER BY id") as cur:
