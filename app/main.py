@@ -423,15 +423,21 @@ async def import_items(
 
 
 @app.get("/barcode/{code}")
-async def generate_barcode(code: str, height: int = 40, text: int = 1):
-    """Return an SVG barcode image for any code string."""
+async def generate_barcode(code: str, height: int = 40, text: int = 1, mw: float = 0.0):
+    """Return an SVG barcode image for any code string.
+
+    mw = module width in mm (bar thickness). Larger = wider, easier to scan.
+    Defaults to 0.5mm which is comfortably scannable when printed at 100%.
+    """
     code = code.strip().upper()
     buf = io.BytesIO()
+    module_width = mw if mw > 0 else 0.5
     options = {
+        "module_width": module_width,
         "module_height": height,
         "font_size": 8 if text else 0,
         "text_distance": 3 if text else 0,
-        "quiet_zone": 3,
+        "quiet_zone": 6,
         "write_text": bool(text),
     }
     try:
