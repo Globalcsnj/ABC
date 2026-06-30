@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Report – {{ session.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Report: {{ session.name }}</h1>
+    <div class="header-actions">
+        <span class="badge badge-{{ session.status }}">{{ session.status }}</span>
+        <button onclick="window.print()" class="btn btn-outline">Print</button>
+    </div>
+</div>
+
+<div class="card-grid">
+    <div class="stat-card">
+        <div class="stat-num">{{ scans|length }}</div>
+        <div class="stat-label">Total Items Scanned</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ summary|length }}</div>
+        <div class="stat-label">Locations/Sublocations</div>
+    </div>
+</div>
+
+<div class="card mt">
+    <h2>Summary by Location</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Location</th>
+                <th>Sublocation</th>
+                <th>Item Count</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in summary %}
+            <tr>
+                <td>{{ row.location_id or '—' }}</td>
+                <td>{{ row.sublocation_id or '—' }}</td>
+                <td><strong>{{ row.cnt }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card mt">
+    <h2>All Scanned Items</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Reference</th>
+                <th>Item Code</th>
+                <th>Description</th>
+                <th>Location</th>
+                <th>Sublocation</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for scan in scans %}
+            <tr>
+                <td><code>{{ scan.full_ref }}</code></td>
+                <td>{{ scan.item_code }}</td>
+                <td>{{ scan.description or '—' }}</td>
+                <td>{{ scan.location_id or '—' }}</td>
+                <td>{{ scan.sublocation_id or '—' }}</td>
+                <td>{{ scan.scanned_at[11:19] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

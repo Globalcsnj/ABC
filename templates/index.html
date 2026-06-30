@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – ABC Inventory{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Inventory Dashboard</h1>
+</div>
+
+<div class="card-grid">
+    <div class="card">
+        <h2>New Audit Session</h2>
+        <p>Start a new physical inventory count for the store.</p>
+        <form method="POST" action="/api/sessions">
+            <div class="form-group">
+                <label>Session Name</label>
+                <input type="text" name="name" placeholder="e.g. June 2025 Full Count" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Start Audit</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Import Bravo Data</h2>
+        <p>Upload a CSV export from Bravo (Retail, Loan, or Layaway report).</p>
+        <form id="importForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>Report Type</label>
+                <select name="source">
+                    <option value="retail">Retail</option>
+                    <option value="loan">Loan</option>
+                    <option value="layaway">Layaway</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>CSV File</label>
+                <input type="file" name="file" accept=".csv,.txt" required>
+            </div>
+            <button type="submit" class="btn btn-secondary">Import</button>
+        </form>
+        <div id="importResult" class="import-result"></div>
+    </div>
+</div>
+
+{% if sessions %}
+<div class="card mt">
+    <h2>Audit Sessions</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Session</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr>
+                <td><strong>{{ s.name }}</strong></td>
+                <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+                <td>{{ s.created_at[:16] }}</td>
+                <td>
+                    {% if s.status == 'active' %}
+                    <a href="/audit/{{ s.id }}" class="btn btn-sm btn-primary">Continue</a>
+                    {% endif %}
+                    <a href="/report/{{ s.id }}" class="btn btn-sm btn-outline">Report</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('importForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const data = new FormData(form);
+    const res = await fetch('/api/import', { method: 'POST', body: data });
+    const json = await res.json();
+    const el = document.getElementById('importResult');
+    el.textContent = `✅ Imported ${json.imported} items`;
+    el.className = 'import-result success';
+});
+</script>
+{% endblock %}
