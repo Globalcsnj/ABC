@@ -327,7 +327,17 @@ async def import_items(
             continue
     if text is None:
         text = content.decode("utf-8", errors="replace")
-    reader = csv.DictReader(io.StringIO(text))
+
+    # Bravo can export tab-, comma-, or semicolon-separated. Detect which.
+    first_line = text.split("\n", 1)[0]
+    if "\t" in first_line:
+        delimiter = "\t"
+    elif ";" in first_line and first_line.count(";") >= first_line.count(","):
+        delimiter = ";"
+    else:
+        delimiter = ","
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
     columns_found = reader.fieldnames or []
     inserted = 0
     skipped = 0
