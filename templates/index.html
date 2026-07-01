@@ -157,7 +157,9 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
                 + cats.map(c => `<div class="cat-row"><span>${c.category}</span><span class="cat-count">${c.cnt}</span></div>`).join('')
                 + `</div></details>`;
         }
-        el.innerHTML = `<div>${msg}</div>${dash}`;
+        const cols = (json.columns_found || []).join(', ');
+        const colLine = cols ? `<div class="cols-found"><small>Columns read: ${cols}</small></div>` : '';
+        el.innerHTML = `<div>${msg}</div>${colLine}${dash}`;
         el.className = 'import-result success';
     } catch (err) {
         el.textContent = '❌ Upload error: ' + err.message;

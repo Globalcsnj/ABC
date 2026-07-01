@@ -47,10 +47,12 @@
     <table class="table">
         <thead>
             <tr>
+                <th>Photo</th>
                 <th>Bravo #</th>
                 <th>Barcode</th>
                 <th>Description</th>
                 <th>Category</th>
+                <th>Type</th>
                 <th>Status</th>
                 <th>Cost</th>
                 <th>Sale Price</th>
@@ -61,16 +63,22 @@
         <tbody>
             {% for item in items %}
             <tr>
+                <td>
+                    {% if item.photo %}
+                    <img src="/uploads/{{ item.photo }}" alt="photo" class="loc-photo">
+                    {% else %}<span class="no-photo">—</span>{% endif %}
+                </td>
                 <td><strong>{{ item.item_number }}</strong></td>
                 <td>
                     <img src="/barcode/{{ item.barcode }}?height=26&text=0" alt="{{ item.barcode }}" class="barcode-thumb">
                     <div class="barcode-num">{{ item.barcode }}</div>
                 </td>
-                <td>{{ item.description or '—' }}</td>
+                <td><a href="/shop/item/{{ item.item_number }}" target="_blank">{{ item.description or '—' }}</a></td>
                 <td>{{ item.category or '—' }}</td>
+                <td>{{ item.product_type or '—' }}</td>
                 <td>{{ item.item_status or '—' }}</td>
                 <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
-                <td>{% if item.retail_price %}${{ "%.2f"|format(item.retail_price) }}{% else %}—{% endif %}</td>
+                <td>{% if item.retail_price %}<strong>${{ "%.2f"|format(item.retail_price) }}</strong>{% else %}—{% endif %}</td>
                 <td>{% if item.for_sale != 0 %}✓{% else %}—{% endif %}</td>
                 <td><a href="/inventory/{{ item.item_number }}/edit" class="btn btn-sm btn-outline">Edit</a></td>
             </tr>

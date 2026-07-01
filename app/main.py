@@ -839,7 +839,11 @@ async def import_items(
             item_type = find_column(row, "Type")
             item_status = find_column(row, "Status")
             cost_raw = find_column(row, "Cost", "Amount")
-            price_raw = find_column(row, "Price", "Retail Price", "Sale Price", "Selling Price")
+            price_raw = find_column(
+                row, "Price", "Retail Price", "Sale Price", "Selling Price",
+                "Retail", "List Price", "List", "Sell Price", "Asking Price",
+                "Ask", "Tag Price", "Price Each"
+            )
             item_date = find_column(row, "Date", "Date In", "Created")
 
             # Jewelry fields
