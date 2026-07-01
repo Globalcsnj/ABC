@@ -25,6 +25,15 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>Product Type</label>
+                <select name="product_type">
+                    <option value="auto">Auto-detect from columns</option>
+                    <option value="jewelry">Jewelry</option>
+                    <option value="manufactured">Manufactured goods</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>When importing</label>
                 <label class="radio-line"><input type="radio" name="mode" value="add" checked> Add to existing data</label>
                 <label class="radio-line"><input type="radio" name="mode" value="replace"> Replace this list (clears old items in this report type first)</label>
@@ -123,15 +132,20 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
             return;
         }
 
-        if (json.imported === 0) {
+        if (json.imported === 0 && !json.updated) {
             el.innerHTML = `⚠️ Imported 0 items. The file columns didn't match.<br>`
                 + `<small>Columns found: ${(json.columns_found || []).join(', ') || 'none'}</small>`;
             el.className = 'import-result error';
             return;
         }
 
-        let msg = `✅ Imported ${json.imported} items`;
-        if (json.skipped) msg += ` (skipped ${json.skipped} rows with no item/barcode)`;
+        let msg = `✅ ${json.imported} new`;
+        if (json.updated) msg += `, ${json.updated} updated`;
+        if (json.missing) msg += `, ${json.missing} now missing (possibly sold)`;
+        if (json.skipped) msg += ` · skipped ${json.skipped} blank rows`;
+        if (json.missing) {
+            msg += ` — <a href="/reconcile">review possibly-sold items →</a>`;
+        }
 
         const cats = json.categories || [];
         const total = cats.reduce((s, c) => s + c.cnt, 0);

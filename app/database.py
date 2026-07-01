@@ -128,11 +128,29 @@ async def init_db():
 
         async with db.execute("PRAGMA table_info(items)") as cur:
             item_cols = {row[1] for row in await cur.fetchall()}
-        if "photo" not in item_cols:
-            await db.execute("ALTER TABLE items ADD COLUMN photo TEXT DEFAULT ''")
-        if "retail_price" not in item_cols:
-            await db.execute("ALTER TABLE items ADD COLUMN retail_price REAL")
-        if "for_sale" not in item_cols:
-            await db.execute("ALTER TABLE items ADD COLUMN for_sale INTEGER DEFAULT 1")
+        # Admin/sale fields (preserved across re-imports)
+        add_item_cols = {
+            "photo": "TEXT DEFAULT ''",
+            "retail_price": "REAL",
+            "for_sale": "INTEGER DEFAULT 1",
+            "sold": "INTEGER DEFAULT 0",
+            "sold_at": "TIMESTAMP",
+            "missing": "INTEGER DEFAULT 0",         # in DB but not in latest upload
+            "product_type": "TEXT DEFAULT ''",       # jewelry / manufactured / general
+            # Jewelry detail fields
+            "total_diamond": "TEXT DEFAULT ''",
+            "metal_type": "TEXT DEFAULT ''",
+            "metal_color": "TEXT DEFAULT ''",
+            "total_stone_size": "TEXT DEFAULT ''",
+            "condition": "TEXT DEFAULT ''",
+            "diamond_authentic": "INTEGER DEFAULT 0",
+            # Manufactured detail fields
+            "serial_number": "TEXT DEFAULT ''",
+            "manufacturer": "TEXT DEFAULT ''",
+            "model": "TEXT DEFAULT ''",
+        }
+        for col, decl in add_item_cols.items():
+            if col not in item_cols:
+                await db.execute(f"ALTER TABLE items ADD COLUMN {col} {decl}")
 
         await db.commit()

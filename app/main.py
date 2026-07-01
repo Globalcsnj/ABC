@@ -209,8 +209,8 @@ async def shop_page(
     request: Request, q: str = "", category: str = "",
     sort: str = "featured", max_price: str = "", db=Depends(get_db)
 ):
-    # Only retail items flagged for sale — never loan/layaway
-    where = ["source = 'retail'", "COALESCE(for_sale,1) = 1"]
+    # Only retail items flagged for sale and not sold — never loan/layaway
+    where = ["source = 'retail'", "COALESCE(for_sale,1) = 1", "COALESCE(sold,0) = 0"]
     params = []
     if q:
         like = f"%{q}%"
@@ -333,6 +333,51 @@ async def edit_item(
         )
     await db.commit()
     return RedirectResponse("/inventory", status_code=303)
+
+
+# ── Sold / reconciliation workflow ──────────────────────────────────────────
+
+@app.get("/reconcile", response_class=HTMLResponse)
+async def reconcile_page(request: Request, db=Depends(get_db)):
+    async with db.execute("""
+        SELECT item_number, barcode, description, category, cost, retail_price, source
+        FROM items WHERE missing=1 AND sold=0 ORDER BY source, category, item_number
+    """) as cur:
+        missing = await cur.fetchall()
+    async with db.execute("""
+        SELECT item_number, barcode, description, category, sold_at
+        FROM items WHERE sold=1 ORDER BY sold_at DESC LIMIT 200
+    """) as cur:
+        sold = await cur.fetchall()
+    return templates.TemplateResponse("reconcile.html", {
+        "request": request, "missing": missing, "sold": sold,
+    })
+
+
+@app.post("/api/items/{item_number}/sold")
+async def mark_sold(item_number: str, db=Depends(get_db)):
+    await db.execute(
+        "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 WHERE item_number=?",
+        (item_number,)
+    )
+    await db.commit()
+    return RedirectResponse("/reconcile", status_code=303)
+
+
+@app.post("/api/items/{item_number}/keep")
+async def mark_keep(item_number: str, db=Depends(get_db)):
+    await db.execute("UPDATE items SET missing=0 WHERE item_number=?", (item_number,))
+    await db.commit()
+    return RedirectResponse("/reconcile", status_code=303)
+
+
+@app.post("/api/items/{item_number}/unsold")
+async def mark_unsold(item_number: str, db=Depends(get_db)):
+    await db.execute(
+        "UPDATE items SET sold=0, sold_at=NULL, for_sale=1 WHERE item_number=?", (item_number,)
+    )
+    await db.commit()
+    return RedirectResponse("/reconcile", status_code=303)
 
 
 @app.get("/locations", response_class=HTMLResponse)
@@ -659,11 +704,27 @@ async def get_scans(session_id: int, location_id: str = "", sublocation_id: str 
     return [dict(s) for s in scans]
 
 
+def parse_bool(val: str) -> int:
+    """Interpret a cell as a yes/no flag."""
+    return 1 if str(val).strip().lower() in ("yes", "y", "true", "1", "x", "checked", "authentic") else 0
+
+
+def detect_product_type(chosen: str, jewelry_signal: bool, mfg_signal: bool) -> str:
+    if chosen in ("jewelry", "manufactured", "general"):
+        return chosen
+    if jewelry_signal:
+        return "jewelry"
+    if mfg_signal:
+        return "manufactured"
+    return "general"
+
+
 @app.post("/api/import")
 async def import_items(
     file: UploadFile = File(...),
     source: str = Form(default="retail"),
     mode: str = Form(default="add"),
+    product_type: str = Form(default="auto"),
     db=Depends(get_db)
 ):
     try:
@@ -712,11 +773,12 @@ async def import_items(
     try:
         reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
         columns_found = reader.fieldnames or []
-        inserted = 0
+        inserted = 0     # new items
+        updated = 0      # existing items refreshed
         skipped = 0
+        seen_codes = []  # item numbers present in this file
 
         for row in reader:
-            # Bravo column names from the screenshot
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
             barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
             description = find_column(row, "Description", "Item Description", "Desc")
@@ -726,39 +788,94 @@ async def import_items(
             cost_raw = find_column(row, "Cost", "Price", "Retail Price", "Amount")
             item_date = find_column(row, "Date", "Date In", "Created")
 
+            # Jewelry fields
+            total_diamond = find_column(row, "Total Diamond", "Total Diamonds", "Diamond", "TotalDiamond")
+            metal_type = find_column(row, "Metal Type", "Metal", "MetalType")
+            metal_color = find_column(row, "Metal Color", "Color Metal", "MetalColor", "Metal Type/Color")
+            total_stone_size = find_column(row, "Total Stone Size", "Stone Size", "TotalStoneSize")
+            condition = find_column(row, "Condition", "Cond")
+            diamond_auth_raw = find_column(row, "Authentic Diamond Color", "Diamond Authentic",
+                                           "Authentic Diamond", "Diamond Color Authentic")
+            # Manufactured fields
+            serial_number = find_column(row, "Serial Number", "Serial", "SerialNumber", "S/N")
+            manufacturer = find_column(row, "Manufacturer", "Manufacture", "Maker", "Brand")
+            model = find_column(row, "Model", "Model Number", "Model No")
+
             if not item_number and not barcode:
                 skipped += 1
                 continue
 
-            # If no barcode column, try to derive from item number
-            # Bravo pattern: AB1007081 → barcode contains 1007081
             if not barcode and item_number:
                 digits = re.sub(r"[^0-9]", "", item_number)
-                barcode = digits  # store raw digits; scanner will send full barcode
+                barcode = digits
 
+            item_number_u = item_number.upper() if item_number else None
+            barcode_u = barcode.upper() if barcode else None
             cost_val = clean_money(cost_raw)
+            diamond_authentic = parse_bool(diamond_auth_raw)
 
+            jewelry_signal = bool(total_diamond or metal_type or metal_color or total_stone_size)
+            mfg_signal = bool(serial_number or manufacturer or model)
+            ptype = detect_product_type(product_type, jewelry_signal, mfg_signal)
+
+            if item_number_u:
+                seen_codes.append(item_number_u)
+
+            # Does it already exist? (decides new vs updated, and preserves admin fields)
+            async with db.execute("SELECT item_number FROM items WHERE item_number = ?", (item_number_u,)) as cur:
+                exists = await cur.fetchone() is not None
+
+            # UPSERT: refresh Bravo-sourced fields, but PRESERVE admin/sale fields
+            # (retail_price, photo, for_sale, sold, sold_at) on conflict.
             await db.execute("""
-                INSERT OR REPLACE INTO items
-                  (item_number, barcode, description, category, item_type, item_status, cost, item_date, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO items
+                  (item_number, barcode, description, category, item_type, item_status,
+                   cost, item_date, source, product_type, total_diamond, metal_type,
+                   metal_color, total_stone_size, condition, diamond_authentic,
+                   serial_number, manufacturer, model, missing)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                ON CONFLICT(item_number) DO UPDATE SET
+                   barcode=excluded.barcode, description=excluded.description,
+                   category=excluded.category, item_type=excluded.item_type,
+                   item_status=excluded.item_status, cost=excluded.cost,
+                   item_date=excluded.item_date, source=excluded.source,
+                   product_type=excluded.product_type, total_diamond=excluded.total_diamond,
+                   metal_type=excluded.metal_type, metal_color=excluded.metal_color,
+                   total_stone_size=excluded.total_stone_size, condition=excluded.condition,
+                   diamond_authentic=excluded.diamond_authentic,
+                   serial_number=excluded.serial_number, manufacturer=excluded.manufacturer,
+                   model=excluded.model, missing=0
             """, (
-                item_number.upper() if item_number else None,
-                barcode.upper() if barcode else None,
-                description,
-                category,
-                item_type,
-                item_status,
-                cost_val,
-                item_date,
-                source,
+                item_number_u, barcode_u, description, category, item_type, item_status,
+                cost_val, item_date, source, ptype, total_diamond, metal_type,
+                metal_color, total_stone_size, condition, diamond_authentic,
+                serial_number, manufacturer, model,
             ))
-            inserted += 1
+            if exists:
+                updated += 1
+            else:
+                inserted += 1
 
-        # Record this upload in the import history
+        # Reconciliation: items in this list that were NOT in the file and are not
+        # already sold → flag as missing (possibly sold). Re-appearing items cleared above.
+        missing_count = 0
+        if seen_codes:
+            placeholders = ",".join("?" for _ in seen_codes)
+            async with db.execute(
+                f"SELECT COUNT(*) FROM items WHERE source=? AND sold=0 "
+                f"AND item_number NOT IN ({placeholders})",
+                [source] + seen_codes
+            ) as cur:
+                missing_count = (await cur.fetchone())[0]
+            await db.execute(
+                f"UPDATE items SET missing=1 WHERE source=? AND sold=0 "
+                f"AND item_number NOT IN ({placeholders})",
+                [source] + seen_codes
+            )
+
         await db.execute(
             "INSERT INTO imports (source, filename, item_count, mode) VALUES (?, ?, ?, ?)",
-            (source, file.filename or "", inserted, mode)
+            (source, file.filename or "", inserted + updated, mode)
         )
         await db.commit()
     except Exception as e:
@@ -776,6 +893,8 @@ async def import_items(
 
     return JSONResponse({
         "imported": inserted,
+        "updated": updated,
+        "missing": missing_count,
         "skipped": skipped,
         "columns_found": columns_found,
         "categories": categories,

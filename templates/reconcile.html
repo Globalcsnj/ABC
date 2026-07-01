@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Sold / Reconcile – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Reconcile — Possibly Sold</h1>
+</div>
+
+<div class="card">
+    <h2>❓ Items missing from the latest upload</h2>
+    <p class="card-subtitle">
+        These were in a previous upload but not the most recent one — they may have sold.
+        Confirm each: <strong>Sold</strong> marks it sold (removed from the shop),
+        <strong>Still here</strong> keeps it if it just wasn't in the file.
+    </p>
+    {% if not missing %}
+    <div class="empty-state">Nothing to reconcile. Everything in the last upload matched. ✓</div>
+    {% else %}
+    <table class="table">
+        <thead>
+            <tr><th>Item #</th><th>Description</th><th>Category</th><th>List</th><th>Cost</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for m in missing %}
+            <tr class="row-missing">
+                <td><strong>{{ m.item_number }}</strong></td>
+                <td>{{ m.description or '—' }}</td>
+                <td>{{ m.category or '—' }}</td>
+                <td>{{ m.source|capitalize }}</td>
+                <td>{% if m.cost %}${{ "%.2f"|format(m.cost) }}{% else %}—{% endif %}</td>
+                <td class="action-cell">
+                    <form method="POST" action="/api/items/{{ m.item_number }}/sold" style="display:inline">
+                        <button class="btn btn-sm btn-primary">Sold ✓</button>
+                    </form>
+                    <form method="POST" action="/api/items/{{ m.item_number }}/keep" style="display:inline">
+                        <button class="btn btn-sm btn-outline">Still here</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+{% if sold %}
+<div class="card mt">
+    <h2>✅ Sold Items</h2>
+    <table class="table">
+        <thead>
+            <tr><th>Item #</th><th>Description</th><th>Category</th><th>Sold On</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for s in sold %}
+            <tr>
+                <td>{{ s.item_number }}</td>
+                <td>{{ s.description or '—' }}</td>
+                <td>{{ s.category or '—' }}</td>
+                <td>{{ s.sold_at[:16] if s.sold_at else '—' }}</td>
+                <td>
+                    <form method="POST" action="/api/items/{{ s.item_number }}/unsold" style="display:inline">
+                        <button class="btn btn-sm btn-outline">Undo sold</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
