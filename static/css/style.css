@@ -134,6 +134,9 @@ body {
 .feedback-sublocation { color: #7c3aed; }
 .feedback-item { color: var(--success); }
 .feedback-error { color: var(--danger); }
+.feedback-duplicate { color: #b45309; }
+.loc-photo { width: 54px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--gray-200); }
+.no-photo { color: var(--gray-400); }
 
 /* Scan list */
 .scan-list { display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; }

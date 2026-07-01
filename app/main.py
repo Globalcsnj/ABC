@@ -21,8 +21,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
+UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 app = FastAPI(lifespan=lifespan, title="ABC Pawnshop Inventory")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
@@ -133,9 +137,17 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
 
+    store_name = ""
+    sess_store = session["store_id"] if "store_id" in session.keys() else None
+    if sess_store:
+        async with db.execute("SELECT name FROM stores WHERE id=?", (sess_store,)) as cur:
+            row = await cur.fetchone()
+            store_name = row["name"] if row else ""
+
     return templates.TemplateResponse("report.html", {
         "request": request,
         "session": session,
+        "store_name": store_name,
         "scans": scans,
         "summary": summary,
         "missing": missing,
@@ -217,11 +229,14 @@ async def new_count_page(request: Request, db=Depends(get_db)):
         categories = [dict(r) for r in await cur.fetchall()]
     async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
         total = (await cur.fetchone())["cnt"]
+    async with db.execute("SELECT * FROM stores ORDER BY id") as cur:
+        stores = await cur.fetchall()
     return templates.TemplateResponse("new_count.html", {
         "request": request,
         "lists": lists,
         "categories": categories,
         "total": total,
+        "stores": stores,
     })
 
 
@@ -245,16 +260,54 @@ async def create_session(
     name: str = Form(...),
     source: str = Form(default=""),
     categories: list[str] = Form(default=[]),
+    store_id: str = Form(default=""),
     db=Depends(get_db)
 ):
     cats = ",".join(c for c in categories if c)
+    store = int(store_id) if store_id.isdigit() else None
     async with db.execute(
-        "INSERT INTO audit_sessions (name, source, categories) VALUES (?, ?, ?)",
-        (name, source, cats)
+        "INSERT INTO audit_sessions (name, source, categories, store_id) VALUES (?, ?, ?, ?)",
+        (name, source, cats, store)
     ) as cur:
         session_id = cur.lastrowid
     await db.commit()
     return RedirectResponse(f"/audit/{session_id}", status_code=303)
+
+
+@app.get("/stores", response_class=HTMLResponse)
+async def stores_page(request: Request, db=Depends(get_db)):
+    async with db.execute("""
+        SELECT s.*, COUNT(a.id) as count_sessions
+        FROM stores s LEFT JOIN audit_sessions a ON a.store_id = s.id
+        GROUP BY s.id ORDER BY s.id
+    """) as cur:
+        stores = await cur.fetchall()
+    return templates.TemplateResponse("stores.html", {"request": request, "stores": stores})
+
+
+@app.post("/api/stores")
+async def create_store(name: str = Form(...), db=Depends(get_db)):
+    name = name.strip()
+    if name:
+        await db.execute("INSERT INTO stores (name) VALUES (?)", (name,))
+        await db.commit()
+    return RedirectResponse("/stores", status_code=303)
+
+
+@app.post("/api/stores/{store_id}/rename")
+async def rename_store(store_id: int, name: str = Form(...), db=Depends(get_db)):
+    name = name.strip()
+    if name:
+        await db.execute("UPDATE stores SET name=? WHERE id=?", (name, store_id))
+        await db.commit()
+    return RedirectResponse("/stores", status_code=303)
+
+
+@app.post("/api/stores/{store_id}/delete")
+async def delete_store(store_id: int, db=Depends(get_db)):
+    await db.execute("DELETE FROM stores WHERE id=?", (store_id,))
+    await db.commit()
+    return RedirectResponse("/stores", status_code=303)
 
 
 @app.post("/api/sessions/{session_id}/close")
@@ -332,6 +385,22 @@ async def process_scan(
     # ── Item scan ─────────────────────────────────────────────────────────────
     if not current_location:
         return JSONResponse({"type": "error", "message": "⚠️ Scan a location first (e.g. 001)"}, status_code=400)
+
+    # Prevent duplicate scans of the same item within this count
+    async with db.execute(
+        "SELECT location_id, sublocation_id FROM audit_scans WHERE session_id = ? AND barcode = ?",
+        (session_id, code)
+    ) as cur:
+        existing = await cur.fetchone()
+    if existing:
+        where = existing["location_id"] or "?"
+        if existing["sublocation_id"]:
+            where = existing["sublocation_id"]
+        return JSONResponse({
+            "type": "duplicate",
+            "barcode": code,
+            "message": f"🔁 Already scanned in this count (at {where}) — skipped",
+        })
 
     # Lookup by barcode in items table
     async with db.execute(
@@ -543,11 +612,33 @@ async def generate_barcode(code: str, height: int = 40, text: int = 1, mw: float
 
 
 @app.post("/api/locations")
-async def create_location(location_id: str = Form(...), name: str = Form(...), db=Depends(get_db)):
-    await db.execute(
-        "INSERT OR REPLACE INTO locations (id, name) VALUES (?, ?)",
-        (location_id.upper(), name)
-    )
+async def create_location(
+    location_id: str = Form(...),
+    name: str = Form(...),
+    photo: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
+    location_id = location_id.upper()
+    photo_name = ""
+    if photo is not None and photo.filename:
+        ext = os.path.splitext(photo.filename)[1].lower()
+        if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+            photo_name = f"loc_{location_id}{ext}"
+            with open(os.path.join(UPLOAD_DIR, photo_name), "wb") as f:
+                f.write(await photo.read())
+
+    if photo_name:
+        await db.execute(
+            "INSERT OR REPLACE INTO locations (id, name, photo) VALUES (?, ?, ?)",
+            (location_id, name, photo_name)
+        )
+    else:
+        # Preserve existing photo if updating without a new upload
+        await db.execute(
+            """INSERT INTO locations (id, name, photo) VALUES (?, ?, '')
+               ON CONFLICT(id) DO UPDATE SET name=excluded.name""",
+            (location_id, name)
+        )
     await db.commit()
     return RedirectResponse("/locations", status_code=303)
 

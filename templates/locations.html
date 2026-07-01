@@ -10,7 +10,7 @@
     <div class="card">
         <h2>Add Location</h2>
         <p class="card-subtitle">A main spot in the store (showcase, room, wall).</p>
-        <form method="POST" action="/api/locations">
+        <form method="POST" action="/api/locations" enctype="multipart/form-data">
             <div class="form-group">
                 <label>Location ID (3 digits)</label>
                 <input type="text" name="location_id" placeholder="001" pattern="\d{3}" required>
@@ -18,6 +18,10 @@
             <div class="form-group">
                 <label>Display Name</label>
                 <input type="text" name="name" placeholder="SalesFloor 001" required>
+            </div>
+            <div class="form-group">
+                <label>Photo (optional) — helps staff find the spot</label>
+                <input type="file" name="photo" accept="image/*">
             </div>
             <button type="submit" class="btn btn-primary">Add Location</button>
         </form>
@@ -60,11 +64,18 @@
     <h2>Locations</h2>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Sublocations</th><th>Actions</th></tr>
+            <tr><th>Photo</th><th>Barcode</th><th>ID</th><th>Name</th><th>Sublocations</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for loc in locations %}
             <tr>
+                <td>
+                    {% if loc.photo %}
+                    <a href="/uploads/{{ loc.photo }}" target="_blank">
+                        <img src="/uploads/{{ loc.photo }}" alt="photo" class="loc-photo">
+                    </a>
+                    {% else %}<span class="no-photo">—</span>{% endif %}
+                </td>
                 <td>
                     <img src="/barcode/{{ loc.id }}?height=28&text=0" alt="{{ loc.id }}" class="barcode-thumb">
                 </td>

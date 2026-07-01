@@ -15,7 +15,19 @@
 {% else %}
 <form method="POST" action="/api/sessions">
     <div class="card">
-        <h2>1. Name this count</h2>
+        <h2>1. Which store?</h2>
+        <div class="form-group">
+            <select name="store_id" class="search-input">
+                {% for st in stores %}
+                <option value="{{ st.id }}">{{ st.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <p class="card-subtitle">Manage stores on the <a href="/stores">Stores</a> page.</p>
+    </div>
+
+    <div class="card mt">
+        <h2>2. Name this count</h2>
         <div class="form-group">
             <input type="text" name="name" class="search-input"
                    placeholder="e.g. July 2026 Full Count" required>
@@ -23,7 +35,7 @@
     </div>
 
     <div class="card mt">
-        <h2>2. Which list to count against?</h2>
+        <h2>3. Which list to count against?</h2>
         <p class="card-subtitle">The count compares what you scan to the items in this list.</p>
         <div class="choice-list">
             <label class="choice-row">
@@ -42,7 +54,7 @@
     </div>
 
     <div class="card mt">
-        <h2>3. Which categories to include?</h2>
+        <h2>4. Which categories to include?</h2>
         <p class="card-subtitle">
             Leave all checked to count everything, or pick specific categories.
             <a href="#" onclick="toggleAll(true);return false;">Select all</a> ·

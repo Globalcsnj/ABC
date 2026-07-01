@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Stores – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Stores</h1>
+</div>
+
+<div class="card-grid">
+    <div class="card">
+        <h2>Add Store</h2>
+        <p class="card-subtitle">Add another location/branch to run counts for.</p>
+        <form method="POST" action="/api/stores">
+            <div class="form-group">
+                <label>Store Name</label>
+                <input type="text" name="name" placeholder="e.g. ABC Money Loan – Downtown" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Store</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt">
+    <h2>Your Stores</h2>
+    <table class="table">
+        <thead>
+            <tr><th>Store</th><th>Counts</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for st in stores %}
+            <tr>
+                <td><strong>{{ st.name }}</strong></td>
+                <td>{{ st.count_sessions }}</td>
+                <td class="action-cell">
+                    <button class="btn btn-sm btn-outline"
+                            onclick="renameItem('/api/stores/{{ st.id }}/rename', '{{ st.name|replace("'", "\\'") }}')">Edit</button>
+                    <form method="POST" action="/api/stores/{{ st.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Delete this store?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<form id="renameForm" method="POST" style="display:none">
+    <input type="text" name="name" id="renameInput">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renameItem(action, currentName) {
+    const newName = prompt('Rename:', currentName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const form = document.getElementById('renameForm');
+    form.action = action;
+    document.getElementById('renameInput').value = trimmed;
+    form.submit();
+}
+</script>
+{% endblock %}

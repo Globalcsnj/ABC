@@ -75,7 +75,18 @@ async def init_db():
             );
 
             CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
+
+            CREATE TABLE IF NOT EXISTS stores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
+
+        # Seed the default store if none exist
+        async with db.execute("SELECT COUNT(*) FROM stores") as cur:
+            if (await cur.fetchone())[0] == 0:
+                await db.execute("INSERT INTO stores (name) VALUES (?)", ("ABC Money Loan",))
 
         # Migrations: add columns to existing databases if missing
         async with db.execute("PRAGMA table_info(audit_sessions)") as cur:
@@ -84,5 +95,12 @@ async def init_db():
             await db.execute("ALTER TABLE audit_sessions ADD COLUMN source TEXT DEFAULT ''")
         if "categories" not in cols:
             await db.execute("ALTER TABLE audit_sessions ADD COLUMN categories TEXT DEFAULT ''")
+        if "store_id" not in cols:
+            await db.execute("ALTER TABLE audit_sessions ADD COLUMN store_id INTEGER")
+
+        async with db.execute("PRAGMA table_info(locations)") as cur:
+            loc_cols = {row[1] for row in await cur.fetchall()}
+        if "photo" not in loc_cols:
+            await db.execute("ALTER TABLE locations ADD COLUMN photo TEXT DEFAULT ''")
 
         await db.commit()

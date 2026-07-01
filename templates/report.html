@@ -9,13 +9,11 @@
     </div>
 </div>
 
-{% if session.source or session.categories %}
 <p class="save-hint">
-    Scope:
+    {% if store_name %}🏪 <strong>{{ store_name }}</strong> · {% endif %}
     {% if session.source %}<strong>{{ session.source|capitalize }}</strong> list{% else %}<strong>All lists</strong>{% endif %}
     {% if session.categories %}· Categories: {{ session.categories }}{% else %}· All categories{% endif %}
 </p>
-{% endif %}
 
 <!-- Stats -->
 <div class="stat-row">
@@ -25,7 +23,7 @@
     </div>
     <div class="stat-card stat-unknown">
         <div class="stat-num">{{ unknown_count }}</div>
-        <div class="stat-label">⚠️ Not in Bravo</div>
+        <div class="stat-label">⚠️ Findings — not on list</div>
     </div>
     <div class="stat-card stat-missing">
         <div class="stat-num">{{ missing_count }}</div>
@@ -59,6 +57,29 @@
         </tbody>
     </table>
 </div>
+
+{% set findings = scans|selectattr("match_status", "equalto", "unknown")|list %}
+{% if findings %}
+<div class="card mt">
+    <h2>🔎 Findings for Future Research</h2>
+    <p class="card-subtitle">Items found in the store but NOT on the list. Investigate these.</p>
+    <table class="table">
+        <thead>
+            <tr><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th></tr>
+        </thead>
+        <tbody>
+            {% for f in findings %}
+            <tr class="row-unknown">
+                <td><code>{{ f.barcode }}</code></td>
+                <td><code>{{ f.full_ref }}</code></td>
+                <td>{{ f.location_id or '' }}{% if f.sublocation_id %} › {{ f.sublocation_id }}{% endif %}</td>
+                <td>{{ f.scanned_at[11:19] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 
 <!-- All scanned items -->
 <div class="card mt">
