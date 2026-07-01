@@ -838,7 +838,8 @@ async def import_items(
             category = find_column(row, "Category", "Cat")
             item_type = find_column(row, "Type")
             item_status = find_column(row, "Status")
-            cost_raw = find_column(row, "Cost", "Price", "Retail Price", "Amount")
+            cost_raw = find_column(row, "Cost", "Amount")
+            price_raw = find_column(row, "Price", "Retail Price", "Sale Price", "Selling Price")
             item_date = find_column(row, "Date", "Date In", "Created")
 
             # Jewelry fields
@@ -865,6 +866,9 @@ async def import_items(
             item_number_u = item_number.upper() if item_number else None
             barcode_u = barcode.upper() if barcode else None
             cost_val = clean_money(cost_raw)
+            # Sale price comes from the CSV "Price" column; None if blank so a
+            # manually-set price is preserved on re-upload.
+            retail_val = clean_money(price_raw) if price_raw else None
             diamond_authentic = parse_bool(diamond_auth_raw)
 
             jewelry_signal = bool(total_diamond or metal_type or metal_color or total_stone_size)
@@ -883,14 +887,15 @@ async def import_items(
             await db.execute("""
                 INSERT INTO items
                   (item_number, barcode, description, category, item_type, item_status,
-                   cost, item_date, source, product_type, total_diamond, metal_type,
+                   cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
                    metal_color, total_stone_size, condition, diamond_authentic,
                    serial_number, manufacturer, model, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=excluded.barcode, description=excluded.description,
                    category=excluded.category, item_type=excluded.item_type,
                    item_status=excluded.item_status, cost=excluded.cost,
+                   retail_price=COALESCE(excluded.retail_price, items.retail_price),
                    item_date=excluded.item_date, source=excluded.source,
                    product_type=excluded.product_type, total_diamond=excluded.total_diamond,
                    metal_type=excluded.metal_type, metal_color=excluded.metal_color,
@@ -900,7 +905,7 @@ async def import_items(
                    model=excluded.model, missing=0
             """, (
                 item_number_u, barcode_u, description, category, item_type, item_status,
-                cost_val, item_date, source, ptype, total_diamond, metal_type,
+                cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
                 metal_color, total_stone_size, condition, diamond_authentic,
                 serial_number, manufacturer, model,
             ))
