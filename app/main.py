@@ -493,6 +493,18 @@ async def import_items(
     except Exception as e:
         return JSONResponse({"error": f"Could not read file: {e}"}, status_code=400)
 
+    # Reject PDFs and other non-text files up front with a clear message
+    if content[:5] == b"%PDF-":
+        return JSONResponse({
+            "error": "That's a PDF. Please export the Bravo report as CSV or Excel "
+                     "(File/Export → CSV) and upload that instead."
+        }, status_code=400)
+    if content[:2] == b"PK":  # xlsx/zip
+        return JSONResponse({
+            "error": "That looks like an Excel (.xlsx) file. Please 'Save As' CSV "
+                     "in Excel and upload the .csv, or export CSV from Bravo."
+        }, status_code=400)
+
     # Replace mode: clear the existing items for THIS list before importing,
     # so re-uploading a fresh Bravo export doesn't leave stale items behind.
     if mode == "replace":
@@ -519,52 +531,58 @@ async def import_items(
     else:
         delimiter = ","
 
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    columns_found = reader.fieldnames or []
-    inserted = 0
-    skipped = 0
+    try:
+        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        columns_found = reader.fieldnames or []
+        inserted = 0
+        skipped = 0
 
-    for row in reader:
-        # Bravo column names from the screenshot
-        item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
-        barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
-        description = find_column(row, "Description", "Item Description", "Desc")
-        category = find_column(row, "Category", "Cat")
-        item_type = find_column(row, "Type")
-        item_status = find_column(row, "Status")
-        cost_raw = find_column(row, "Cost", "Price", "Retail Price", "Amount")
-        item_date = find_column(row, "Date", "Date In", "Created")
+        for row in reader:
+            # Bravo column names from the screenshot
+            item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
+            barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
+            description = find_column(row, "Description", "Item Description", "Desc")
+            category = find_column(row, "Category", "Cat")
+            item_type = find_column(row, "Type")
+            item_status = find_column(row, "Status")
+            cost_raw = find_column(row, "Cost", "Price", "Retail Price", "Amount")
+            item_date = find_column(row, "Date", "Date In", "Created")
 
-        if not item_number and not barcode:
-            skipped += 1
-            continue
+            if not item_number and not barcode:
+                skipped += 1
+                continue
 
-        # If no barcode column, try to derive from item number
-        # Bravo pattern: AB1007081 → barcode contains 1007081 → padded as 2000007081
-        if not barcode and item_number:
-            digits = re.sub(r"[^0-9]", "", item_number)
-            barcode = digits  # store raw digits; scanner will send full barcode
+            # If no barcode column, try to derive from item number
+            # Bravo pattern: AB1007081 → barcode contains 1007081
+            if not barcode and item_number:
+                digits = re.sub(r"[^0-9]", "", item_number)
+                barcode = digits  # store raw digits; scanner will send full barcode
 
-        cost_val = clean_money(cost_raw)
+            cost_val = clean_money(cost_raw)
 
-        await db.execute("""
-            INSERT OR REPLACE INTO items
-              (item_number, barcode, description, category, item_type, item_status, cost, item_date, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            item_number.upper() if item_number else None,
-            barcode.upper() if barcode else None,
-            description,
-            category,
-            item_type,
-            item_status,
-            cost_val,
-            item_date,
-            source,
-        ))
-        inserted += 1
+            await db.execute("""
+                INSERT OR REPLACE INTO items
+                  (item_number, barcode, description, category, item_type, item_status, cost, item_date, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                item_number.upper() if item_number else None,
+                barcode.upper() if barcode else None,
+                description,
+                category,
+                item_type,
+                item_status,
+                cost_val,
+                item_date,
+                source,
+            ))
+            inserted += 1
 
-    await db.commit()
+        await db.commit()
+    except Exception as e:
+        return JSONResponse({
+            "error": f"Could not read this file as a spreadsheet. Make sure it's a "
+                     f"CSV exported from Bravo (not a PDF or Word doc). Details: {e}"
+        }, status_code=400)
 
     # Category breakdown of everything currently in the database
     async with db.execute("""
