@@ -140,6 +140,18 @@ body {
 .edit-barcode { max-width: 2.2in; height: auto; border: 1px solid var(--gray-200); border-radius: 4px; padding: 6px; background: white; }
 .edit-photo { max-width: 220px; height: auto; border-radius: 6px; border: 1px solid var(--gray-200); margin-bottom: 6px; }
 
+/* Camera capture */
+.camera-wrap { margin-top: 8px; }
+.camera-preview { display: block; max-width: 220px; height: auto; margin-top: 8px; border-radius: 6px; border: 1px solid var(--gray-200); }
+.camera-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.camera-box { background: white; border-radius: 10px; padding: 16px; max-width: 92vw; }
+.camera-video { width: 100%; max-width: 480px; border-radius: 8px; background: #000; display: block; }
+.camera-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.camera-error { color: var(--danger); font-size: 13px; margin-top: 10px; max-width: 480px; }
+
 /* Scan list */
 .scan-list { display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; }
 .scan-row {
