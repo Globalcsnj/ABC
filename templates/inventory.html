@@ -6,12 +6,8 @@
     <div class="header-actions">
         {% if active_session %}
         <a href="/audit/{{ active_session }}" class="btn btn-primary">▶ Continue Scanning</a>
-        {% else %}
-        <form method="POST" action="/api/sessions" style="display:flex; gap:8px;">
-            <input type="hidden" name="name" value="Count of {{ total }} items">
-            <button type="submit" class="btn btn-primary">▶ Start Scanning</button>
-        </form>
         {% endif %}
+        <a href="/new-count" class="btn btn-primary">▶ Start New Count</a>
     </div>
 </div>
 

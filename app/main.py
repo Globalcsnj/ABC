@@ -104,15 +104,30 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     """, (session_id,)) as cur:
         summary = await cur.fetchall()
 
-    # Items in Bravo that were NOT scanned in this session
-    async with db.execute("""
+    # Items expected for this count (respecting the session's list + categories)
+    # that were NOT scanned. session may have source and categories filters.
+    missing_query = """
         SELECT i.item_number, i.barcode, i.description, i.category, i.item_status, i.cost
         FROM items i
         WHERE i.barcode NOT IN (
             SELECT barcode FROM audit_scans WHERE session_id = ? AND match_status = 'found'
         )
-        ORDER BY i.item_number
-    """, (session_id,)) as cur:
+    """
+    missing_params = [session_id]
+    sess_source = session["source"] if "source" in session.keys() else ""
+    sess_cats = session["categories"] if "categories" in session.keys() else ""
+    if sess_source:
+        missing_query += " AND i.source = ?"
+        missing_params.append(sess_source)
+    if sess_cats:
+        cat_list = [c for c in sess_cats.split(",") if c]
+        if cat_list:
+            placeholders = ",".join("?" for _ in cat_list)
+            # Match by category, treating empty category as 'Uncategorized'
+            missing_query += f" AND COALESCE(NULLIF(i.category,''),'Uncategorized') IN ({placeholders})"
+            missing_params.extend(cat_list)
+    missing_query += " ORDER BY i.item_number"
+    async with db.execute(missing_query, missing_params) as cur:
         missing = await cur.fetchall()
 
     found_count = sum(1 for s in scans if s["match_status"] == "found")
@@ -186,6 +201,30 @@ async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
     })
 
 
+@app.get("/new-count", response_class=HTMLResponse)
+async def new_count_page(request: Request, db=Depends(get_db)):
+    # Lists (sources) with item counts
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(source,''), 'unspecified') as source, COUNT(*) as cnt
+        FROM items GROUP BY source ORDER BY cnt DESC
+    """) as cur:
+        lists = [dict(r) for r in await cur.fetchall()]
+    # Categories with counts
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''), 'Uncategorized') as category, COUNT(*) as cnt
+        FROM items GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
+    async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
+        total = (await cur.fetchone())["cnt"]
+    return templates.TemplateResponse("new_count.html", {
+        "request": request,
+        "lists": lists,
+        "categories": categories,
+        "total": total,
+    })
+
+
 @app.get("/labels", response_class=HTMLResponse)
 async def labels_page(request: Request, db=Depends(get_db)):
     async with db.execute("SELECT * FROM locations ORDER BY id") as cur:
@@ -202,8 +241,17 @@ async def labels_page(request: Request, db=Depends(get_db)):
 # ── API ───────────────────────────────────────────────────────────────────────
 
 @app.post("/api/sessions")
-async def create_session(name: str = Form(...), db=Depends(get_db)):
-    async with db.execute("INSERT INTO audit_sessions (name) VALUES (?)", (name,)) as cur:
+async def create_session(
+    name: str = Form(...),
+    source: str = Form(default=""),
+    categories: list[str] = Form(default=[]),
+    db=Depends(get_db)
+):
+    cats = ",".join(c for c in categories if c)
+    async with db.execute(
+        "INSERT INTO audit_sessions (name, source, categories) VALUES (?, ?, ?)",
+        (name, source, cats)
+    ) as cur:
         session_id = cur.lastrowid
     await db.commit()
     return RedirectResponse(f"/audit/{session_id}", status_code=303)
@@ -368,12 +416,19 @@ async def get_scans(session_id: int, location_id: str = "", sublocation_id: str 
 async def import_items(
     file: UploadFile = File(...),
     source: str = Form(default="retail"),
+    mode: str = Form(default="add"),
     db=Depends(get_db)
 ):
     try:
         content = await file.read()
     except Exception as e:
         return JSONResponse({"error": f"Could not read file: {e}"}, status_code=400)
+
+    # Replace mode: clear the existing items for THIS list before importing,
+    # so re-uploading a fresh Bravo export doesn't leave stale items behind.
+    if mode == "replace":
+        await db.execute("DELETE FROM items WHERE source = ?", (source,))
+        await db.commit()
 
     # Bravo exports are usually Windows-1252, not UTF-8. Try encodings in order.
     text = None

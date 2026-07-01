@@ -9,6 +9,14 @@
     </div>
 </div>
 
+{% if session.source or session.categories %}
+<p class="save-hint">
+    Scope:
+    {% if session.source %}<strong>{{ session.source|capitalize }}</strong> list{% else %}<strong>All lists</strong>{% endif %}
+    {% if session.categories %}· Categories: {{ session.categories }}{% else %}· All categories{% endif %}
+</p>
+{% endif %}
+
 <!-- Stats -->
 <div class="stat-row">
     <div class="stat-card stat-found">

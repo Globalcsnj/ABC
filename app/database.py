@@ -76,4 +76,13 @@ async def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
         """)
+
+        # Migrations: add columns to existing databases if missing
+        async with db.execute("PRAGMA table_info(audit_sessions)") as cur:
+            cols = {row[1] for row in await cur.fetchall()}
+        if "source" not in cols:
+            await db.execute("ALTER TABLE audit_sessions ADD COLUMN source TEXT DEFAULT ''")
+        if "categories" not in cols:
+            await db.execute("ALTER TABLE audit_sessions ADD COLUMN categories TEXT DEFAULT ''")
+
         await db.commit()

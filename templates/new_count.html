@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}New Count – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Start a New Count</h1>
+    <a href="/" class="btn btn-outline">← Cancel</a>
+</div>
+
+{% if total == 0 %}
+<div class="card">
+    <div class="empty-state">
+        No items uploaded yet. <a href="/">Import a Bravo file first</a>, then start a count.
+    </div>
+</div>
+{% else %}
+<form method="POST" action="/api/sessions">
+    <div class="card">
+        <h2>1. Name this count</h2>
+        <div class="form-group">
+            <input type="text" name="name" class="search-input"
+                   placeholder="e.g. July 2026 Full Count" required>
+        </div>
+    </div>
+
+    <div class="card mt">
+        <h2>2. Which list to count against?</h2>
+        <p class="card-subtitle">The count compares what you scan to the items in this list.</p>
+        <div class="choice-list">
+            <label class="choice-row">
+                <input type="radio" name="source" value="" checked>
+                <span class="choice-label">All lists</span>
+                <span class="choice-count">{{ total }}</span>
+            </label>
+            {% for l in lists %}
+            <label class="choice-row">
+                <input type="radio" name="source" value="{{ l.source }}">
+                <span class="choice-label">{{ l.source|capitalize }}</span>
+                <span class="choice-count">{{ l.cnt }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card mt">
+        <h2>3. Which categories to include?</h2>
+        <p class="card-subtitle">
+            Leave all checked to count everything, or pick specific categories.
+            <a href="#" onclick="toggleAll(true);return false;">Select all</a> ·
+            <a href="#" onclick="toggleAll(false);return false;">Clear all</a>
+        </p>
+        <div class="choice-list cat-choices">
+            {% for c in categories %}
+            <label class="choice-row">
+                <input type="checkbox" name="categories" value="{{ c.category }}" checked class="cat-check">
+                <span class="choice-label">{{ c.category }}</span>
+                <span class="choice-count">{{ c.cnt }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt">
+        <button type="submit" class="btn btn-primary">▶ Start Scanning</button>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(state) {
+    document.querySelectorAll('.cat-check').forEach(c => c.checked = state);
+}
+</script>
+{% endblock %}

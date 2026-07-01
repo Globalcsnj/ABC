@@ -8,14 +8,8 @@
 <div class="card-grid">
     <div class="card">
         <h2>New Count Session</h2>
-        <p>Start a new physical inventory count for the store.</p>
-        <form method="POST" action="/api/sessions">
-            <div class="form-group">
-                <label>Count Name</label>
-                <input type="text" name="name" placeholder="e.g. June 2025 Full Count" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Start Count</button>
-        </form>
+        <p>Start a new physical inventory count — choose the list and categories to count.</p>
+        <a href="/new-count" class="btn btn-primary">Start Count</a>
     </div>
 
     <div class="card">
@@ -29,6 +23,11 @@
                     <option value="loan">Loan</option>
                     <option value="layaway">Layaway</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label>When importing</label>
+                <label class="radio-line"><input type="radio" name="mode" value="add" checked> Add to existing data</label>
+                <label class="radio-line"><input type="radio" name="mode" value="replace"> Replace this list (clears old items in this report type first)</label>
             </div>
             <div class="form-group">
                 <label>CSV File</label>

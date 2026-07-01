@@ -3,11 +3,16 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ session.name }}</h1>
-    <form method="POST" action="/api/sessions/{{ session.id }}/close"
-          onsubmit="return confirm('Close this session and view the report?')">
-        <button type="submit" class="btn btn-outline">Close &amp; View Report</button>
-    </form>
+    <div class="header-actions">
+        <a href="/" class="btn btn-primary">💾 Save for Later</a>
+        <form method="POST" action="/api/sessions/{{ session.id }}/close"
+              onsubmit="return confirm('Close this count and view the report? You can still view it afterward but it will be marked finished.')">
+            <button type="submit" class="btn btn-outline">Close &amp; View Report</button>
+        </form>
+    </div>
 </div>
+<p class="save-hint">Every scan is saved automatically. Use <strong>Save for Later</strong> to
+pause — you can resume this count anytime from the Home page.</p>
 
 <!-- Location context bar -->
 <div class="context-bar" id="contextBar">
