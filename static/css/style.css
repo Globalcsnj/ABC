@@ -538,6 +538,19 @@ body {
 .shop-footer { text-align: center; color: var(--gray-400); font-size: 13px; padding: 20px; }
 .inquiry-items { font-size: 11px; word-break: break-all; }
 
+/* Sales dashboard */
+.dash-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 190px; padding-top: 10px; overflow-x: auto; }
+.bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 1; min-width: 34px; }
+.bar-val { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 3px; }
+.bar { width: 60%; min-height: 3px; background: linear-gradient(180deg, #1a56db, #4f83e3); border-radius: 4px 4px 0 0; }
+.bar-label { font-size: 11px; color: var(--gray-400); margin-top: 5px; white-space: nowrap; }
+.hbar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.hbar-label { width: 130px; flex-shrink: 0; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar-track { flex: 1; background: var(--gray-100); border-radius: 20px; height: 18px; overflow: hidden; }
+.hbar-fill { height: 100%; background: linear-gradient(90deg, #1a56db, #4f83e3); border-radius: 20px; }
+.hbar-num { width: 130px; flex-shrink: 0; text-align: right; color: var(--gray-600); font-weight: 600; }
+
 /* Category filter bar */
 .cat-filter-bar { margin-bottom: 8px; }
 .cat-filter-actions { font-size: 13px; color: var(--gray-600); margin-bottom: 12px; }

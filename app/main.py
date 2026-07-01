@@ -337,6 +337,59 @@ async def edit_item(
 
 # ── Sold / reconciliation workflow ──────────────────────────────────────────
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request, db=Depends(get_db)):
+    async def scalar(sql, params=()):
+        async with db.execute(sql, params) as cur:
+            row = await cur.fetchone()
+            return row[0] if row and row[0] is not None else 0
+
+    in_stock = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0")
+    sold_total = await scalar("SELECT COUNT(*) FROM items WHERE sold=1")
+    sold_value = await scalar("SELECT SUM(retail_price) FROM items WHERE sold=1 AND retail_price IS NOT NULL")
+    sold_7 = await scalar("SELECT COUNT(*) FROM items WHERE sold=1 AND sold_at >= datetime('now','-7 days')")
+    sold_30 = await scalar("SELECT COUNT(*) FROM items WHERE sold=1 AND sold_at >= datetime('now','-30 days')")
+    stock_value = await scalar("SELECT SUM(retail_price) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
+
+    # Sold per day, last 14 days
+    async with db.execute("""
+        SELECT date(sold_at) as d, COUNT(*) as cnt
+        FROM items WHERE sold=1 AND sold_at >= datetime('now','-14 days')
+        GROUP BY date(sold_at) ORDER BY d
+    """) as cur:
+        per_day = [dict(r) for r in await cur.fetchall()]
+
+    # Top categories by units sold
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
+               COUNT(*) as cnt, SUM(COALESCE(retail_price,0)) as value
+        FROM items WHERE sold=1
+        GROUP BY category ORDER BY cnt DESC LIMIT 12
+    """) as cur:
+        top_cats = [dict(r) for r in await cur.fetchall()]
+
+    # Sell-through per category (sold vs in stock)
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
+               SUM(CASE WHEN sold=1 THEN 1 ELSE 0 END) as sold,
+               SUM(CASE WHEN COALESCE(sold,0)=0 THEN 1 ELSE 0 END) as stock
+        FROM items GROUP BY category
+        HAVING sold > 0 ORDER BY sold DESC LIMIT 10
+    """) as cur:
+        sellthrough = [dict(r) for r in await cur.fetchall()]
+
+    max_day = max([d["cnt"] for d in per_day], default=1) or 1
+    max_cat = max([c["cnt"] for c in top_cats], default=1) or 1
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "in_stock": in_stock, "sold_total": sold_total, "sold_value": sold_value,
+        "sold_7": sold_7, "sold_30": sold_30, "stock_value": stock_value,
+        "per_day": per_day, "top_cats": top_cats, "sellthrough": sellthrough,
+        "max_day": max_day, "max_cat": max_cat,
+    })
+
+
 @app.get("/reconcile", response_class=HTMLResponse)
 async def reconcile_page(request: Request, db=Depends(get_db)):
     async with db.execute("""

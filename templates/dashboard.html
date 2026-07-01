@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Sales Dashboard – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Sales Dashboard</h1>
+</div>
+
+<div class="stat-row dash-stats">
+    <div class="stat-card stat-found">
+        <div class="stat-num">{{ sold_total }}</div>
+        <div class="stat-label">Total Sold</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">${{ "%.0f"|format(sold_value) }}</div>
+        <div class="stat-label">Sold Value</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ sold_7 }}</div>
+        <div class="stat-label">Sold (last 7 days)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ sold_30 }}</div>
+        <div class="stat-label">Sold (last 30 days)</div>
+    </div>
+    <div class="stat-card stat-missing">
+        <div class="stat-num">{{ in_stock }}</div>
+        <div class="stat-label">In Stock</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">${{ "%.0f"|format(stock_value) }}</div>
+        <div class="stat-label">Stock Value</div>
+    </div>
+</div>
+
+<div class="card mt">
+    <h2>Sold per Day (last 14 days)</h2>
+    {% if per_day %}
+    <div class="bar-chart">
+        {% for d in per_day %}
+        <div class="bar-col">
+            <div class="bar-val">{{ d.cnt }}</div>
+            <div class="bar" style="height: {{ (d.cnt / max_day * 140)|round|int }}px"></div>
+            <div class="bar-label">{{ d.d[5:] }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No sales recorded yet. Mark items sold on the <a href="/reconcile">Sold</a> page.</div>
+    {% endif %}
+</div>
+
+<div class="card-grid mt">
+    <div class="card">
+        <h2>Top Categories Sold</h2>
+        {% if top_cats %}
+        {% for c in top_cats %}
+        <div class="hbar-row">
+            <div class="hbar-label">{{ c.category }}</div>
+            <div class="hbar-track"><div class="hbar-fill" style="width: {{ (c.cnt / max_cat * 100)|round|int }}%"></div></div>
+            <div class="hbar-num">{{ c.cnt }}{% if c.value %} · ${{ "%.0f"|format(c.value) }}{% endif %}</div>
+        </div>
+        {% endfor %}
+        {% else %}<div class="empty-state">No sales yet</div>{% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Sell-Through (sold vs in stock)</h2>
+        {% if sellthrough %}
+        <table class="table">
+            <thead><tr><th>Category</th><th>Sold</th><th>In stock</th><th>Rate</th></tr></thead>
+            <tbody>
+                {% for s in sellthrough %}
+                <tr>
+                    <td>{{ s.category }}</td>
+                    <td class="found-text">{{ s.sold }}</td>
+                    <td>{{ s.stock }}</td>
+                    <td>{{ ((s.sold / (s.sold + s.stock)) * 100)|round|int }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<div class="empty-state">No sales yet</div>{% endif %}
+    </div>
+</div>
+{% endblock %}
