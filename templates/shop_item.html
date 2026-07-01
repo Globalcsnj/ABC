@@ -39,31 +39,26 @@
                 <button class="btn btn-primary pdp-add" onclick="addToCart('{{ p.item_number }}')">🛒 Add to cart</button>
                 <a href="/shop/cart" class="btn btn-outline">Go to cart</a>
 
-                {# ── Specifications, differ by product type ── #}
-                {% if p.product_type == 'jewelry' %}
+                {# ── Specifications: show every field captured for this item ── #}
                 <div class="spec-table">
-                    <h3 class="spec-title">💍 Jewelry Details</h3>
+                    <h3 class="spec-title">
+                        {% if p.product_type == 'jewelry' %}💍 Jewelry Details
+                        {% elif p.product_type == 'manufactured' %}🏭 Product Details
+                        {% else %}Details{% endif %}
+                    </h3>
+                    {% if p.category %}<div class="spec-row"><span>Category</span><span>{{ p.category }}</span></div>{% endif %}
                     {% if p.condition %}<div class="spec-row"><span>Condition</span><span>{{ p.condition }}</span></div>{% endif %}
-                    {% if p.metal_type or p.metal_color %}<div class="spec-row"><span>Metal</span><span>{{ p.metal_type }} {{ p.metal_color }}</span></div>{% endif %}
+                    {# Jewelry-specific #}
+                    {% if p.metal_type or p.metal_color %}<div class="spec-row"><span>Metal Type / Color</span><span>{{ p.metal_type }} {{ p.metal_color }}</span></div>{% endif %}
                     {% if p.total_diamond %}<div class="spec-row"><span>Total Diamond</span><span>{{ p.total_diamond }}</span></div>{% endif %}
                     {% if p.total_stone_size %}<div class="spec-row"><span>Total Stone Size</span><span>{{ p.total_stone_size }}</span></div>{% endif %}
-                    <div class="spec-row"><span>Item barcode</span><span><img src="/barcode/{{ p.barcode }}?height=22&text=0" class="spec-barcode"> {{ p.barcode }}</span></div>
-                </div>
-                {% elif p.product_type == 'manufactured' %}
-                <div class="spec-table">
-                    <h3 class="spec-title">🏭 Product Details</h3>
+                    {# Manufactured-specific #}
                     {% if p.manufacturer %}<div class="spec-row"><span>Manufacturer</span><span>{{ p.manufacturer }}</span></div>{% endif %}
                     {% if p.model %}<div class="spec-row"><span>Model</span><span>{{ p.model }}</span></div>{% endif %}
                     {% if p.serial_number %}<div class="spec-row"><span>Serial Number</span><span>{{ p.serial_number }}</span></div>{% endif %}
-                    {% if p.condition %}<div class="spec-row"><span>Condition</span><span>{{ p.condition }}</span></div>{% endif %}
+                    {% if p.item_status %}<div class="spec-row"><span>Status</span><span>{{ p.item_status }}</span></div>{% endif %}
                     <div class="spec-row"><span>Item barcode</span><span><img src="/barcode/{{ p.barcode }}?height=22&text=0" class="spec-barcode"> {{ p.barcode }}</span></div>
                 </div>
-                {% else %}
-                <div class="spec-table">
-                    {% if p.condition %}<div class="spec-row"><span>Condition</span><span>{{ p.condition }}</span></div>{% endif %}
-                    <div class="spec-row"><span>Item barcode</span><span>{{ p.barcode }}</span></div>
-                </div>
-                {% endif %}
 
                 <p class="pdp-note">Add items to your cart and request a hold — our staff will set them aside for you.</p>
             </div>
