@@ -5,8 +5,10 @@ from fastapi.templating import Jinja2Templates
 import aiosqlite
 import barcode
 from barcode.writer import SVGWriter
+import segno
 import csv
 import io
+import json
 import os
 import re
 from contextlib import asynccontextmanager
@@ -242,7 +244,7 @@ async def shop_page(
     })
 
 
-@app.get("/shop/item/{item_number}", response_class=HTMLResponse)
+@app.get("/shop/item/{item_number:path}", response_class=HTMLResponse)
 async def shop_item_page(request: Request, item_number: str, db=Depends(get_db)):
     async with db.execute(
         "SELECT * FROM items WHERE item_number = ? AND source='retail'", (item_number,)
@@ -250,10 +252,10 @@ async def shop_item_page(request: Request, item_number: str, db=Depends(get_db))
         product = await cur.fetchone()
     if not product:
         raise HTTPException(404, "Product not found")
-    # Related items in the same category
     async with db.execute("""
         SELECT item_number, description, category, photo, retail_price FROM items
-        WHERE source='retail' AND COALESCE(for_sale,1)=1 AND category = ? AND item_number != ?
+        WHERE source='retail' AND COALESCE(for_sale,1)=1 AND COALESCE(sold,0)=0
+          AND category = ? AND item_number != ?
         ORDER BY description LIMIT 6
     """, (product["category"], item_number)) as cur:
         related = await cur.fetchall()
@@ -269,7 +271,6 @@ async def shop_cart_page(request: Request):
 
 @app.get("/api/shop/items")
 async def shop_items_api(codes: str = "", db=Depends(get_db)):
-    """Return product details for a comma-separated list of item numbers (for the cart)."""
     code_list = [c.strip() for c in codes.split(",") if c.strip()]
     if not code_list:
         return []
@@ -281,24 +282,84 @@ async def shop_items_api(codes: str = "", db=Depends(get_db)):
         return [dict(r) for r in await cur.fetchall()]
 
 
+HOLD_HOURS = 4
+
+
 @app.post("/api/shop/inquiry")
 async def create_inquiry(
     customer_name: str = Form(...), phone: str = Form(...),
-    items: str = Form(...), db=Depends(get_db)
+    email: str = Form(default=""), items: str = Form(...), db=Depends(get_db)
 ):
-    await db.execute(
-        "INSERT INTO inquiries (customer_name, phone, items) VALUES (?, ?, ?)",
-        (customer_name.strip(), phone.strip(), items)
-    )
+    async with db.execute(
+        f"INSERT INTO inquiries (customer_name, phone, email, items, status, hold_expires) "
+        f"VALUES (?, ?, ?, ?, 'holding', datetime('now', '+{HOLD_HOURS} hours'))",
+        (customer_name.strip(), phone.strip(), email.strip(), items)
+    ) as cur:
+        inquiry_id = cur.lastrowid
     await db.commit()
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "id": inquiry_id})
+
+
+@app.get("/hold/{inquiry_id}", response_class=HTMLResponse)
+async def hold_page(request: Request, inquiry_id: int, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM inquiries WHERE id=?", (inquiry_id,)) as cur:
+        inq = await cur.fetchone()
+    if not inq:
+        raise HTTPException(404)
+    # Resolve item details
+    try:
+        cart = json.loads(inq["items"] or "{}")
+    except Exception:
+        cart = {}
+    products = []
+    if cart:
+        placeholders = ",".join("?" for _ in cart)
+        async with db.execute(
+            f"SELECT item_number, description, category, photo, retail_price "
+            f"FROM items WHERE item_number IN ({placeholders})", list(cart.keys())
+        ) as cur:
+            for r in await cur.fetchall():
+                d = dict(r)
+                d["qty"] = cart.get(r["item_number"], 1)
+                products.append(d)
+    # Store address (first store)
+    async with db.execute("SELECT name, address FROM stores ORDER BY id LIMIT 1") as cur:
+        store = await cur.fetchone()
+    return templates.TemplateResponse("hold.html", {
+        "request": request, "inq": inq, "products": products,
+        "store": store, "hold_hours": HOLD_HOURS,
+    })
+
+
+@app.get("/qr")
+async def generate_qr(data: str):
+    """Return an SVG QR code encoding the given data (e.g. a hold URL)."""
+    buf = io.BytesIO()
+    segno.make(data, error="m").save(buf, kind="svg", scale=5, border=2)
+    return Response(content=buf.getvalue(), media_type="image/svg+xml")
 
 
 @app.get("/inquiries", response_class=HTMLResponse)
 async def inquiries_page(request: Request, db=Depends(get_db)):
     async with db.execute("SELECT * FROM inquiries ORDER BY created_at DESC") as cur:
         rows = await cur.fetchall()
-    return templates.TemplateResponse("inquiries.html", {"request": request, "inquiries": rows})
+    # Resolve item numbers → descriptions for a readable, linkable list
+    enriched = []
+    for r in rows:
+        d = dict(r)
+        try:
+            cart = json.loads(r["items"] or "{}")
+        except Exception:
+            cart = {}
+        line = []
+        for code, qty in cart.items():
+            async with db.execute("SELECT description FROM items WHERE item_number=?", (code,)) as c2:
+                row2 = await c2.fetchone()
+            desc = row2["description"] if row2 else ""
+            line.append({"code": code, "qty": qty, "description": desc})
+        d["item_list"] = line
+        enriched.append(d)
+    return templates.TemplateResponse("inquiries.html", {"request": request, "inquiries": enriched})
 
 
 @app.get("/inventory/{item_number}/edit", response_class=HTMLResponse)
@@ -562,11 +623,18 @@ async def stores_page(request: Request, db=Depends(get_db)):
 
 
 @app.post("/api/stores")
-async def create_store(name: str = Form(...), db=Depends(get_db)):
+async def create_store(name: str = Form(...), address: str = Form(default=""), db=Depends(get_db)):
     name = name.strip()
     if name:
-        await db.execute("INSERT INTO stores (name) VALUES (?)", (name,))
+        await db.execute("INSERT INTO stores (name, address) VALUES (?, ?)", (name, address.strip()))
         await db.commit()
+    return RedirectResponse("/stores", status_code=303)
+
+
+@app.post("/api/stores/{store_id}/address")
+async def update_store_address(store_id: int, address: str = Form(...), db=Depends(get_db)):
+    await db.execute("UPDATE stores SET address=? WHERE id=?", (address.strip(), store_id))
+    await db.commit()
     return RedirectResponse("/stores", status_code=303)
 
 
@@ -867,6 +935,16 @@ async def import_items(
             vendor = find_column(row, "Vendor", "Supplier")
 
             if not item_number and not barcode:
+                skipped += 1
+                continue
+
+            # Skip report footer/header junk rows (e.g. "REPORT PRINTED ON ...").
+            # Real item numbers have no spaces and aren't sentences.
+            junk = item_number and (
+                " " in item_number
+                or item_number.upper().startswith(("REPORT", "TOTAL", "PAGE", "PRINTED"))
+            )
+            if junk and not barcode:
                 skipped += 1
                 continue
 

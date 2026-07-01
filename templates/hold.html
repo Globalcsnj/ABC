@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Hold – ABC MoneyLoan</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <header class="shop-topbar">
+        <a href="/shop" class="shop-logo">🏪 ABC MoneyLoan</a>
+        <div style="flex:1"></div>
+        <a href="/shop" class="shop-cart-link">Continue shopping →</a>
+    </header>
+
+    <div class="hold-wrap">
+        <div class="hold-hero">
+            <div class="hold-check">✓</div>
+            <h1>You're all set, {{ inq.customer_name }}!</h1>
+            <p class="hold-sub">We've placed your {{ products|length }} item{{ 's' if products|length != 1 else '' }} on hold. Come see us soon.</p>
+        </div>
+
+        <div class="hold-timer card">
+            <div class="hold-timer-label">⏳ Held for you until</div>
+            <div class="hold-timer-time" id="holdUntil" data-expires="{{ inq.hold_expires }}">{{ inq.hold_expires }}</div>
+            <div class="hold-countdown" id="countdown"></div>
+            <div class="hold-note">Please arrive within {{ hold_hours }} hours. After that, items may return to the floor.</div>
+        </div>
+
+        <div class="hold-grid">
+            <div class="card">
+                <h2>Your Items</h2>
+                <div class="hold-items">
+                    {% for p in products %}
+                    <div class="hold-item">
+                        <div class="hold-thumb">
+                            {% if p.photo %}<img src="/uploads/{{ p.photo }}">{% else %}<div class="prod-noimg">📦</div>{% endif %}
+                        </div>
+                        <div class="hold-item-info">
+                            <div class="hold-item-name">{{ p.description or 'Item' }}</div>
+                            <div class="hold-item-cat">{{ p.category or '' }}{% if p.qty > 1 %} · Qty {{ p.qty }}{% endif %}</div>
+                            <div class="hold-item-price">{% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}Ask in store{% endif %}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card hold-visit">
+                <h2>Visit Us</h2>
+                <div class="hold-store">{{ store.name if store else 'ABC MoneyLoan Pawnshop' }}</div>
+                <div class="hold-address">{{ (store.address if store and store.address else 'Address not set — ask staff to add it on the Stores page') }}</div>
+                <div class="hold-qr">
+                    <img src="/qr?data={{ request.url._url|urlencode }}" alt="QR code">
+                    <div class="hold-qr-label">📱 Scan to reopen your hold</div>
+                </div>
+                <p class="hold-confirmation">Confirmation #{{ inq.id }}{% if inq.email %} · sent to {{ inq.email }}{% endif %}</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const el = document.getElementById('holdUntil');
+        const cd = document.getElementById('countdown');
+        const raw = el.dataset.expires;
+        if (!raw) return;
+        // SQLite UTC timestamp → Date
+        const expires = new Date(raw.replace(' ', 'T') + 'Z');
+        el.textContent = expires.toLocaleString();
+        function tick() {
+            const ms = expires - new Date();
+            if (ms <= 0) { cd.textContent = 'Hold expired — please call us'; cd.classList.add('expired'); return; }
+            const h = Math.floor(ms / 3600000);
+            const m = Math.floor((ms % 3600000) / 60000);
+            cd.textContent = `${h}h ${m}m remaining`;
+        }
+        tick();
+        setInterval(tick, 30000);
+    })();
+    </script>
+</body>
+</html>

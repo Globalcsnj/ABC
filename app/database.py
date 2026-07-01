@@ -106,6 +106,18 @@ async def init_db():
             if (await cur.fetchone())[0] == 0:
                 await db.execute("INSERT INTO stores (name) VALUES (?)", ("ABC Money Loan",))
 
+        async with db.execute("PRAGMA table_info(stores)") as cur:
+            store_cols = {row[1] for row in await cur.fetchall()}
+        if "address" not in store_cols:
+            await db.execute("ALTER TABLE stores ADD COLUMN address TEXT DEFAULT ''")
+
+        async with db.execute("PRAGMA table_info(inquiries)") as cur:
+            inq_cols = {row[1] for row in await cur.fetchall()}
+        if "email" not in inq_cols:
+            await db.execute("ALTER TABLE inquiries ADD COLUMN email TEXT DEFAULT ''")
+        if "hold_expires" not in inq_cols:
+            await db.execute("ALTER TABLE inquiries ADD COLUMN hold_expires TIMESTAMP")
+
         # Migrations: add columns to existing databases if missing
         async with db.execute("PRAGMA table_info(audit_sessions)") as cur:
             cols = {row[1] for row in await cur.fetchall()}

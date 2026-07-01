@@ -14,6 +14,10 @@
                 <label>Store Name</label>
                 <input type="text" name="name" placeholder="e.g. ABC Money Loan – Downtown" required>
             </div>
+            <div class="form-group">
+                <label>Address (shown on customer hold page)</label>
+                <input type="text" name="address" placeholder="123 Main St, City, ST 00000">
+            </div>
             <button type="submit" class="btn btn-primary">Add Store</button>
         </form>
     </div>
@@ -23,12 +27,18 @@
     <h2>Your Stores</h2>
     <table class="table">
         <thead>
-            <tr><th>Store</th><th>Counts</th><th>Actions</th></tr>
+            <tr><th>Store</th><th>Address</th><th>Counts</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for st in stores %}
             <tr>
                 <td><strong>{{ st.name }}</strong></td>
+                <td>
+                    <form method="POST" action="/api/stores/{{ st.id }}/address" class="addr-form">
+                        <input type="text" name="address" value="{{ st.address or '' }}" placeholder="Add address…">
+                        <button type="submit" class="btn btn-sm btn-outline">Save</button>
+                    </form>
+                </td>
                 <td>{{ st.count_sessions }}</td>
                 <td class="action-cell">
                     <button class="btn btn-sm btn-outline"

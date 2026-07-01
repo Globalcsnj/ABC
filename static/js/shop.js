@@ -90,13 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = new FormData(form);
             data.append('items', JSON.stringify(cart));
             const res = await fetch('/api/shop/inquiry', { method: 'POST', body: data });
+            const json = await res.json().catch(() => ({}));
             const el = document.getElementById('holdResult');
-            if (res.ok) {
+            if (res.ok && json.id) {
                 localStorage.removeItem(CART_KEY);
-                el.className = 'import-result success';
-                el.textContent = '✓ Request sent! Our staff will call you to confirm your hold.';
-                form.reset();
-                setTimeout(renderCart, 800);
+                window.location.href = '/hold/' + json.id;
             } else {
                 el.className = 'import-result error';
                 el.textContent = 'Something went wrong. Please try again.';
