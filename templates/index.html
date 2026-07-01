@@ -121,7 +121,18 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
 
         let msg = `✅ Imported ${json.imported} items`;
         if (json.skipped) msg += ` (skipped ${json.skipped} rows with no item/barcode)`;
-        el.textContent = msg;
+
+        const cats = json.categories || [];
+        const total = cats.reduce((s, c) => s + c.cnt, 0);
+        let dash = '';
+        if (cats.length) {
+            dash = `<details class="cat-dash" open>
+                <summary>📊 ${total} items in ${cats.length} categories</summary>
+                <div class="cat-list">`
+                + cats.map(c => `<div class="cat-row"><span>${c.category}</span><span class="cat-count">${c.cnt}</span></div>`).join('')
+                + `</div></details>`;
+        }
+        el.innerHTML = `<div>${msg}</div>${dash}`;
         el.className = 'import-result success';
     } catch (err) {
         el.textContent = '❌ Upload error: ' + err.message;

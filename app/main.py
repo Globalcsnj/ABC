@@ -165,6 +165,11 @@ async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
         items = await cur.fetchall()
     async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
         total = (await cur.fetchone())["cnt"]
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''), 'Uncategorized') as category, COUNT(*) as cnt
+        FROM items GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
     # Latest active session so the user can jump straight into scanning
     async with db.execute(
         "SELECT id FROM audit_sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1"
@@ -176,6 +181,7 @@ async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
         "total": total,
         "showing": len(items),
         "q": q,
+        "categories": categories,
         "active_session": active["id"] if active else None,
     })
 
@@ -435,10 +441,19 @@ async def import_items(
         inserted += 1
 
     await db.commit()
+
+    # Category breakdown of everything currently in the database
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''), 'Uncategorized') as category, COUNT(*) as cnt
+        FROM items GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
+
     return JSONResponse({
         "imported": inserted,
         "skipped": skipped,
         "columns_found": columns_found,
+        "categories": categories,
     })
 
 

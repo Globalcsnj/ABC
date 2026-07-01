@@ -33,6 +33,17 @@
         {% if q %}<a href="/inventory" class="btn btn-outline">Clear</a>{% endif %}
     </form>
 
+    <details class="cat-dash">
+        <summary>📊 {{ total }} items in {{ categories|length }} categories</summary>
+        <div class="cat-list">
+            {% for c in categories %}
+            <a href="/inventory?q={{ c.category|urlencode }}" class="cat-row">
+                <span>{{ c.category }}</span><span class="cat-count">{{ c.cnt }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </details>
+
     <p class="card-subtitle">
         {% if q %}Showing {{ showing }} result(s) for "{{ q }}"{% else %}Showing first {{ showing }} of {{ total }} items{% endif %}
     </p>
