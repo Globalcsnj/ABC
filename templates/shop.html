@@ -7,57 +7,86 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="shop-body">
-    <header class="shop-header">
-        <div class="shop-brand">🏪 ABC MoneyLoan Pawnshop</div>
-        <div class="shop-tagline">Browse what's in store</div>
+    <header class="shop-topbar">
+        <a href="/shop" class="shop-logo">🏪 ABC MoneyLoan</a>
+        <form method="GET" action="/shop" class="shop-topsearch">
+            <input type="text" name="q" value="{{ q }}" placeholder="Search jewelry, electronics, tools…">
+            <button type="submit">🔍</button>
+        </form>
+        <a href="/shop/cart" class="shop-cart-link">🛒 <span id="cartCount" class="cart-badge">0</span></a>
     </header>
 
-    <main class="shop-main">
-        <form method="GET" action="/shop" class="shop-search">
-            <input type="text" name="q" value="{{ q }}" class="shop-search-input"
-                   placeholder="Search products… e.g. gold ring, PlayStation, watch" autofocus>
-            <button type="submit" class="btn btn-primary">Search</button>
-            {% if q or category %}<a href="/shop" class="btn btn-outline">Reset</a>{% endif %}
-        </form>
-
-        <div class="shop-cats">
-            <a href="/shop" class="shop-cat {% if not category %}active{% endif %}">All</a>
-            {% for c in categories %}
-            <a href="/shop?category={{ c.category|urlencode }}"
-               class="shop-cat {% if category == c.category %}active{% endif %}">
-                {{ c.category }} <span class="shop-cat-count">{{ c.cnt }}</span>
-            </a>
-            {% endfor %}
-        </div>
-
-        <div class="shop-result-count">
-            {% if q %}{{ count }} result(s) for "{{ q }}"
-            {% elif category %}{{ count }} in {{ category }}
-            {% else %}{{ count }} items in store{% endif %}
-        </div>
-
-        {% if products %}
-        <div class="shop-grid">
-            {% for p in products %}
-            <div class="shop-card">
-                <div class="shop-card-icon">📦</div>
-                <div class="shop-card-body">
-                    <div class="shop-card-title">{{ p.description or 'Item' }}</div>
-                    <div class="shop-card-cat">{{ p.category or '' }}</div>
-                    <div class="shop-card-avail">✓ In store</div>
-                </div>
+    <div class="shop-layout">
+        <aside class="shop-sidebar">
+            <div class="sidebar-block">
+                <div class="sidebar-title">Categories</div>
+                <a href="/shop" class="sidebar-link {% if not category %}active{% endif %}">All items</a>
+                {% for c in categories %}
+                <a href="/shop?category={{ c.category|urlencode }}"
+                   class="sidebar-link {% if category == c.category %}active{% endif %}">
+                    {{ c.category }} <span>{{ c.cnt }}</span>
+                </a>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="shop-empty">
-            No products found{% if q %} for "{{ q }}"{% endif %}. Try a different search.
-        </div>
-        {% endif %}
-    </main>
+            <div class="sidebar-block">
+                <div class="sidebar-title">Max price</div>
+                <form method="GET" action="/shop">
+                    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+                    <input type="number" name="max_price" value="{{ max_price }}" placeholder="$ any" class="sidebar-price">
+                    <button type="submit" class="btn btn-sm btn-outline">Apply</button>
+                </form>
+            </div>
+        </aside>
 
-    <footer class="shop-footer">
-        Ask our staff about any item. Prices and availability may change.
-    </footer>
+        <main class="shop-content">
+            <div class="shop-toolbar">
+                <div class="shop-count">
+                    {% if q %}Results for "<strong>{{ q }}</strong>" — {{ count }} items
+                    {% elif category %}<strong>{{ category }}</strong> — {{ count }} items
+                    {% else %}{{ count }} items in store{% endif %}
+                </div>
+                <form method="GET" action="/shop" class="shop-sortform">
+                    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+                    <label>Sort:</label>
+                    <select name="sort" onchange="this.form.submit()">
+                        <option value="featured" {% if sort=='featured' %}selected{% endif %}>Featured</option>
+                        <option value="price_low" {% if sort=='price_low' %}selected{% endif %}>Price: Low to High</option>
+                        <option value="price_high" {% if sort=='price_high' %}selected{% endif %}>Price: High to Low</option>
+                        <option value="name" {% if sort=='name' %}selected{% endif %}>Name</option>
+                    </select>
+                </form>
+            </div>
+
+            {% if products %}
+            <div class="prod-grid">
+                {% for p in products %}
+                <div class="prod-card">
+                    <a href="/shop/item/{{ p.item_number }}" class="prod-img">
+                        {% if p.photo %}
+                        <img src="/uploads/{{ p.photo }}" alt="{{ p.description }}">
+                        {% else %}<div class="prod-noimg">📦</div>{% endif %}
+                    </a>
+                    <div class="prod-info">
+                        <a href="/shop/item/{{ p.item_number }}" class="prod-name">{{ p.description or 'Item' }}</a>
+                        <div class="prod-cat">{{ p.category or '' }}</div>
+                        <div class="prod-price">
+                            {% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                        </div>
+                        <button class="btn btn-primary btn-sm prod-add"
+                                onclick="addToCart('{{ p.item_number }}')">Add to cart</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="shop-empty">No products found. Try a different search or category.</div>
+            {% endif %}
+        </main>
+    </div>
+
+    <footer class="shop-footer">Ask our staff about any item. Prices and availability may change.</footer>
+    <script src="/static/js/shop.js"></script>
 </body>
 </html>

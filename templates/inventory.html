@@ -53,7 +53,9 @@
                 <th>Category</th>
                 <th>Status</th>
                 <th>Cost</th>
-                <th>Date</th>
+                <th>Sale Price</th>
+                <th>Shop</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -68,7 +70,9 @@
                 <td>{{ item.category or '—' }}</td>
                 <td>{{ item.item_status or '—' }}</td>
                 <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
-                <td>{{ item.item_date or '—' }}</td>
+                <td>{% if item.retail_price %}${{ "%.2f"|format(item.retail_price) }}{% else %}—{% endif %}</td>
+                <td>{% if item.for_sale != 0 %}✓{% else %}—{% endif %}</td>
+                <td><a href="/inventory/{{ item.item_number }}/edit" class="btn btn-sm btn-outline">Edit</a></td>
             </tr>
             {% endfor %}
         </tbody>

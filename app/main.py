@@ -196,10 +196,21 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
 
 # ── Customer-facing catalog (public) ────────────────────────────────────────
 
+SHOP_SORTS = {
+    "featured": "category, description",
+    "price_low": "CASE WHEN retail_price IS NULL THEN 1 ELSE 0 END, retail_price ASC",
+    "price_high": "retail_price DESC",
+    "name": "description ASC",
+}
+
+
 @app.get("/shop", response_class=HTMLResponse)
-async def shop_page(request: Request, q: str = "", category: str = "", db=Depends(get_db)):
-    # Only retail items that are in inventory (for sale) — never loan/layaway
-    where = ["source = 'retail'"]
+async def shop_page(
+    request: Request, q: str = "", category: str = "",
+    sort: str = "featured", max_price: str = "", db=Depends(get_db)
+):
+    # Only retail items flagged for sale — never loan/layaway
+    where = ["source = 'retail'", "COALESCE(for_sale,1) = 1"]
     params = []
     if q:
         like = f"%{q}%"
@@ -208,27 +219,120 @@ async def shop_page(request: Request, q: str = "", category: str = "", db=Depend
     if category:
         where.append("COALESCE(NULLIF(category,''),'Uncategorized') = ?")
         params.append(category)
+    if max_price.replace(".", "", 1).isdigit():
+        where.append("retail_price IS NOT NULL AND retail_price <= ?")
+        params.append(float(max_price))
     clause = " AND ".join(where)
+    order = SHOP_SORTS.get(sort, SHOP_SORTS["featured"])
     async with db.execute(
-        f"SELECT item_number, description, category, item_status FROM items WHERE {clause} "
-        f"ORDER BY category, description LIMIT 500", params
+        f"SELECT item_number, description, category, item_status, photo, retail_price "
+        f"FROM items WHERE {clause} ORDER BY {order} LIMIT 500", params
     ) as cur:
         products = await cur.fetchall()
-    # Category list for browse chips (retail only)
     async with db.execute("""
         SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category, COUNT(*) as cnt
-        FROM items WHERE source = 'retail'
+        FROM items WHERE source = 'retail' AND COALESCE(for_sale,1) = 1
         GROUP BY category ORDER BY cnt DESC
     """) as cur:
         categories = [dict(r) for r in await cur.fetchall()]
     return templates.TemplateResponse("shop.html", {
-        "request": request,
-        "products": products,
-        "categories": categories,
-        "q": q,
-        "category": category,
+        "request": request, "products": products, "categories": categories,
+        "q": q, "category": category, "sort": sort, "max_price": max_price,
         "count": len(products),
     })
+
+
+@app.get("/shop/item/{item_number}", response_class=HTMLResponse)
+async def shop_item_page(request: Request, item_number: str, db=Depends(get_db)):
+    async with db.execute(
+        "SELECT * FROM items WHERE item_number = ? AND source='retail'", (item_number,)
+    ) as cur:
+        product = await cur.fetchone()
+    if not product:
+        raise HTTPException(404, "Product not found")
+    # Related items in the same category
+    async with db.execute("""
+        SELECT item_number, description, category, photo, retail_price FROM items
+        WHERE source='retail' AND COALESCE(for_sale,1)=1 AND category = ? AND item_number != ?
+        ORDER BY description LIMIT 6
+    """, (product["category"], item_number)) as cur:
+        related = await cur.fetchall()
+    return templates.TemplateResponse("shop_item.html", {
+        "request": request, "p": product, "related": related,
+    })
+
+
+@app.get("/shop/cart", response_class=HTMLResponse)
+async def shop_cart_page(request: Request):
+    return templates.TemplateResponse("shop_cart.html", {"request": request})
+
+
+@app.get("/api/shop/items")
+async def shop_items_api(codes: str = "", db=Depends(get_db)):
+    """Return product details for a comma-separated list of item numbers (for the cart)."""
+    code_list = [c.strip() for c in codes.split(",") if c.strip()]
+    if not code_list:
+        return []
+    placeholders = ",".join("?" for _ in code_list)
+    async with db.execute(
+        f"SELECT item_number, description, category, photo, retail_price "
+        f"FROM items WHERE item_number IN ({placeholders})", code_list
+    ) as cur:
+        return [dict(r) for r in await cur.fetchall()]
+
+
+@app.post("/api/shop/inquiry")
+async def create_inquiry(
+    customer_name: str = Form(...), phone: str = Form(...),
+    items: str = Form(...), db=Depends(get_db)
+):
+    await db.execute(
+        "INSERT INTO inquiries (customer_name, phone, items) VALUES (?, ?, ?)",
+        (customer_name.strip(), phone.strip(), items)
+    )
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/inquiries", response_class=HTMLResponse)
+async def inquiries_page(request: Request, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM inquiries ORDER BY created_at DESC") as cur:
+        rows = await cur.fetchall()
+    return templates.TemplateResponse("inquiries.html", {"request": request, "inquiries": rows})
+
+
+@app.get("/inventory/{item_number}/edit", response_class=HTMLResponse)
+async def edit_item_page(request: Request, item_number: str, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM items WHERE item_number = ?", (item_number,)) as cur:
+        item = await cur.fetchone()
+    if not item:
+        raise HTTPException(404)
+    return templates.TemplateResponse("edit_item.html", {"request": request, "item": item})
+
+
+@app.post("/api/items/{item_number}/edit")
+async def edit_item(
+    item_number: str,
+    retail_price: str = Form(default=""),
+    for_sale: str = Form(default=""),
+    photo: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
+    price = float(retail_price) if retail_price.replace(".", "", 1).isdigit() else None
+    sale_flag = 1 if for_sale == "on" else 0
+    photo_name = await save_photo(photo, f"item_{item_number}")
+    if photo_name:
+        await db.execute(
+            "UPDATE items SET retail_price=?, for_sale=?, photo=? WHERE item_number=?",
+            (price, sale_flag, photo_name, item_number)
+        )
+    else:
+        await db.execute(
+            "UPDATE items SET retail_price=?, for_sale=? WHERE item_number=?",
+            (price, sale_flag, item_number)
+        )
+    await db.commit()
+    return RedirectResponse("/inventory", status_code=303)
 
 
 @app.get("/locations", response_class=HTMLResponse)

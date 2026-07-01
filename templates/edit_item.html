@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ item.item_number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Edit Item — {{ item.item_number }}</h1>
+    <a href="/inventory" class="btn btn-outline">← Back</a>
+</div>
+
+<div class="card" style="max-width:560px">
+    <p class="card-subtitle">{{ item.description }} · {{ item.category }}</p>
+    <form method="POST" action="/api/items/{{ item.item_number }}/edit" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Sale Price (shown to customers)</label>
+            <input type="number" step="0.01" name="retail_price"
+                   value="{% if item.retail_price %}{{ '%.2f'|format(item.retail_price) }}{% endif %}"
+                   placeholder="e.g. 199.99">
+            <p class="card-subtitle">Leave blank to show "Ask in store". This is separate from Cost (${{ '%.2f'|format(item.cost or 0) }}).</p>
+        </div>
+        <div class="form-group">
+            <label class="radio-line">
+                <input type="checkbox" name="for_sale" {% if item.for_sale != 0 %}checked{% endif %}>
+                Show this item in the customer shop
+            </label>
+        </div>
+        <div class="form-group">
+            <label>Product Photo</label>
+            {% if item.photo %}<div><img src="/uploads/{{ item.photo }}" class="edit-photo"></div>{% endif %}
+            <input type="file" name="photo" accept="image/*" class="photo-input">
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+</div>
+{% endblock %}

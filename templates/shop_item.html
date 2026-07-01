@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ p.description or 'Item' }} – ABC MoneyLoan</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <header class="shop-topbar">
+        <a href="/shop" class="shop-logo">🏪 ABC MoneyLoan</a>
+        <form method="GET" action="/shop" class="shop-topsearch">
+            <input type="text" name="q" placeholder="Search jewelry, electronics, tools…">
+            <button type="submit">🔍</button>
+        </form>
+        <a href="/shop/cart" class="shop-cart-link">🛒 <span id="cartCount" class="cart-badge">0</span></a>
+    </header>
+
+    <div class="pdp">
+        <a href="/shop" class="pdp-back">← Back to shop</a>
+        <div class="pdp-main">
+            <div class="pdp-img">
+                {% if p.photo %}
+                <img src="/uploads/{{ p.photo }}" alt="{{ p.description }}">
+                {% else %}<div class="pdp-noimg">📦</div>{% endif %}
+            </div>
+            <div class="pdp-info">
+                <div class="pdp-cat">{{ p.category or '' }}</div>
+                <h1 class="pdp-title">{{ p.description or 'Item' }}</h1>
+                <div class="pdp-price">
+                    {% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}<span class="ask-price">Ask in store for price</span>{% endif %}
+                </div>
+                <div class="pdp-avail">✓ Available in store</div>
+                <button class="btn btn-primary pdp-add" onclick="addToCart('{{ p.item_number }}')">🛒 Add to cart</button>
+                <a href="/shop/cart" class="btn btn-outline">Go to cart</a>
+                <p class="pdp-note">Add items to your cart and request a hold — our staff will set them aside for you.</p>
+            </div>
+        </div>
+
+        {% if related %}
+        <h2 class="pdp-related-title">More in {{ p.category }}</h2>
+        <div class="prod-grid">
+            {% for r in related %}
+            <div class="prod-card">
+                <a href="/shop/item/{{ r.item_number }}" class="prod-img">
+                    {% if r.photo %}<img src="/uploads/{{ r.photo }}" alt="{{ r.description }}">
+                    {% else %}<div class="prod-noimg">📦</div>{% endif %}
+                </a>
+                <div class="prod-info">
+                    <a href="/shop/item/{{ r.item_number }}" class="prod-name">{{ r.description or 'Item' }}</a>
+                    <div class="prod-price">
+                        {% if r.retail_price %}${{ "%.2f"|format(r.retail_price) }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="/static/js/shop.js"></script>
+</body>
+</html>

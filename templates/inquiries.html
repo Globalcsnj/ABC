@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Hold Requests – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Customer Hold Requests</h1>
+</div>
+
+{% if not inquiries %}
+<div class="card"><div class="empty-state">No hold requests yet. They appear here when customers request items from the Shop.</div></div>
+{% else %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr><th>Date</th><th>Customer</th><th>Phone</th><th>Items</th></tr>
+        </thead>
+        <tbody>
+            {% for q in inquiries %}
+            <tr>
+                <td>{{ q.created_at[:16] }}</td>
+                <td><strong>{{ q.customer_name }}</strong></td>
+                <td>{{ q.phone }}</td>
+                <td><code class="inquiry-items">{{ q.items }}</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

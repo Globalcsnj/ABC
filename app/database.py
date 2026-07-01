@@ -90,6 +90,15 @@ async def init_db():
                 mode TEXT,
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS inquiries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_name TEXT,
+                phone TEXT,
+                items TEXT,
+                status TEXT DEFAULT 'new',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
         # Seed the default store if none exist
@@ -116,5 +125,14 @@ async def init_db():
             sub_cols = {row[1] for row in await cur.fetchall()}
         if "photo" not in sub_cols:
             await db.execute("ALTER TABLE sublocations ADD COLUMN photo TEXT DEFAULT ''")
+
+        async with db.execute("PRAGMA table_info(items)") as cur:
+            item_cols = {row[1] for row in await cur.fetchall()}
+        if "photo" not in item_cols:
+            await db.execute("ALTER TABLE items ADD COLUMN photo TEXT DEFAULT ''")
+        if "retail_price" not in item_cols:
+            await db.execute("ALTER TABLE items ADD COLUMN retail_price REAL")
+        if "for_sale" not in item_cols:
+            await db.execute("ALTER TABLE items ADD COLUMN for_sale INTEGER DEFAULT 1")
 
         await db.commit()
