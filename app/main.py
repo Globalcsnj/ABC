@@ -5,7 +5,10 @@ from fastapi.templating import Jinja2Templates
 import aiosqlite
 import barcode
 from barcode.writer import SVGWriter
-import segno
+try:
+    import segno
+except ImportError:
+    segno = None
 import csv
 import io
 import json
@@ -334,6 +337,11 @@ async def hold_page(request: Request, inquiry_id: int, db=Depends(get_db)):
 @app.get("/qr")
 async def generate_qr(data: str):
     """Return an SVG QR code encoding the given data (e.g. a hold URL)."""
+    if segno is None:
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="170" height="170">'
+               '<rect width="170" height="170" fill="#f3f4f6"/>'
+               '<text x="85" y="85" text-anchor="middle" font-size="11" fill="#9ca3af">QR unavailable</text></svg>')
+        return Response(content=svg, media_type="image/svg+xml")
     buf = io.BytesIO()
     segno.make(data, error="m").save(buf, kind="svg", scale=5, border=2)
     return Response(content=buf.getvalue(), media_type="image/svg+xml")
