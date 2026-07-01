@@ -58,6 +58,20 @@ def find_column(row: dict, *candidates):
     return ""
 
 
+async def save_photo(photo, prefix: str) -> str:
+    """Save an uploaded image and return its stored filename, or '' if none/invalid."""
+    if photo is None or not getattr(photo, "filename", ""):
+        return ""
+    ext = os.path.splitext(photo.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return ""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", prefix)
+    fname = f"{safe}{ext}"
+    with open(os.path.join(UPLOAD_DIR, fname), "wb") as f:
+        f.write(await photo.read())
+    return fname
+
+
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -649,13 +663,7 @@ async def create_location(
     db=Depends(get_db)
 ):
     location_id = location_id.upper()
-    photo_name = ""
-    if photo is not None and photo.filename:
-        ext = os.path.splitext(photo.filename)[1].lower()
-        if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-            photo_name = f"loc_{location_id}{ext}"
-            with open(os.path.join(UPLOAD_DIR, photo_name), "wb") as f:
-                f.write(await photo.read())
+    photo_name = await save_photo(photo, f"loc_{location_id}")
 
     if photo_name:
         await db.execute(
@@ -678,48 +686,129 @@ async def create_sublocation(
     location_id: str = Form(...),
     section: str = Form(...),
     name: str = Form(default=""),
+    photo: UploadFile = File(default=None),
     db=Depends(get_db)
 ):
     location_id = location_id.strip().upper()
     section = section.strip()
     sub_id = f"{location_id}-{section}"
+    photo_name = await save_photo(photo, f"sub_{sub_id}")
     # Make sure the parent location exists
     await db.execute(
         "INSERT OR IGNORE INTO locations (id, name) VALUES (?, ?)",
         (location_id, f"SalesFloor {location_id}")
     )
     await db.execute(
-        "INSERT OR REPLACE INTO sublocations (id, location_id, name) VALUES (?, ?, ?)",
-        (sub_id, location_id, name or f"Section {sub_id}")
+        "INSERT OR REPLACE INTO sublocations (id, location_id, name, photo) VALUES (?, ?, ?, ?)",
+        (sub_id, location_id, name or f"Section {sub_id}", photo_name)
     )
     await db.commit()
     return RedirectResponse("/locations", status_code=303)
 
 
-@app.post("/api/locations/{location_id}/rename")
-async def rename_location(location_id: str, name: str = Form(...), db=Depends(get_db)):
+async def _rebuild_full_refs(db, session_ids=None):
+    """Recompute full_ref for scans from location_id, sublocation_id, barcode."""
+    async with db.execute("SELECT id, location_id, sublocation_id, barcode FROM audit_scans") as cur:
+        rows = await cur.fetchall()
+    for r in rows:
+        ref = "-".join(x for x in (r["location_id"], r["sublocation_id"], r["barcode"]) if x)
+        await db.execute("UPDATE audit_scans SET full_ref=? WHERE id=?", (ref, r["id"]))
+
+
+# ── Location edit ───────────────────────────────────────────────────────────
+
+@app.get("/locations/{location_id}/edit", response_class=HTMLResponse)
+async def edit_location_page(request: Request, location_id: str, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM locations WHERE id=?", (location_id,)) as cur:
+        loc = await cur.fetchone()
+    if not loc:
+        raise HTTPException(404)
+    return templates.TemplateResponse("edit_location.html", {"request": request, "loc": loc})
+
+
+@app.post("/api/locations/{location_id}/edit")
+async def edit_location(
+    location_id: str,
+    name: str = Form(...),
+    new_id: str = Form(default=""),
+    photo: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
     name = name.strip()
-    if name:
-        await db.execute("UPDATE locations SET name=? WHERE id=?", (name, location_id))
-        await db.commit()
+    new_id = (new_id or location_id).strip().upper()
+
+    # If the ID (barcode) changed, cascade to sublocations and scans
+    if new_id != location_id:
+        await db.execute("UPDATE locations SET id=? WHERE id=?", (new_id, location_id))
+        # Sublocations: update parent + their id prefix (001-1 -> 002-1)
+        async with db.execute("SELECT id FROM sublocations WHERE location_id=?", (location_id,)) as cur:
+            subs = await cur.fetchall()
+        for s in subs:
+            new_sub = new_id + s["id"][len(location_id):]
+            await db.execute("UPDATE sublocations SET id=?, location_id=? WHERE id=?",
+                             (new_sub, new_id, s["id"]))
+            await db.execute("UPDATE audit_scans SET sublocation_id=? WHERE sublocation_id=?",
+                             (new_sub, s["id"]))
+        await db.execute("UPDATE audit_scans SET location_id=? WHERE location_id=?", (new_id, location_id))
+        await _rebuild_full_refs(db)
+
+    photo_name = await save_photo(photo, f"loc_{new_id}")
+    if photo_name:
+        await db.execute("UPDATE locations SET name=?, photo=? WHERE id=?", (name, photo_name, new_id))
+    else:
+        await db.execute("UPDATE locations SET name=? WHERE id=?", (name, new_id))
+    await db.commit()
     return RedirectResponse("/locations", status_code=303)
 
 
 @app.post("/api/locations/{location_id}/delete")
 async def delete_location(location_id: str, db=Depends(get_db)):
-    # Delete the location and its sublocations
     await db.execute("DELETE FROM sublocations WHERE location_id=?", (location_id,))
     await db.execute("DELETE FROM locations WHERE id=?", (location_id,))
     await db.commit()
     return RedirectResponse("/locations", status_code=303)
 
 
-@app.post("/api/sublocations/{sub_id:path}/rename")
-async def rename_sublocation(sub_id: str, name: str = Form(...), db=Depends(get_db)):
+# ── Sublocation edit ────────────────────────────────────────────────────────
+
+@app.get("/sublocations/{sub_id:path}/edit", response_class=HTMLResponse)
+async def edit_sublocation_page(request: Request, sub_id: str, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM sublocations WHERE id=?", (sub_id,)) as cur:
+        sub = await cur.fetchone()
+    if not sub:
+        raise HTTPException(404)
+    return templates.TemplateResponse("edit_sublocation.html", {"request": request, "sub": sub})
+
+
+@app.post("/api/sublocations/{sub_id:path}/edit")
+async def edit_sublocation(
+    sub_id: str,
+    name: str = Form(...),
+    new_section: str = Form(default=""),
+    photo: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
     name = name.strip()
-    if name:
-        await db.execute("UPDATE sublocations SET name=? WHERE id=?", (name, sub_id))
-        await db.commit()
+    async with db.execute("SELECT location_id FROM sublocations WHERE id=?", (sub_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        raise HTTPException(404)
+    loc_id = row["location_id"]
+
+    new_id = sub_id
+    if new_section.strip():
+        new_id = f"{loc_id}-{new_section.strip()}"
+    if new_id != sub_id:
+        await db.execute("UPDATE sublocations SET id=? WHERE id=?", (new_id, sub_id))
+        await db.execute("UPDATE audit_scans SET sublocation_id=? WHERE sublocation_id=?", (new_id, sub_id))
+        await _rebuild_full_refs(db)
+
+    photo_name = await save_photo(photo, f"sub_{new_id}")
+    if photo_name:
+        await db.execute("UPDATE sublocations SET name=?, photo=? WHERE id=?", (name, photo_name, new_id))
+    else:
+        await db.execute("UPDATE sublocations SET name=? WHERE id=?", (name, new_id))
+    await db.commit()
     return RedirectResponse("/locations", status_code=303)
 
 

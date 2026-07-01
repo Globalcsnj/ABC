@@ -30,7 +30,7 @@
     <div class="card">
         <h2>Add Sublocation</h2>
         <p class="card-subtitle">A section inside a location (shelf, drawer, tray).</p>
-        <form method="POST" action="/api/sublocations">
+        <form method="POST" action="/api/sublocations" enctype="multipart/form-data">
             <div class="form-group">
                 <label>Location ID</label>
                 <input type="text" name="location_id" placeholder="001" pattern="\d{3}" required>
@@ -42,6 +42,10 @@
             <div class="form-group">
                 <label>Name (optional)</label>
                 <input type="text" name="name" placeholder="Top Shelf">
+            </div>
+            <div class="form-group">
+                <label>Photo (optional) — helps staff find the spot</label>
+                <input type="file" name="photo" accept="image/*">
             </div>
             <button type="submit" class="btn btn-secondary">Add Sublocation</button>
         </form>
@@ -83,8 +87,7 @@
                 <td>{{ loc.name }}</td>
                 <td>{{ loc.sublocation_count }}</td>
                 <td class="action-cell">
-                    <button class="btn btn-sm btn-outline"
-                            onclick="renameItem('/api/locations/{{ loc.id }}/rename', '{{ loc.name|replace("'", "\\'") }}')">Edit</button>
+                    <a href="/locations/{{ loc.id }}/edit" class="btn btn-sm btn-outline">Edit</a>
                     <form method="POST" action="/api/locations/{{ loc.id }}/delete" style="display:inline"
                           onsubmit="return confirm('Delete location {{ loc.id }} and its {{ loc.sublocation_count }} sublocation(s)?')">
                         <button type="submit" class="btn btn-sm btn-danger">Delete</button>
@@ -102,19 +105,25 @@
     <h2>Sublocations</h2>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Actions</th></tr>
+            <tr><th>Photo</th><th>Barcode</th><th>ID</th><th>Name</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for sub in sublocations %}
             <tr>
+                <td>
+                    {% if sub.photo %}
+                    <a href="/uploads/{{ sub.photo }}" target="_blank">
+                        <img src="/uploads/{{ sub.photo }}" alt="photo" class="loc-photo">
+                    </a>
+                    {% else %}<span class="no-photo">—</span>{% endif %}
+                </td>
                 <td>
                     <img src="/barcode/{{ sub.id }}?height=28&text=0" alt="{{ sub.id }}" class="barcode-thumb">
                 </td>
                 <td><code>{{ sub.id }}</code></td>
                 <td>{{ sub.name }}</td>
                 <td class="action-cell">
-                    <button class="btn btn-sm btn-outline"
-                            onclick="renameItem('/api/sublocations/{{ sub.id }}/rename', '{{ sub.name|replace("'", "\\'") }}')">Edit</button>
+                    <a href="/sublocations/{{ sub.id }}/edit" class="btn btn-sm btn-outline">Edit</a>
                     <form method="POST" action="/api/sublocations/{{ sub.id }}/delete" style="display:inline"
                           onsubmit="return confirm('Delete sublocation {{ sub.id }}?')">
                         <button type="submit" class="btn btn-sm btn-danger">Delete</button>

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Edit Location {{ loc.id }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Edit Location</h1>
+    <a href="/locations" class="btn btn-outline">← Back</a>
+</div>
+
+<div class="card" style="max-width:560px">
+    <form method="POST" action="/api/locations/{{ loc.id }}/edit" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Display Name</label>
+            <input type="text" name="name" value="{{ loc.name }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Location ID / Barcode (3 digits)</label>
+            <input type="text" name="new_id" id="idInput" value="{{ loc.id }}" pattern="\d{3}" required>
+            <p class="card-subtitle">Changing this updates the barcode and all its sublocations & scans.</p>
+        </div>
+
+        <div class="form-group">
+            <label>Barcode preview</label>
+            <div><img id="barcodePreview" src="/barcode/{{ loc.id }}?text=0&mw=0.4" class="edit-barcode"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Photo</label>
+            {% if loc.photo %}
+            <div><img src="/uploads/{{ loc.photo }}" class="edit-photo"></div>
+            <p class="card-subtitle">Upload a new file below to replace it.</p>
+            {% endif %}
+            <input type="file" name="photo" accept="image/*">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const idInput = document.getElementById('idInput');
+const preview = document.getElementById('barcodePreview');
+idInput.addEventListener('input', () => {
+    const v = idInput.value.trim();
+    if (v) preview.src = `/barcode/${v}?text=0&mw=0.4`;
+});
+</script>
+{% endblock %}

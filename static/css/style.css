@@ -137,6 +137,8 @@ body {
 .feedback-duplicate { color: #b45309; }
 .loc-photo { width: 54px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--gray-200); }
 .no-photo { color: var(--gray-400); }
+.edit-barcode { max-width: 2.2in; height: auto; border: 1px solid var(--gray-200); border-radius: 4px; padding: 6px; background: white; }
+.edit-photo { max-width: 220px; height: auto; border-radius: 6px; border: 1px solid var(--gray-200); margin-bottom: 6px; }
 
 /* Scan list */
 .scan-list { display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; }

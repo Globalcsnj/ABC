@@ -112,4 +112,9 @@ async def init_db():
         if "photo" not in loc_cols:
             await db.execute("ALTER TABLE locations ADD COLUMN photo TEXT DEFAULT ''")
 
+        async with db.execute("PRAGMA table_info(sublocations)") as cur:
+            sub_cols = {row[1] for row in await cur.fetchall()}
+        if "photo" not in sub_cols:
+            await db.execute("ALTER TABLE sublocations ADD COLUMN photo TEXT DEFAULT ''")
+
         await db.commit()
