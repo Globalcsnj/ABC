@@ -7,14 +7,14 @@
 
 <div class="card-grid">
     <div class="card">
-        <h2>New Audit Session</h2>
+        <h2>New Count Session</h2>
         <p>Start a new physical inventory count for the store.</p>
         <form method="POST" action="/api/sessions">
             <div class="form-group">
-                <label>Session Name</label>
+                <label>Count Name</label>
                 <input type="text" name="name" placeholder="e.g. June 2025 Full Count" required>
             </div>
-            <button type="submit" class="btn btn-primary">Start Audit</button>
+            <button type="submit" class="btn btn-primary">Start Count</button>
         </form>
     </div>
 
@@ -42,11 +42,11 @@
 
 {% if sessions %}
 <div class="card mt">
-    <h2>Audit Sessions</h2>
+    <h2>Count Sessions</h2>
     <table class="table">
         <thead>
             <tr>
-                <th>Session</th>
+                <th>Count</th>
                 <th>Status</th>
                 <th>Date</th>
                 <th>Actions</th>
@@ -55,25 +55,47 @@
         <tbody>
             {% for s in sessions %}
             <tr>
-                <td><strong>{{ s.name }}</strong></td>
+                <td>
+                    <strong id="name-{{ s.id }}">{{ s.name }}</strong>
+                </td>
                 <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
                 <td>{{ s.created_at[:16] }}</td>
-                <td>
+                <td class="action-cell">
                     {% if s.status == 'active' %}
                     <a href="/audit/{{ s.id }}" class="btn btn-sm btn-primary">Continue</a>
                     {% endif %}
                     <a href="/report/{{ s.id }}" class="btn btn-sm btn-outline">Report</a>
+                    <button class="btn btn-sm btn-outline" onclick="renameSession({{ s.id }}, '{{ s.name|replace("'", "\\'") }}')">Edit</button>
+                    <form method="POST" action="/api/sessions/{{ s.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Delete this count and all its scans? This cannot be undone.')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<form id="renameForm" method="POST" style="display:none">
+    <input type="text" name="name" id="renameInput">
+</form>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+function renameSession(id, currentName) {
+    const newName = prompt('Rename this count:', currentName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const form = document.getElementById('renameForm');
+    form.action = `/api/sessions/${id}/rename`;
+    document.getElementById('renameInput').value = trimmed;
+    form.submit();
+}
+
 document.getElementById('importForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const el = document.getElementById('importResult');

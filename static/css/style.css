@@ -195,6 +195,9 @@ body {
 .btn-outline { background: white; color: var(--gray-800); border: 1px solid var(--gray-200); }
 .btn-outline:hover { background: var(--gray-100); }
 .btn-sm { padding: 5px 12px; font-size: 13px; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { background: #a01818; }
+.action-cell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 /* Forms */
 .form-group { margin-bottom: 14px; }

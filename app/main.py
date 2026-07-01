@@ -213,6 +213,26 @@ async def close_session(session_id: int, db=Depends(get_db)):
     return RedirectResponse(f"/report/{session_id}", status_code=303)
 
 
+@app.post("/api/sessions/{session_id}/rename")
+async def rename_session(session_id: int, name: str = Form(...), db=Depends(get_db)):
+    name = name.strip()
+    if name:
+        await db.execute(
+            "UPDATE audit_sessions SET name=? WHERE id=?", (name, session_id)
+        )
+        await db.commit()
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/sessions/{session_id}/delete")
+async def delete_session(session_id: int, db=Depends(get_db)):
+    # Remove the count and all of its scans
+    await db.execute("DELETE FROM audit_scans WHERE session_id=?", (session_id,))
+    await db.execute("DELETE FROM audit_sessions WHERE id=?", (session_id,))
+    await db.commit()
+    return RedirectResponse("/", status_code=303)
+
+
 @app.post("/api/scan")
 async def process_scan(
     session_id: int = Form(...),
