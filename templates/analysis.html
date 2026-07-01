@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Inventory Analysis – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Inventory Analysis</h1>
+</div>
+
+<div class="stat-row dash-stats">
+    <div class="stat-card"><div class="stat-num">{{ in_stock }}</div><div class="stat-label">Items in Stock</div></div>
+    <div class="stat-card stat-found"><div class="stat-num">${{ "%.0f"|format(retail_value) }}</div><div class="stat-label">Retail Value</div></div>
+    <div class="stat-card"><div class="stat-num">${{ "%.0f"|format(cost_value) }}</div><div class="stat-label">Cost Value</div></div>
+    <div class="stat-card stat-found"><div class="stat-num">${{ "%.0f"|format(margin) }}</div><div class="stat-label">Potential Margin</div></div>
+    <div class="stat-card"><div class="stat-num">{{ priced }}</div><div class="stat-label">Priced</div></div>
+    <div class="stat-card stat-missing"><div class="stat-num">{{ unpriced }}</div><div class="stat-label">Needs Price</div></div>
+</div>
+
+<div class="card mt">
+    <h2>Retail Value by Category</h2>
+    {% if by_cat %}
+    {% for c in by_cat %}
+    <div class="hbar-row">
+        <div class="hbar-label"><a href="/inventory?category={{ c.category|urlencode }}">{{ c.category }}</a></div>
+        <div class="hbar-track"><div class="hbar-fill" style="width: {{ (c.retail / max_cat * 100)|round|int }}%"></div></div>
+        <div class="hbar-num">{{ c.cnt }} · ${{ "%.0f"|format(c.retail) }}</div>
+    </div>
+    {% endfor %}
+    {% else %}<div class="empty-state">No inventory yet</div>{% endif %}
+</div>
+
+<div class="card-grid mt">
+    <div class="card">
+        <h2>By Product Type</h2>
+        <table class="table">
+            <thead><tr><th>Type</th><th>Items</th></tr></thead>
+            <tbody>
+                {% for t in by_type %}
+                <tr><td>{{ t.t|capitalize }}</td><td>{{ t.cnt }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card">
+        <h2>By List</h2>
+        <table class="table">
+            <thead><tr><th>List</th><th>Items</th><th>Retail Value</th></tr></thead>
+            <tbody>
+                {% for s in by_source %}
+                <tr><td>{{ s.s|capitalize }}</td><td>{{ s.cnt }}</td><td>${{ "%.0f"|format(s.retail) }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mt">
+    <h2>Value by Category (detail)</h2>
+    <table class="table">
+        <thead><tr><th>Category</th><th>Items</th><th>Cost Value</th><th>Retail Value</th><th>Margin</th></tr></thead>
+        <tbody>
+            {% for c in by_cat %}
+            <tr>
+                <td>{{ c.category }}</td>
+                <td>{{ c.cnt }}</td>
+                <td>${{ "%.0f"|format(c.cost) }}</td>
+                <td>${{ "%.0f"|format(c.retail) }}</td>
+                <td class="found-text">${{ "%.0f"|format(c.retail - c.cost) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

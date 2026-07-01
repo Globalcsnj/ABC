@@ -473,6 +473,55 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
     })
 
 
+@app.get("/analysis", response_class=HTMLResponse)
+async def analysis_page(request: Request, db=Depends(get_db)):
+    async def scalar(sql, params=()):
+        async with db.execute(sql, params) as cur:
+            row = await cur.fetchone()
+            return row[0] if row and row[0] is not None else 0
+
+    total = await scalar("SELECT COUNT(*) FROM items")
+    in_stock = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0")
+    cost_value = await scalar("SELECT SUM(cost) FROM items WHERE COALESCE(sold,0)=0 AND cost IS NOT NULL")
+    retail_value = await scalar("SELECT SUM(retail_price) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
+    priced = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
+    unpriced = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NULL")
+    margin = (retail_value or 0) - await scalar(
+        "SELECT SUM(cost) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL AND cost IS NOT NULL")
+
+    # Value + count by category (in stock)
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
+               COUNT(*) as cnt,
+               SUM(COALESCE(retail_price,0)) as retail,
+               SUM(COALESCE(cost,0)) as cost
+        FROM items WHERE COALESCE(sold,0)=0
+        GROUP BY category ORDER BY retail DESC, cnt DESC LIMIT 20
+    """) as cur:
+        by_cat = [dict(r) for r in await cur.fetchall()]
+
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(product_type,''),'general') as t, COUNT(*) as cnt
+        FROM items WHERE COALESCE(sold,0)=0 GROUP BY t ORDER BY cnt DESC
+    """) as cur:
+        by_type = [dict(r) for r in await cur.fetchall()]
+
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(source,''),'unspecified') as s, COUNT(*) as cnt,
+               SUM(COALESCE(retail_price,0)) as retail
+        FROM items WHERE COALESCE(sold,0)=0 GROUP BY s ORDER BY cnt DESC
+    """) as cur:
+        by_source = [dict(r) for r in await cur.fetchall()]
+
+    max_cat = max([c["retail"] for c in by_cat], default=1) or 1
+    return templates.TemplateResponse("analysis.html", {
+        "request": request, "total": total, "in_stock": in_stock,
+        "cost_value": cost_value, "retail_value": retail_value, "margin": margin,
+        "priced": priced, "unpriced": unpriced,
+        "by_cat": by_cat, "by_type": by_type, "by_source": by_source, "max_cat": max_cat,
+    })
+
+
 @app.get("/reconcile", response_class=HTMLResponse)
 async def reconcile_page(request: Request, db=Depends(get_db)):
     async with db.execute("""
