@@ -130,12 +130,31 @@
     </table>
 </div>
 
+<!-- Missing by category -->
+{% if missing_by_cat %}
+<div class="card mt">
+    <h2>❌ Missing by Category</h2>
+    <p class="card-subtitle">Categories with items not found during the count. Click one to filter the list below.</p>
+    <div class="cat-list">
+        {% for cat, cnt in missing_by_cat %}
+        <a href="#" class="cat-row" onclick="filterMissing('{{ cat|replace("'", "\\'") }}');return false;">
+            <span>{{ cat }}</span><span class="cat-count">{{ cnt }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Missing items -->
 {% if missing %}
 <div class="card mt">
     <h2>❌ Items in Bravo NOT Found During Count</h2>
     <p class="card-subtitle">These items exist in Bravo but were not scanned. They may be misplaced, sold, or on loan.</p>
-    <table class="table">
+    <div class="cat-filter-bar">
+        <input type="text" id="missingFilter" class="search-input"
+               placeholder="Filter missing items… e.g. gold, ring, AB1007">
+    </div>
+    <table class="table" id="missingTable">
         <thead>
             <tr>
                 <th>Bravo #</th>
@@ -148,7 +167,7 @@
         </thead>
         <tbody>
             {% for item in missing %}
-            <tr class="row-missing">
+            <tr class="row-missing missing-row">
                 <td>{{ item.item_number }}</td>
                 <td>
                     <img src="/barcode/{{ item.barcode }}?height=28&text=0"
@@ -165,4 +184,26 @@
     </table>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyMissingFilter(q) {
+    q = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#missingTable .missing-row').forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+}
+
+function filterMissing(cat) {
+    const input = document.getElementById('missingFilter');
+    if (input) { input.value = cat; applyMissingFilter(cat); input.scrollIntoView({behavior:'smooth'}); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('missingFilter');
+    if (input) input.addEventListener('input', () => applyMissingFilter(input.value));
+});
+</script>
 {% endblock %}

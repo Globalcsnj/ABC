@@ -166,6 +166,13 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
 
+    # Which categories have missing items (so the user knows what's incomplete)
+    missing_by_cat = {}
+    for m in missing:
+        cat = m["category"] or "Uncategorized"
+        missing_by_cat[cat] = missing_by_cat.get(cat, 0) + 1
+    missing_by_cat = sorted(missing_by_cat.items(), key=lambda kv: kv[1], reverse=True)
+
     store_name = ""
     sess_store = session["store_id"] if "store_id" in session.keys() else None
     if sess_store:
@@ -180,6 +187,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "scans": scans,
         "summary": summary,
         "missing": missing,
+        "missing_by_cat": missing_by_cat,
         "found_count": found_count,
         "unknown_count": unknown_count,
         "missing_count": len(missing),

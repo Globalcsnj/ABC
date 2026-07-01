@@ -57,12 +57,21 @@
         <h2>4. Which categories to include?</h2>
         <p class="card-subtitle">
             Leave all checked to count everything, or pick specific categories.
+        </p>
+        <div class="cat-filter-bar">
+            <input type="text" id="catFilter" class="search-input"
+                   placeholder="Filter categories… e.g. gold, playstation, ring">
+        </div>
+        <div class="cat-filter-actions">
+            <span id="catShownCount"></span>
+            <a href="#" onclick="selectShown(true);return false;">Select shown</a> ·
+            <a href="#" onclick="selectShown(false);return false;">Clear shown</a> ·
             <a href="#" onclick="toggleAll(true);return false;">Select all</a> ·
             <a href="#" onclick="toggleAll(false);return false;">Clear all</a>
-        </p>
-        <div class="choice-list cat-choices">
+        </div>
+        <div class="choice-list cat-choices" id="catChoices">
             {% for c in categories %}
-            <label class="choice-row">
+            <label class="choice-row cat-choice-row">
                 <input type="checkbox" name="categories" value="{{ c.category }}" checked class="cat-check">
                 <span class="choice-label">{{ c.category }}</span>
                 <span class="choice-count">{{ c.cnt }}</span>
@@ -80,8 +89,35 @@
 
 {% block scripts %}
 <script>
+const filterInput = document.getElementById('catFilter');
+const shownCountEl = document.getElementById('catShownCount');
+
+function visibleRows() {
+    return Array.from(document.querySelectorAll('.cat-choice-row'))
+        .filter(r => r.style.display !== 'none');
+}
+
+function applyFilter() {
+    const q = (filterInput.value || '').toLowerCase().trim();
+    let shown = 0;
+    document.querySelectorAll('.cat-choice-row').forEach(row => {
+        const label = row.querySelector('.choice-label').textContent.toLowerCase();
+        const match = !q || label.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) shown++;
+    });
+    shownCountEl.textContent = q ? `${shown} shown · ` : '';
+}
+
+// Filters only which rows are VISIBLE; checked state is untouched
+function selectShown(state) {
+    visibleRows().forEach(r => { r.querySelector('.cat-check').checked = state; });
+}
+
 function toggleAll(state) {
     document.querySelectorAll('.cat-check').forEach(c => c.checked = state);
 }
+
+filterInput.addEventListener('input', applyFilter);
 </script>
 {% endblock %}
