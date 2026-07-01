@@ -60,7 +60,7 @@
     <h2>Locations</h2>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Sublocations</th></tr>
+            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Sublocations</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for loc in locations %}
@@ -71,6 +71,14 @@
                 <td><code>{{ loc.id }}</code></td>
                 <td>{{ loc.name }}</td>
                 <td>{{ loc.sublocation_count }}</td>
+                <td class="action-cell">
+                    <button class="btn btn-sm btn-outline"
+                            onclick="renameItem('/api/locations/{{ loc.id }}/rename', '{{ loc.name|replace("'", "\\'") }}')">Edit</button>
+                    <form method="POST" action="/api/locations/{{ loc.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Delete location {{ loc.id }} and its {{ loc.sublocation_count }} sublocation(s)?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -83,7 +91,7 @@
     <h2>Sublocations</h2>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>ID</th><th>Name</th></tr>
+            <tr><th>Barcode</th><th>ID</th><th>Name</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for sub in sublocations %}
@@ -93,10 +101,37 @@
                 </td>
                 <td><code>{{ sub.id }}</code></td>
                 <td>{{ sub.name }}</td>
+                <td class="action-cell">
+                    <button class="btn btn-sm btn-outline"
+                            onclick="renameItem('/api/sublocations/{{ sub.id }}/rename', '{{ sub.name|replace("'", "\\'") }}')">Edit</button>
+                    <form method="POST" action="/api/sublocations/{{ sub.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Delete sublocation {{ sub.id }}?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 {% endif %}
+
+<form id="renameForm" method="POST" style="display:none">
+    <input type="text" name="name" id="renameInput">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renameItem(action, currentName) {
+    const newName = prompt('Rename:', currentName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const form = document.getElementById('renameForm');
+    form.action = action;
+    document.getElementById('renameInput').value = trimmed;
+    form.submit();
+}
+</script>
 {% endblock %}

@@ -503,3 +503,37 @@ async def create_sublocation(
     )
     await db.commit()
     return RedirectResponse("/locations", status_code=303)
+
+
+@app.post("/api/locations/{location_id}/rename")
+async def rename_location(location_id: str, name: str = Form(...), db=Depends(get_db)):
+    name = name.strip()
+    if name:
+        await db.execute("UPDATE locations SET name=? WHERE id=?", (name, location_id))
+        await db.commit()
+    return RedirectResponse("/locations", status_code=303)
+
+
+@app.post("/api/locations/{location_id}/delete")
+async def delete_location(location_id: str, db=Depends(get_db)):
+    # Delete the location and its sublocations
+    await db.execute("DELETE FROM sublocations WHERE location_id=?", (location_id,))
+    await db.execute("DELETE FROM locations WHERE id=?", (location_id,))
+    await db.commit()
+    return RedirectResponse("/locations", status_code=303)
+
+
+@app.post("/api/sublocations/{sub_id:path}/rename")
+async def rename_sublocation(sub_id: str, name: str = Form(...), db=Depends(get_db)):
+    name = name.strip()
+    if name:
+        await db.execute("UPDATE sublocations SET name=? WHERE id=?", (name, sub_id))
+        await db.commit()
+    return RedirectResponse("/locations", status_code=303)
+
+
+@app.post("/api/sublocations/{sub_id:path}/delete")
+async def delete_sublocation(sub_id: str, db=Depends(get_db)):
+    await db.execute("DELETE FROM sublocations WHERE id=?", (sub_id,))
+    await db.commit()
+    return RedirectResponse("/locations", status_code=303)
