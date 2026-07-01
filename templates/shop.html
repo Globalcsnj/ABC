@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC MoneyLoan Pawnshop – Shop</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <header class="shop-header">
+        <div class="shop-brand">🏪 ABC MoneyLoan Pawnshop</div>
+        <div class="shop-tagline">Browse what's in store</div>
+    </header>
+
+    <main class="shop-main">
+        <form method="GET" action="/shop" class="shop-search">
+            <input type="text" name="q" value="{{ q }}" class="shop-search-input"
+                   placeholder="Search products… e.g. gold ring, PlayStation, watch" autofocus>
+            <button type="submit" class="btn btn-primary">Search</button>
+            {% if q or category %}<a href="/shop" class="btn btn-outline">Reset</a>{% endif %}
+        </form>
+
+        <div class="shop-cats">
+            <a href="/shop" class="shop-cat {% if not category %}active{% endif %}">All</a>
+            {% for c in categories %}
+            <a href="/shop?category={{ c.category|urlencode }}"
+               class="shop-cat {% if category == c.category %}active{% endif %}">
+                {{ c.category }} <span class="shop-cat-count">{{ c.cnt }}</span>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="shop-result-count">
+            {% if q %}{{ count }} result(s) for "{{ q }}"
+            {% elif category %}{{ count }} in {{ category }}
+            {% else %}{{ count }} items in store{% endif %}
+        </div>
+
+        {% if products %}
+        <div class="shop-grid">
+            {% for p in products %}
+            <div class="shop-card">
+                <div class="shop-card-icon">📦</div>
+                <div class="shop-card-body">
+                    <div class="shop-card-title">{{ p.description or 'Item' }}</div>
+                    <div class="shop-card-cat">{{ p.category or '' }}</div>
+                    <div class="shop-card-avail">✓ In store</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="shop-empty">
+            No products found{% if q %} for "{{ q }}"{% endif %}. Try a different search.
+        </div>
+        {% endif %}
+    </main>
+
+    <footer class="shop-footer">
+        Ask our staff about any item. Prices and availability may change.
+    </footer>
+</body>
+</html>

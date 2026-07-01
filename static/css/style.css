@@ -378,6 +378,50 @@ body {
 
 .save-hint { font-size: 13px; color: var(--gray-600); margin: -8px 0 16px; }
 
+/* ── Customer shop (public catalog) ───────────────────────────────────── */
+.shop-body { background: #f5f7fa; }
+.shop-header {
+    background: linear-gradient(135deg, #1a56db, #1341b0);
+    color: white; padding: 22px 20px; text-align: center;
+}
+.shop-brand { font-size: 26px; font-weight: 800; }
+.shop-tagline { font-size: 15px; opacity: .9; margin-top: 4px; }
+.shop-main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+.shop-search { display: flex; gap: 8px; margin-bottom: 16px; }
+.shop-search-input {
+    flex: 1; padding: 14px 18px; font-size: 17px;
+    border: 2px solid var(--gray-200); border-radius: 10px; outline: none;
+}
+.shop-search-input:focus { border-color: var(--primary); }
+.shop-cats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.shop-cat {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 20px; background: white;
+    border: 1px solid var(--gray-200); color: var(--gray-800);
+    text-decoration: none; font-size: 14px;
+}
+.shop-cat:hover { border-color: var(--primary); }
+.shop-cat.active { background: var(--primary); color: white; border-color: var(--primary); }
+.shop-cat-count { font-size: 12px; opacity: .7; }
+.shop-result-count { color: var(--gray-600); font-size: 14px; margin-bottom: 14px; }
+.shop-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;
+}
+.shop-card {
+    background: white; border: 1px solid var(--gray-200); border-radius: 12px;
+    overflow: hidden; transition: box-shadow .15s, transform .15s;
+}
+.shop-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(-2px); }
+.shop-card-icon {
+    font-size: 46px; text-align: center; padding: 24px 0 10px; background: var(--gray-50);
+}
+.shop-card-body { padding: 12px 14px 16px; }
+.shop-card-title { font-weight: 700; font-size: 15px; color: var(--gray-800); line-height: 1.3; }
+.shop-card-cat { font-size: 13px; color: var(--gray-600); margin-top: 4px; }
+.shop-card-avail { font-size: 13px; color: var(--success); font-weight: 600; margin-top: 8px; }
+.shop-empty { text-align: center; color: var(--gray-600); padding: 40px; font-size: 16px; }
+.shop-footer { text-align: center; color: var(--gray-400); font-size: 13px; padding: 20px; }
+
 /* Category filter bar */
 .cat-filter-bar { margin-bottom: 8px; }
 .cat-filter-actions { font-size: 13px; color: var(--gray-600); margin-bottom: 12px; }

@@ -194,6 +194,43 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     })
 
 
+# ── Customer-facing catalog (public) ────────────────────────────────────────
+
+@app.get("/shop", response_class=HTMLResponse)
+async def shop_page(request: Request, q: str = "", category: str = "", db=Depends(get_db)):
+    # Only retail items that are in inventory (for sale) — never loan/layaway
+    where = ["source = 'retail'"]
+    params = []
+    if q:
+        like = f"%{q}%"
+        where.append("(description LIKE ? OR category LIKE ? OR item_number LIKE ?)")
+        params += [like, like, like]
+    if category:
+        where.append("COALESCE(NULLIF(category,''),'Uncategorized') = ?")
+        params.append(category)
+    clause = " AND ".join(where)
+    async with db.execute(
+        f"SELECT item_number, description, category, item_status FROM items WHERE {clause} "
+        f"ORDER BY category, description LIMIT 500", params
+    ) as cur:
+        products = await cur.fetchall()
+    # Category list for browse chips (retail only)
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category, COUNT(*) as cnt
+        FROM items WHERE source = 'retail'
+        GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
+    return templates.TemplateResponse("shop.html", {
+        "request": request,
+        "products": products,
+        "categories": categories,
+        "q": q,
+        "category": category,
+        "count": len(products),
+    })
+
+
 @app.get("/locations", response_class=HTMLResponse)
 async def locations_page(request: Request, db=Depends(get_db)):
     async with db.execute("""
