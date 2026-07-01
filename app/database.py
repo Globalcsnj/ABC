@@ -110,6 +110,11 @@ async def init_db():
             store_cols = {row[1] for row in await cur.fetchall()}
         if "address" not in store_cols:
             await db.execute("ALTER TABLE stores ADD COLUMN address TEXT DEFAULT ''")
+        # Seed the ABC store address if not set yet
+        await db.execute(
+            "UPDATE stores SET address=? WHERE name='ABC Money Loan' AND (address IS NULL OR address='')",
+            ("146 E. State Street, Trenton, NJ 08608",)
+        )
 
         async with db.execute("PRAGMA table_info(inquiries)") as cur:
             inq_cols = {row[1] for row in await cur.fetchall()}

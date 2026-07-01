@@ -14,6 +14,7 @@ import io
 import json
 import os
 import re
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from .database import init_db, get_db, DB_PATH
 
@@ -285,7 +286,19 @@ async def shop_items_api(codes: str = "", db=Depends(get_db)):
         return [dict(r) for r in await cur.fetchall()]
 
 
-HOLD_HOURS = 4
+HOLD_CUTOFF_HOUR = 16  # 4 PM
+
+
+def compute_hold_expiry(now: datetime) -> datetime:
+    """Hold until 4 PM today. If it's already past 4 PM, hold until 4 PM the
+    next business day (skipping Sat/Sun)."""
+    cutoff = now.replace(hour=HOLD_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
+    if now < cutoff:
+        return cutoff
+    nxt = now + timedelta(days=1)
+    while nxt.weekday() >= 5:  # Saturday=5, Sunday=6
+        nxt += timedelta(days=1)
+    return nxt.replace(hour=HOLD_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
 
 
 @app.post("/api/shop/inquiry")
@@ -293,10 +306,11 @@ async def create_inquiry(
     customer_name: str = Form(...), phone: str = Form(...),
     email: str = Form(default=""), items: str = Form(...), db=Depends(get_db)
 ):
+    expires = compute_hold_expiry(datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     async with db.execute(
-        f"INSERT INTO inquiries (customer_name, phone, email, items, status, hold_expires) "
-        f"VALUES (?, ?, ?, ?, 'holding', datetime('now', '+{HOLD_HOURS} hours'))",
-        (customer_name.strip(), phone.strip(), email.strip(), items)
+        "INSERT INTO inquiries (customer_name, phone, email, items, status, hold_expires) "
+        "VALUES (?, ?, ?, ?, 'holding', ?)",
+        (customer_name.strip(), phone.strip(), email.strip(), items, expires)
     ) as cur:
         inquiry_id = cur.lastrowid
     await db.commit()
@@ -520,20 +534,48 @@ async def locations_page(request: Request, db=Depends(get_db)):
     })
 
 
+INV_SORTS = {
+    "number": "item_number ASC",
+    "desc": "description ASC",
+    "cat": "category ASC, item_number ASC",
+    "price_low": "CASE WHEN retail_price IS NULL THEN 1 ELSE 0 END, retail_price ASC",
+    "price_high": "retail_price DESC",
+    "cost_high": "cost DESC",
+}
+
+
 @app.get("/inventory", response_class=HTMLResponse)
-async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
+async def inventory_page(
+    request: Request, q: str = "", category: str = "", source: str = "",
+    ptype: str = "", status: str = "", sort: str = "number", db=Depends(get_db)
+):
+    where = []
+    params = []
     if q:
         like = f"%{q}%"
-        query = """
-            SELECT * FROM items
-            WHERE item_number LIKE ? OR barcode LIKE ? OR description LIKE ? OR category LIKE ?
-            ORDER BY item_number LIMIT 500
-        """
-        params = [like, like, like, like]
-    else:
-        query = "SELECT * FROM items ORDER BY item_number LIMIT 500"
-        params = []
-    async with db.execute(query, params) as cur:
+        where.append("(item_number LIKE ? OR barcode LIKE ? OR description LIKE ? OR category LIKE ?)")
+        params += [like, like, like, like]
+    if category:
+        where.append("COALESCE(NULLIF(category,''),'Uncategorized') = ?")
+        params.append(category)
+    if source:
+        where.append("source = ?")
+        params.append(source)
+    if ptype:
+        where.append("product_type = ?")
+        params.append(ptype)
+    if status == "sold":
+        where.append("sold = 1")
+    elif status == "instock":
+        where.append("COALESCE(sold,0) = 0")
+    elif status == "for_sale":
+        where.append("COALESCE(for_sale,1) = 1 AND COALESCE(sold,0) = 0")
+    elif status == "missing":
+        where.append("missing = 1 AND sold = 0")
+
+    clause = (" WHERE " + " AND ".join(where)) if where else ""
+    order = INV_SORTS.get(sort, INV_SORTS["number"])
+    async with db.execute(f"SELECT * FROM items{clause} ORDER BY {order} LIMIT 800", params) as cur:
         items = await cur.fetchall()
     async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
         total = (await cur.fetchone())["cnt"]
@@ -542,18 +584,18 @@ async def inventory_page(request: Request, q: str = "", db=Depends(get_db)):
         FROM items GROUP BY category ORDER BY cnt DESC
     """) as cur:
         categories = [dict(r) for r in await cur.fetchall()]
-    # Latest active session so the user can jump straight into scanning
+    async with db.execute(
+        "SELECT DISTINCT source FROM items WHERE source IS NOT NULL AND source != '' ORDER BY source"
+    ) as cur:
+        sources = [r["source"] for r in await cur.fetchall()]
     async with db.execute(
         "SELECT id FROM audit_sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1"
     ) as cur:
         active = await cur.fetchone()
     return templates.TemplateResponse("inventory.html", {
-        "request": request,
-        "items": items,
-        "total": total,
-        "showing": len(items),
-        "q": q,
-        "categories": categories,
+        "request": request, "items": items, "total": total, "showing": len(items),
+        "q": q, "category": category, "source": source, "ptype": ptype,
+        "status": status, "sort": sort, "categories": categories, "sources": sources,
         "active_session": active["id"] if active else None,
     })
 

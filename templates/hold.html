@@ -65,9 +65,10 @@
         const cd = document.getElementById('countdown');
         const raw = el.dataset.expires;
         if (!raw) return;
-        // SQLite UTC timestamp → Date
-        const expires = new Date(raw.replace(' ', 'T') + 'Z');
-        el.textContent = expires.toLocaleString();
+        // Stored as local server time "YYYY-MM-DD HH:MM:SS" → parse as local
+        const expires = new Date(raw.replace(' ', 'T'));
+        if (isNaN(expires)) { el.textContent = raw; return; }
+        el.textContent = expires.toLocaleString([], {weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
         function tick() {
             const ms = expires - new Date();
             if (ms <= 0) { cd.textContent = 'Hold expired — please call us'; cd.classList.add('expired'); return; }

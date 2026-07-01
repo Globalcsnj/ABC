@@ -21,27 +21,49 @@
 {% else %}
 
 <div class="card">
-    <form method="GET" action="/inventory" class="search-bar">
+    <form method="GET" action="/inventory" class="inv-filters">
         <input type="text" name="q" value="{{ q }}"
-               placeholder="Search by item number, barcode, description, or category..."
-               class="search-input" autofocus>
-        <button type="submit" class="btn btn-primary">Search</button>
-        {% if q %}<a href="/inventory" class="btn btn-outline">Clear</a>{% endif %}
+               placeholder="Search item #, barcode, description…" class="search-input inv-search">
+        <select name="category" onchange="this.form.submit()">
+            <option value="">All categories</option>
+            {% for c in categories %}
+            <option value="{{ c.category }}" {% if category == c.category %}selected{% endif %}>{{ c.category }} ({{ c.cnt }})</option>
+            {% endfor %}
+        </select>
+        <select name="source" onchange="this.form.submit()">
+            <option value="">All lists</option>
+            {% for s in sources %}
+            <option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ s|capitalize }}</option>
+            {% endfor %}
+        </select>
+        <select name="ptype" onchange="this.form.submit()">
+            <option value="">All types</option>
+            <option value="jewelry" {% if ptype=='jewelry' %}selected{% endif %}>Jewelry</option>
+            <option value="manufactured" {% if ptype=='manufactured' %}selected{% endif %}>Manufactured</option>
+            <option value="general" {% if ptype=='general' %}selected{% endif %}>General</option>
+        </select>
+        <select name="status" onchange="this.form.submit()">
+            <option value="">Any status</option>
+            <option value="instock" {% if status=='instock' %}selected{% endif %}>In stock</option>
+            <option value="for_sale" {% if status=='for_sale' %}selected{% endif %}>For sale</option>
+            <option value="sold" {% if status=='sold' %}selected{% endif %}>Sold</option>
+            <option value="missing" {% if status=='missing' %}selected{% endif %}>Possibly sold</option>
+        </select>
+        <select name="sort" onchange="this.form.submit()">
+            <option value="number" {% if sort=='number' %}selected{% endif %}>Sort: Item #</option>
+            <option value="desc" {% if sort=='desc' %}selected{% endif %}>Sort: Description</option>
+            <option value="cat" {% if sort=='cat' %}selected{% endif %}>Sort: Category</option>
+            <option value="price_low" {% if sort=='price_low' %}selected{% endif %}>Price: Low→High</option>
+            <option value="price_high" {% if sort=='price_high' %}selected{% endif %}>Price: High→Low</option>
+            <option value="cost_high" {% if sort=='cost_high' %}selected{% endif %}>Cost: High→Low</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/inventory" class="btn btn-outline">Reset</a>
     </form>
 
-    <details class="cat-dash">
-        <summary>📊 {{ total }} items in {{ categories|length }} categories</summary>
-        <div class="cat-list">
-            {% for c in categories %}
-            <a href="/inventory?q={{ c.category|urlencode }}" class="cat-row">
-                <span>{{ c.category }}</span><span class="cat-count">{{ c.cnt }}</span>
-            </a>
-            {% endfor %}
-        </div>
-    </details>
-
     <p class="card-subtitle">
-        {% if q %}Showing {{ showing }} result(s) for "{{ q }}"{% else %}Showing first {{ showing }} of {{ total }} items{% endif %}
+        Showing {{ showing }} of {{ total }} items
+        {% if category %}· {{ category }}{% endif %}{% if source %}· {{ source|capitalize }}{% endif %}{% if status %}· {{ status }}{% endif %}
     </p>
 
     <table class="table">

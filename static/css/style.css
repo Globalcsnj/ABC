@@ -36,14 +36,36 @@ body {
     z-index: 100;
     box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
-.nav-brand { font-size: 18px; font-weight: 700; }
-.nav-links a {
-    color: rgba(255,255,255,.85);
+.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; }
+.nav-links { display: flex; align-items: center; gap: 6px; }
+.nav-links > a {
+    color: rgba(255,255,255,.9);
     text-decoration: none;
-    margin-left: 24px;
+    padding: 8px 12px;
     font-size: 14px;
+    border-radius: 6px;
 }
-.nav-links a:hover { color: white; }
+.nav-links > a:hover { background: rgba(255,255,255,.12); color: white; }
+
+/* Nav dropdown groups */
+.nav-group { position: relative; }
+.nav-group-btn {
+    background: none; border: none; color: rgba(255,255,255,.9);
+    font-size: 14px; padding: 8px 12px; cursor: pointer; border-radius: 6px;
+    font-family: inherit;
+}
+.nav-group-btn:hover, .nav-group:hover .nav-group-btn { background: rgba(255,255,255,.12); color: white; }
+.nav-menu {
+    display: none; position: absolute; right: 0; top: 100%;
+    background: white; min-width: 210px; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px; z-index: 200;
+}
+.nav-group:hover .nav-menu, .nav-menu:hover { display: block; }
+.nav-menu a {
+    display: block; color: var(--gray-800); text-decoration: none;
+    padding: 9px 12px; border-radius: 6px; font-size: 14px;
+}
+.nav-menu a:hover { background: var(--gray-100); color: var(--primary); }
 
 /* Layout */
 .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
@@ -551,6 +573,11 @@ body {
 .hbar-track { flex: 1; background: var(--gray-100); border-radius: 20px; height: 18px; overflow: hidden; }
 .hbar-fill { height: 100%; background: linear-gradient(90deg, #1a56db, #4f83e3); border-radius: 20px; }
 .hbar-num { width: 130px; flex-shrink: 0; text-align: right; color: var(--gray-600); font-weight: 600; }
+
+/* Inventory filter bar */
+.inv-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.inv-filters .inv-search { flex: 1; min-width: 200px; }
+.inv-filters select { padding: 9px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 14px; background: white; }
 
 /* Hold confirmation page */
 .hold-wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
