@@ -28,7 +28,7 @@
     {% for loc in locations %}
     <div class="label label-location">
         <div class="label-type">LOCATION</div>
-        <img src="/barcode/{{ loc.id }}?height=38&text=0&mw=0.5" alt="{{ loc.id }}" class="label-barcode">
+        <img src="/barcode/{{ loc.id }}?height=10&text=0&mw=0.3" alt="{{ loc.id }}" class="label-barcode">
         <div class="label-code">{{ loc.id }}</div>
         <div class="label-name">{{ loc.name }}</div>
     </div>
@@ -37,7 +37,7 @@
     {% for sub in sublocations %}
     <div class="label label-sublocation">
         <div class="label-type">SUBLOCATION</div>
-        <img src="/barcode/{{ sub.id }}?height=38&text=0&mw=0.5" alt="{{ sub.id }}" class="label-barcode">
+        <img src="/barcode/{{ sub.id }}?height=10&text=0&mw=0.3" alt="{{ sub.id }}" class="label-barcode">
         <div class="label-code">{{ sub.id }}</div>
         <div class="label-name">{{ sub.name }}</div>
     </div>
@@ -68,12 +68,12 @@
     box-sizing: border-box;
     border: 1px dashed #9ca3af;
     border-radius: 4px;
-    padding: 0.04in 0.06in;
+    padding: 0.05in 0.06in;
     background: white;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     overflow: hidden;
     break-inside: avoid;
     page-break-inside: avoid;
@@ -81,38 +81,42 @@
 .label-location { border-color: #1a56db; }
 .label-sublocation { border-color: #7c3aed; }
 .label-type {
-    font-size: 6px;
+    font-size: 7px;
     font-weight: 700;
     letter-spacing: .12em;
     color: #6b7280;
     line-height: 1;
+    flex: 0 0 auto;
 }
 .label-location .label-type { color: #1a56db; }
 .label-sublocation .label-type { color: #7c3aed; }
-/* Barcode renders at its natural thick-bar size, centered, filling width */
+/* Barcode: bounded by BOTH width and height so it never overflows the label */
 .label-barcode {
-    width: 100%;
-    max-width: 1.4in;
+    max-width: 1.38in;
+    max-height: 0.42in;
+    width: auto;
     height: auto;
     display: block;
-    margin: 0.02in auto;
+    margin: 0 auto;
+    flex: 0 1 auto;
 }
 .label-code {
     font-family: monospace;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 800;
     color: #111827;
-    line-height: 1;
+    line-height: 1.1;
+    flex: 0 0 auto;
 }
 .label-name {
     font-size: 8px;
     color: #4b5563;
     line-height: 1;
-    margin-top: 1px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    flex: 0 0 auto;
 }
 
 @media print {
