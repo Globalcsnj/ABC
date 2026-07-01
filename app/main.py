@@ -343,8 +343,7 @@ async def hold_page(request: Request, inquiry_id: int, db=Depends(get_db)):
     async with db.execute("SELECT name, address FROM stores ORDER BY id LIMIT 1") as cur:
         store = await cur.fetchone()
     return templates.TemplateResponse("hold.html", {
-        "request": request, "inq": inq, "products": products,
-        "store": store, "hold_hours": HOLD_HOURS,
+        "request": request, "inq": inq, "products": products, "store": store,
     })
 
 

@@ -21,7 +21,8 @@
     <div class="hbar-row">
         <div class="hbar-label"><a href="/inventory?category={{ c.category|urlencode }}">{{ c.category }}</a></div>
         <div class="hbar-track"><div class="hbar-fill" style="width: {{ (c.retail / max_cat * 100)|round|int }}%"></div></div>
-        <div class="hbar-num">{{ c.cnt }} · ${{ "%.0f"|format(c.retail) }}</div>
+        <div class="hbar-num">{{ c.cnt }} · ${{ "%.0f"|format(c.retail) }}
+            {% if retail_value %}· {{ (c.retail / retail_value * 100)|round(1) }}%{% endif %}</div>
     </div>
     {% endfor %}
     {% else %}<div class="empty-state">No inventory yet</div>{% endif %}
@@ -31,10 +32,11 @@
     <div class="card">
         <h2>By Product Type</h2>
         <table class="table">
-            <thead><tr><th>Type</th><th>Items</th></tr></thead>
+            <thead><tr><th>Type</th><th>Items</th><th>% of Items</th></tr></thead>
             <tbody>
                 {% for t in by_type %}
-                <tr><td>{{ t.t|capitalize }}</td><td>{{ t.cnt }}</td></tr>
+                <tr><td>{{ t.t|capitalize }}</td><td>{{ t.cnt }}</td>
+                    <td>{% if in_stock %}{{ (t.cnt / in_stock * 100)|round(1) }}%{% endif %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -55,14 +57,19 @@
 <div class="card mt">
     <h2>Value by Category (detail)</h2>
     <table class="table">
-        <thead><tr><th>Category</th><th>Items</th><th>Cost Value</th><th>Retail Value</th><th>Margin</th></tr></thead>
+        <thead><tr>
+            <th>Category</th><th>Items</th><th>% of Items</th>
+            <th>Retail Value</th><th>% of Value</th><th>Cost Value</th><th>Margin</th>
+        </tr></thead>
         <tbody>
             {% for c in by_cat %}
             <tr>
                 <td>{{ c.category }}</td>
                 <td>{{ c.cnt }}</td>
-                <td>${{ "%.0f"|format(c.cost) }}</td>
+                <td>{% if in_stock %}{{ (c.cnt / in_stock * 100)|round(1) }}%{% else %}—{% endif %}</td>
                 <td>${{ "%.0f"|format(c.retail) }}</td>
+                <td>{% if retail_value %}{{ (c.retail / retail_value * 100)|round(1) }}%{% else %}—{% endif %}</td>
+                <td>${{ "%.0f"|format(c.cost) }}</td>
                 <td class="found-text">${{ "%.0f"|format(c.retail - c.cost) }}</td>
             </tr>
             {% endfor %}
