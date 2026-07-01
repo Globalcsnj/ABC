@@ -49,8 +49,16 @@ def clean_money(val: str) -> float:
 
 
 def find_column(row: dict, *candidates):
-    """Return first matching column value (case-insensitive)."""
-    row_lower = {k.lower().strip(): v for k, v in row.items()}
+    """Return first matching column value (case-insensitive).
+
+    Guards against None keys/values, which csv.DictReader produces when a
+    row has more fields than headers or a header cell is blank.
+    """
+    row_lower = {}
+    for k, v in row.items():
+        if k is None:
+            continue
+        row_lower[str(k).lower().strip()] = v
     for c in candidates:
         v = row_lower.get(c.lower().strip())
         if v is not None and str(v).strip():
