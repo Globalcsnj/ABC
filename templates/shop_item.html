@@ -33,7 +33,10 @@
                 <div class="pdp-avail">✓ Available in store</div>
 
                 {% if p.diamond_authentic %}
-                <div class="diamond-badge">💎 Authentic Diamond Color — Verified</div>
+                <div class="diamond-badge">💎 Authentic Diamond — Verified</div>
+                {% endif %}
+                {% if p.authentic_stone %}
+                <div class="diamond-badge stone-badge">✨ Authentic Stone — Verified</div>
                 {% endif %}
 
                 <button class="btn btn-primary pdp-add" onclick="addToCart('{{ p.item_number }}')">🛒 Add to cart</button>
@@ -50,8 +53,12 @@
                     {% if p.condition %}<div class="spec-row"><span>Condition</span><span>{{ p.condition }}</span></div>{% endif %}
                     {# Jewelry-specific #}
                     {% if p.metal_type or p.metal_color %}<div class="spec-row"><span>Metal Type / Color</span><span>{{ p.metal_type }} {{ p.metal_color }}</span></div>{% endif %}
-                    {% if p.total_diamond %}<div class="spec-row"><span>Total Diamond</span><span>{{ p.total_diamond }}</span></div>{% endif %}
+                    {% if p.metal_purity %}<div class="spec-row"><span>Metal Purity</span><span>{{ p.metal_purity }}</span></div>{% endif %}
+                    {% if p.total_jewelry_weight %}<div class="spec-row"><span>Total Jewelry Weight</span><span>{{ p.total_jewelry_weight }}</span></div>{% endif %}
+                    {% if p.metal_weight %}<div class="spec-row"><span>Metal Weight</span><span>{{ p.metal_weight }}</span></div>{% endif %}
+                    {% if p.total_diamond %}<div class="spec-row"><span>Total Diamond Size</span><span>{{ p.total_diamond }}</span></div>{% endif %}
                     {% if p.total_stone_size %}<div class="spec-row"><span>Total Stone Size</span><span>{{ p.total_stone_size }}</span></div>{% endif %}
+                    {% if p.quality %}<div class="spec-row"><span>Quality</span><span>{{ p.quality }}</span></div>{% endif %}
                     {# Manufactured-specific #}
                     {% if p.manufacturer %}<div class="spec-row"><span>Manufacturer</span><span>{{ p.manufacturer }}</span></div>{% endif %}
                     {% if p.model %}<div class="spec-row"><span>Model</span><span>{{ p.model }}</span></div>{% endif %}

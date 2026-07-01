@@ -846,18 +846,25 @@ async def import_items(
             )
             item_date = find_column(row, "Date", "Date In", "Created")
 
-            # Jewelry fields
-            total_diamond = find_column(row, "Total Diamond", "Total Diamonds", "Diamond", "TotalDiamond")
-            metal_type = find_column(row, "Metal Type", "Metal", "MetalType")
-            metal_color = find_column(row, "Metal Color", "Color Metal", "MetalColor", "Metal Type/Color")
+            # Jewelry fields (match exact Bravo headers)
+            total_diamond = find_column(row, "Total Diamond Size", "Total Diamond", "Total Diamonds", "Diamond")
+            metal_type = find_column(row, "Metal Type/Color", "Metal Type", "Metal", "MetalType")
+            metal_color = find_column(row, "Metal Color", "Color Metal", "MetalColor")
             total_stone_size = find_column(row, "Total Stone Size", "Stone Size", "TotalStoneSize")
-            condition = find_column(row, "Condition", "Cond")
-            diamond_auth_raw = find_column(row, "Authentic Diamond Color", "Diamond Authentic",
-                                           "Authentic Diamond", "Diamond Color Authentic")
+            condition = find_column(row, "Condition", "Cond", "Quality")
+            metal_purity = find_column(row, "Metal Purity", "Purity")
+            total_jewelry_weight = find_column(row, "Total Jewelry Weight", "Jewelry Weight")
+            metal_weight = find_column(row, "Metal Weight")
+            quality = find_column(row, "Quality")
+            diamond_auth_raw = find_column(row, "Authentic-Diamond Jewelry", "Authentic Diamond Color",
+                                           "Diamond Authentic", "Authentic Diamond")
+            stone_auth_raw = find_column(row, "Authentic-Stone Jewelry", "Authentic Stone", "Stone Authentic")
             # Manufactured fields
             serial_number = find_column(row, "Serial Number", "Serial", "SerialNumber", "S/N")
             manufacturer = find_column(row, "Manufacturer", "Manufacture", "Maker", "Brand")
             model = find_column(row, "Model", "Model Number", "Model No")
+            quantity = find_column(row, "Quantity", "Qty")
+            vendor = find_column(row, "Vendor", "Supplier")
 
             if not item_number and not barcode:
                 skipped += 1
@@ -874,8 +881,10 @@ async def import_items(
             # manually-set price is preserved on re-upload.
             retail_val = clean_money(price_raw) if price_raw else None
             diamond_authentic = parse_bool(diamond_auth_raw)
+            authentic_stone = parse_bool(stone_auth_raw)
 
-            jewelry_signal = bool(total_diamond or metal_type or metal_color or total_stone_size)
+            jewelry_signal = bool(total_diamond or metal_type or metal_color or total_stone_size
+                                  or metal_purity or total_jewelry_weight or metal_weight)
             mfg_signal = bool(serial_number or manufacturer or model)
             ptype = detect_product_type(product_type, jewelry_signal, mfg_signal)
 
@@ -893,8 +902,9 @@ async def import_items(
                   (item_number, barcode, description, category, item_type, item_status,
                    cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
                    metal_color, total_stone_size, condition, diamond_authentic,
-                   serial_number, manufacturer, model, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                   serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
+                   metal_weight, quality, authentic_stone, quantity, vendor, missing)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=excluded.barcode, description=excluded.description,
                    category=excluded.category, item_type=excluded.item_type,
@@ -906,12 +916,17 @@ async def import_items(
                    total_stone_size=excluded.total_stone_size, condition=excluded.condition,
                    diamond_authentic=excluded.diamond_authentic,
                    serial_number=excluded.serial_number, manufacturer=excluded.manufacturer,
-                   model=excluded.model, missing=0
+                   model=excluded.model, metal_purity=excluded.metal_purity,
+                   total_jewelry_weight=excluded.total_jewelry_weight,
+                   metal_weight=excluded.metal_weight, quality=excluded.quality,
+                   authentic_stone=excluded.authentic_stone, quantity=excluded.quantity,
+                   vendor=excluded.vendor, missing=0
             """, (
                 item_number_u, barcode_u, description, category, item_type, item_status,
                 cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
                 metal_color, total_stone_size, condition, diamond_authentic,
-                serial_number, manufacturer, model,
+                serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
+                metal_weight, quality, authentic_stone, quantity, vendor,
             ))
             if exists:
                 updated += 1

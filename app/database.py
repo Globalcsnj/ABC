@@ -148,6 +148,14 @@ async def init_db():
             "serial_number": "TEXT DEFAULT ''",
             "manufacturer": "TEXT DEFAULT ''",
             "model": "TEXT DEFAULT ''",
+            # More jewelry fields (match Bravo headers)
+            "metal_purity": "TEXT DEFAULT ''",
+            "total_jewelry_weight": "TEXT DEFAULT ''",
+            "metal_weight": "TEXT DEFAULT ''",
+            "quality": "TEXT DEFAULT ''",
+            "authentic_stone": "INTEGER DEFAULT 0",
+            "quantity": "TEXT DEFAULT ''",
+            "vendor": "TEXT DEFAULT ''",
         }
         for col, decl in add_item_cols.items():
             if col not in item_cols:

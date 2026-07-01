@@ -501,6 +501,7 @@ body {
     padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: 14px;
     box-shadow: 0 2px 8px rgba(3,105,161,.12);
 }
+.stone-badge { background: linear-gradient(135deg, #fce7f3, #fdf2f8); border-color: #f9a8d4; color: #9d174d; margin-left: 8px; }
 .spec-table { margin-top: 20px; border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; }
 .spec-title { font-size: 15px; padding: 10px 14px; background: var(--gray-50); margin: 0; border-bottom: 1px solid var(--gray-200); }
 .spec-row { display: flex; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--gray-100); font-size: 14px; gap: 12px; }
