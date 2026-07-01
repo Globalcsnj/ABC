@@ -36,6 +36,18 @@
             <button type="submit" class="btn btn-secondary">Import</button>
         </form>
         <div id="importResult" class="import-result"></div>
+
+        {% if last_uploads %}
+        <div class="last-uploads">
+            <div class="last-uploads-title">Last uploaded</div>
+            {% for u in last_uploads %}
+            <div class="upload-row">
+                <span class="upload-source">{{ (u.source or 'unspecified')|capitalize }}</span>
+                <span class="upload-meta">{{ u.item_count }} items · {{ u.uploaded_at[:16] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
 

@@ -81,6 +81,15 @@ async def init_db():
                 name TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS imports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT,
+                filename TEXT,
+                item_count INTEGER,
+                mode TEXT,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
         # Seed the default store if none exist

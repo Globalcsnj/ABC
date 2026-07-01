@@ -66,9 +66,16 @@ async def home(request: Request, db=Depends(get_db)):
         sessions = await cur.fetchall()
     async with db.execute("SELECT COUNT(*) as cnt FROM items") as cur:
         item_count = (await cur.fetchone())["cnt"]
+    # Most recent upload per report type
+    async with db.execute("""
+        SELECT source, filename, item_count, MAX(uploaded_at) as uploaded_at
+        FROM imports GROUP BY source ORDER BY uploaded_at DESC
+    """) as cur:
+        last_uploads = await cur.fetchall()
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sessions": sessions,
+        "last_uploads": last_uploads,
         "item_count": item_count,
     })
 
@@ -577,6 +584,11 @@ async def import_items(
             ))
             inserted += 1
 
+        # Record this upload in the import history
+        await db.execute(
+            "INSERT INTO imports (source, filename, item_count, mode) VALUES (?, ?, ?, ?)",
+            (source, file.filename or "", inserted, mode)
+        )
         await db.commit()
     except Exception as e:
         return JSONResponse({
