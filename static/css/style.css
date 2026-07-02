@@ -563,6 +563,8 @@ body {
 
 /* Sales dashboard */
 .dash-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.dash-stats .stat-num { font-size: clamp(20px, 2.4vw, 30px); white-space: nowrap; }
+.dash-stats .stat-card { padding: 16px 12px; overflow: hidden; }
 .bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 190px; padding-top: 10px; overflow-x: auto; }
 .bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 1; min-width: 34px; }
 .bar-val { font-size: 12px; font-weight: 700; color: var(--gray-600); margin-bottom: 3px; }

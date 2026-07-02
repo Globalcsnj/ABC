@@ -6,12 +6,12 @@
 </div>
 
 <div class="stat-row dash-stats">
-    <div class="stat-card"><div class="stat-num">{{ in_stock }}</div><div class="stat-label">Items in Stock</div></div>
-    <div class="stat-card stat-found"><div class="stat-num">${{ "%.0f"|format(retail_value) }}</div><div class="stat-label">Retail Value</div></div>
-    <div class="stat-card"><div class="stat-num">${{ "%.0f"|format(cost_value) }}</div><div class="stat-label">Cost Value</div></div>
-    <div class="stat-card stat-found"><div class="stat-num">${{ "%.0f"|format(margin) }}</div><div class="stat-label">Potential Margin</div></div>
-    <div class="stat-card"><div class="stat-num">{{ priced }}</div><div class="stat-label">Priced</div></div>
-    <div class="stat-card stat-missing"><div class="stat-num">{{ unpriced }}</div><div class="stat-label">Needs Price</div></div>
+    <div class="stat-card"><div class="stat-num">{{ "{:,}".format(in_stock) }}</div><div class="stat-label">Items in Stock</div></div>
+    <div class="stat-card stat-found"><div class="stat-num">${{ "{:,.0f}".format(retail_value) }}</div><div class="stat-label">Retail Value</div></div>
+    <div class="stat-card"><div class="stat-num">${{ "{:,.0f}".format(cost_value) }}</div><div class="stat-label">Cost Value</div></div>
+    <div class="stat-card stat-found"><div class="stat-num">${{ "{:,.0f}".format(margin) }}</div><div class="stat-label">Potential Margin</div></div>
+    <div class="stat-card"><div class="stat-num">{{ "{:,}".format(priced) }}</div><div class="stat-label">Priced</div></div>
+    <div class="stat-card stat-missing"><div class="stat-num">{{ "{:,}".format(unpriced) }}</div><div class="stat-label">Needs Price</div></div>
 </div>
 
 <div class="card mt">

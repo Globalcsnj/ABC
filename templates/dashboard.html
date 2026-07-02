@@ -7,27 +7,27 @@
 
 <div class="stat-row dash-stats">
     <div class="stat-card stat-found">
-        <div class="stat-num">{{ sold_total }}</div>
+        <div class="stat-num">{{ "{:,}".format(sold_total) }}</div>
         <div class="stat-label">Total Sold</div>
     </div>
     <div class="stat-card">
-        <div class="stat-num">${{ "%.0f"|format(sold_value) }}</div>
+        <div class="stat-num">${{ "{:,.0f}".format(sold_value) }}</div>
         <div class="stat-label">Sold Value</div>
     </div>
     <div class="stat-card">
-        <div class="stat-num">{{ sold_7 }}</div>
+        <div class="stat-num">{{ "{:,}".format(sold_7) }}</div>
         <div class="stat-label">Sold (last 7 days)</div>
     </div>
     <div class="stat-card">
-        <div class="stat-num">{{ sold_30 }}</div>
+        <div class="stat-num">{{ "{:,}".format(sold_30) }}</div>
         <div class="stat-label">Sold (last 30 days)</div>
     </div>
     <div class="stat-card stat-missing">
-        <div class="stat-num">{{ in_stock }}</div>
+        <div class="stat-num">{{ "{:,}".format(in_stock) }}</div>
         <div class="stat-label">In Stock</div>
     </div>
     <div class="stat-card">
-        <div class="stat-num">${{ "%.0f"|format(stock_value) }}</div>
+        <div class="stat-num">${{ "{:,.0f}".format(stock_value) }}</div>
         <div class="stat-label">Stock Value</div>
     </div>
 </div>
