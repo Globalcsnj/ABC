@@ -248,6 +248,22 @@ async def shop_page(
     })
 
 
+@app.get("/welcome", response_class=HTMLResponse)
+async def welcome_page(request: Request, db=Depends(get_db)):
+    # Top categories to feature (retail, for sale, not sold)
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category, COUNT(*) as cnt
+        FROM items WHERE source='retail' AND COALESCE(for_sale,1)=1 AND COALESCE(sold,0)=0
+        GROUP BY category ORDER BY cnt DESC LIMIT 6
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
+    async with db.execute("SELECT name, address FROM stores ORDER BY id LIMIT 1") as cur:
+        store = await cur.fetchone()
+    return templates.TemplateResponse("welcome.html", {
+        "request": request, "categories": categories, "store": store,
+    })
+
+
 @app.get("/shop/item/{item_number:path}", response_class=HTMLResponse)
 async def shop_item_page(request: Request, item_number: str, db=Depends(get_db)):
     async with db.execute(

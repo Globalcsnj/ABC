@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC MoneyLoan Pawnshop – Trenton, NJ</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <header class="shop-topbar">
+        <a href="/welcome" class="shop-logo">🏪 ABC MoneyLoan</a>
+        <div style="flex:1"></div>
+        <a href="/shop" class="shop-cart-link">Shop Now →</a>
+    </header>
+
+    <!-- Hero with interactive video + clickable hotspots -->
+    <section class="lp-hero">
+        <div class="lp-video-wrap">
+            <video class="lp-video" autoplay muted loop playsinline poster="">
+                <source src="/static/media/hero.mp4" type="video/mp4">
+            </video>
+            <div class="lp-video-fallback"></div>
+
+            <!-- Hotspots: click to jump into that category in the shop -->
+            <div class="lp-hotspots">
+                {% for c in categories %}
+                <a class="lp-hotspot lp-hs-{{ loop.index }}" href="/shop?category={{ c.category|urlencode }}">
+                    <span class="lp-hs-dot"></span>
+                    <span class="lp-hs-label">{{ c.category }} <em>{{ c.cnt }}</em></span>
+                </a>
+                {% endfor %}
+            </div>
+
+            <div class="lp-hero-text">
+                <h1>Quality pre-owned treasures,<br>priced to move.</h1>
+                <p>Jewelry, electronics, tools and more — tap a marker to explore, or browse the full store.</p>
+                <a href="/shop" class="btn btn-primary lp-cta">Browse the Store</a>
+            </div>
+        </div>
+        <p class="lp-video-hint">Tip: drop a video at <code>static/media/hero.mp4</code> to replace the background. Markers stay clickable.</p>
+    </section>
+
+    <!-- Category tiles -->
+    <section class="lp-section">
+        <h2 class="lp-h2">Shop by Category</h2>
+        <div class="lp-cats">
+            {% for c in categories %}
+            <a href="/shop?category={{ c.category|urlencode }}" class="lp-cat-tile">
+                <div class="lp-cat-name">{{ c.category }}</div>
+                <div class="lp-cat-count">{{ c.cnt }} items</div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Visit us -->
+    <section class="lp-section lp-visit">
+        <h2 class="lp-h2">Visit Us</h2>
+        <div class="lp-store">{{ store.name if store else 'ABC MoneyLoan Pawnshop' }}</div>
+        <div class="lp-address">{{ store.address if store and store.address else '146 E. State Street, Trenton, NJ 08608' }}</div>
+        <a href="/shop" class="btn btn-primary lp-cta">Start Shopping</a>
+    </section>
+
+    <footer class="shop-footer">© ABC MoneyLoan Pawnshop · Prices and availability may change.</footer>
+</body>
+</html>
