@@ -110,15 +110,16 @@
     <p class="card-subtitle">Items found in the store but NOT on the list. Investigate these.</p>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th></tr>
+            <tr><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th><th></th></tr>
         </thead>
         <tbody>
             {% for f in findings %}
-            <tr class="row-unknown">
+            <tr class="row-unknown" id="finding-{{ f.id }}">
                 <td><code>{{ f.barcode }}</code></td>
                 <td><code>{{ f.full_ref }}</code></td>
                 <td>{{ f.location_id or '' }}{% if f.sublocation_id %} › {{ f.sublocation_id }}{% endif %}</td>
                 <td>{{ f.scanned_at[11:19] }}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteFinding({{ f.id }})">Delete</button></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -236,6 +237,26 @@
 
 {% block scripts %}
 <script>
+async function deleteFinding(scanId) {
+    const code = prompt('Enter override code to delete this finding:');
+    if (!code) return;
+    const body = new FormData();
+    body.append('override', code.trim());
+    try {
+        const res = await fetch(`/api/scans/${scanId}/delete`, { method: 'POST', body });
+        if (res.ok) {
+            const row = document.getElementById('finding-' + scanId);
+            if (row) row.remove();
+        } else if (res.status === 403) {
+            alert('Invalid override code. Nothing was deleted.');
+        } else {
+            alert('Could not delete (are you still signed in?).');
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
 async function reopenCount() {
     const code = prompt('Enter override code to reopen this count:');
     if (!code) return;
