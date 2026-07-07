@@ -91,6 +91,22 @@ async def init_db():
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS reconcile_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                import_id INTEGER,
+                item_number TEXT,
+                barcode TEXT,
+                description TEXT,
+                category TEXT,
+                big_group TEXT,
+                cost REAL,
+                retail_price REAL,
+                source TEXT,
+                flagged_at TIMESTAMP,
+                status TEXT DEFAULT 'missing',
+                resolved_at TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS inquiries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_name TEXT,

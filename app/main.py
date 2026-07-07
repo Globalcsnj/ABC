@@ -629,9 +629,30 @@ async def reconcile_page(request: Request, db=Depends(get_db)):
         FROM items WHERE sold=1 ORDER BY sold_at DESC LIMIT 200
     """) as cur:
         sold = await cur.fetchall()
+    # Full reconciliation history (audit record) for manual review
+    async with db.execute("""
+        SELECT * FROM reconcile_log ORDER BY flagged_at DESC, id DESC LIMIT 500
+    """) as cur:
+        log = await cur.fetchall()
     return templates.TemplateResponse("reconcile.html", {
-        "request": request, "missing": missing, "sold": sold,
+        "request": request, "missing": missing, "sold": sold, "log": log,
     })
+
+
+@app.get("/reconcile/log.csv")
+async def reconcile_log_csv(db=Depends(get_db)):
+    async with db.execute("SELECT * FROM reconcile_log ORDER BY flagged_at DESC, id DESC") as cur:
+        rows = await cur.fetchall()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Flagged At", "Group", "Item #", "Barcode", "Description", "Category",
+                "Source", "Cost", "Retail", "Status", "Resolved At"])
+    for r in rows:
+        w.writerow([r["flagged_at"], r["big_group"], r["item_number"], r["barcode"],
+                    r["description"], r["category"], r["source"], r["cost"], r["retail_price"],
+                    r["status"], r["resolved_at"] or ""])
+    return Response(content=out.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="reconcile_log.csv"'})
 
 
 @app.post("/api/items/{item_number}/sold")
@@ -640,6 +661,10 @@ async def mark_sold(item_number: str, db=Depends(get_db)):
         "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 WHERE item_number=?",
         (item_number,)
     )
+    await db.execute(
+        "UPDATE reconcile_log SET status='sold', resolved_at=CURRENT_TIMESTAMP "
+        "WHERE item_number=? AND status='missing'", (item_number,)
+    )
     await db.commit()
     return RedirectResponse("/reconcile", status_code=303)
 
@@ -647,6 +672,10 @@ async def mark_sold(item_number: str, db=Depends(get_db)):
 @app.post("/api/items/{item_number}/keep")
 async def mark_keep(item_number: str, db=Depends(get_db)):
     await db.execute("UPDATE items SET missing=0 WHERE item_number=?", (item_number,))
+    await db.execute(
+        "UPDATE reconcile_log SET status='kept', resolved_at=CURRENT_TIMESTAMP "
+        "WHERE item_number=? AND status='missing'", (item_number,)
+    )
     await db.commit()
     return RedirectResponse("/reconcile", status_code=303)
 
@@ -1230,27 +1259,48 @@ async def import_items(
             else:
                 inserted += 1
 
-        # Reconciliation: items in this list that were NOT in the file and are not
-        # already sold → flag as missing (possibly sold). Re-appearing items cleared above.
+        # Record this upload first so we can tie the reconciliation log to it
+        async with db.execute(
+            "INSERT INTO imports (source, filename, item_count, mode) VALUES (?, ?, ?, ?)",
+            (source, file.filename or "", inserted + updated, mode)
+        ) as cur:
+            import_id = cur.lastrowid
+
+        # Reconciliation: items in this list not in the file and not already sold.
         missing_count = 0
         if seen_codes:
             placeholders = ",".join("?" for _ in seen_codes)
+            # Newly-disappeared items (were present before, missing=0) → log them
+            async with db.execute(
+                f"SELECT item_number, barcode, description, category, cost, retail_price, "
+                f"       product_type FROM items "
+                f"WHERE source=? AND sold=0 AND COALESCE(missing,0)=0 "
+                f"AND item_number NOT IN ({placeholders})",
+                [source] + seen_codes
+            ) as cur:
+                newly_missing = await cur.fetchall()
+            flagged_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for m in newly_missing:
+                await db.execute(
+                    "INSERT INTO reconcile_log (import_id, item_number, barcode, description, "
+                    "category, big_group, cost, retail_price, source, flagged_at, status) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'missing')",
+                    (import_id, m["item_number"], m["barcode"], m["description"], m["category"],
+                     big_group(m), m["cost"], m["retail_price"], source, flagged_at)
+                )
+            # Flag all not-in-file as missing (count = total currently missing this list)
+            await db.execute(
+                f"UPDATE items SET missing=1 WHERE source=? AND sold=0 "
+                f"AND item_number NOT IN ({placeholders})",
+                [source] + seen_codes
+            )
             async with db.execute(
                 f"SELECT COUNT(*) FROM items WHERE source=? AND sold=0 "
                 f"AND item_number NOT IN ({placeholders})",
                 [source] + seen_codes
             ) as cur:
                 missing_count = (await cur.fetchone())[0]
-            await db.execute(
-                f"UPDATE items SET missing=1 WHERE source=? AND sold=0 "
-                f"AND item_number NOT IN ({placeholders})",
-                [source] + seen_codes
-            )
 
-        await db.execute(
-            "INSERT INTO imports (source, filename, item_count, mode) VALUES (?, ?, ?, ?)",
-            (source, file.filename or "", inserted + updated, mode)
-        )
         await db.commit()
     except Exception as e:
         return JSONResponse({

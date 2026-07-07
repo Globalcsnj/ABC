@@ -42,6 +42,40 @@
     {% endif %}
 </div>
 
+{% if log %}
+<div class="card mt">
+    <div class="card-header">
+        <h2>📋 Reconciliation Record</h2>
+        <a href="/reconcile/log.csv" class="btn btn-sm btn-primary">⬇ Export</a>
+    </div>
+    <p class="card-subtitle">Every item flagged as possibly-sold on each upload, with how it was resolved. This is a permanent audit record.</p>
+    <table class="table">
+        <thead>
+            <tr><th>Flagged</th><th>Group</th><th>Item #</th><th>Description</th><th>Category</th><th>Cost</th><th>Retail</th><th>Status</th><th>Resolved</th></tr>
+        </thead>
+        <tbody>
+            {% for r in log %}
+            <tr>
+                <td>{{ r.flagged_at[:16] if r.flagged_at else '—' }}</td>
+                <td>{{ r.big_group }}</td>
+                <td>{{ r.item_number }}</td>
+                <td>{{ r.description or '—' }}</td>
+                <td>{{ r.category or '—' }}</td>
+                <td>{% if r.cost %}${{ "%.2f"|format(r.cost) }}{% else %}—{% endif %}</td>
+                <td>{% if r.retail_price %}${{ "%.2f"|format(r.retail_price) }}{% else %}—{% endif %}</td>
+                <td>
+                    {% if r.status == 'sold' %}<span class="status-dot dot-found">✅ Sold</span>
+                    {% elif r.status == 'kept' %}<span class="status-dot">↩ Still here</span>
+                    {% else %}<span class="status-dot dot-unknown">⏳ Pending</span>{% endif %}
+                </td>
+                <td>{{ r.resolved_at[:16] if r.resolved_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% if sold %}
 <div class="card mt">
     <h2>✅ Sold Items</h2>
