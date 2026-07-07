@@ -46,9 +46,21 @@
 <div class="card mt">
     <div class="card-header">
         <h2>📋 Reconciliation Record</h2>
-        <a href="/reconcile/log.csv" class="btn btn-sm btn-primary">⬇ Export</a>
+        <a href="/reconcile/log.csv?frm={{ frm }}&to={{ to }}&status={{ log_status }}" class="btn btn-sm btn-primary">⬇ Export</a>
     </div>
     <p class="card-subtitle">Every item flagged as possibly-sold on each upload, with how it was resolved. This is a permanent audit record.</p>
+    <form method="GET" action="/reconcile" class="inv-filters" style="margin-bottom:12px">
+        <label>From <input type="date" name="frm" value="{{ frm }}"></label>
+        <label>To <input type="date" name="to" value="{{ to }}"></label>
+        <select name="status">
+            <option value="">Any status</option>
+            <option value="missing" {% if log_status=='missing' %}selected{% endif %}>Pending</option>
+            <option value="sold" {% if log_status=='sold' %}selected{% endif %}>Sold</option>
+            <option value="kept" {% if log_status=='kept' %}selected{% endif %}>Still here</option>
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+        <a href="/reconcile" class="btn btn-sm btn-outline">Clear</a>
+    </form>
     <table class="table">
         <thead>
             <tr><th>Flagged</th><th>Group</th><th>Item #</th><th>Description</th><th>Category</th><th>Cost</th><th>Retail</th><th>Status</th><th>Resolved</th></tr>

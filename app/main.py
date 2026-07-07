@@ -618,7 +618,8 @@ async def analysis_page(request: Request, db=Depends(get_db)):
 
 
 @app.get("/reconcile", response_class=HTMLResponse)
-async def reconcile_page(request: Request, db=Depends(get_db)):
+async def reconcile_page(request: Request, frm: str = "", to: str = "",
+                         status: str = "", db=Depends(get_db)):
     async with db.execute("""
         SELECT item_number, barcode, description, category, cost, retail_price, source
         FROM items WHERE missing=1 AND sold=0 ORDER BY source, category, item_number
@@ -629,19 +630,42 @@ async def reconcile_page(request: Request, db=Depends(get_db)):
         FROM items WHERE sold=1 ORDER BY sold_at DESC LIMIT 200
     """) as cur:
         sold = await cur.fetchall()
-    # Full reconciliation history (audit record) for manual review
-    async with db.execute("""
-        SELECT * FROM reconcile_log ORDER BY flagged_at DESC, id DESC LIMIT 500
-    """) as cur:
+    return await _render_reconcile(request, db, missing, sold, frm, to, status)
+
+
+async def _render_reconcile(request, db, missing, sold, frm="", to="", status=""):
+    query = "SELECT * FROM reconcile_log WHERE 1=1"
+    params = []
+    if frm:
+        query += " AND date(flagged_at) >= ?"
+        params.append(frm)
+    if to:
+        query += " AND date(flagged_at) <= ?"
+        params.append(to)
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY flagged_at DESC, id DESC LIMIT 800"
+    async with db.execute(query, params) as cur:
         log = await cur.fetchall()
     return templates.TemplateResponse("reconcile.html", {
         "request": request, "missing": missing, "sold": sold, "log": log,
+        "frm": frm, "to": to, "log_status": status,
     })
 
 
 @app.get("/reconcile/log.csv")
-async def reconcile_log_csv(db=Depends(get_db)):
-    async with db.execute("SELECT * FROM reconcile_log ORDER BY flagged_at DESC, id DESC") as cur:
+async def reconcile_log_csv(frm: str = "", to: str = "", status: str = "", db=Depends(get_db)):
+    query = "SELECT * FROM reconcile_log WHERE 1=1"
+    params = []
+    if frm:
+        query += " AND date(flagged_at) >= ?"; params.append(frm)
+    if to:
+        query += " AND date(flagged_at) <= ?"; params.append(to)
+    if status:
+        query += " AND status = ?"; params.append(status)
+    query += " ORDER BY flagged_at DESC, id DESC"
+    async with db.execute(query, params) as cur:
         rows = await cur.fetchall()
     out = io.StringIO()
     w = csv.writer(out)
