@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import zipfile
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -41,6 +42,18 @@ AUTH_TOKEN = "abc-authed-ok"        # opaque cookie value set on login
 # Paths the public (customers) can reach without logging in
 PUBLIC_PREFIXES = ("/shop", "/welcome", "/hold", "/qr", "/barcode", "/static",
                    "/uploads", "/login", "/api/shop", "/favicon")
+
+
+def get_lan_ip():
+    """Best-effort local network IP so phones on the same WiFi can connect."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "localhost"
 
 
 def make_daily_backup():
@@ -184,6 +197,7 @@ async def home(request: Request, db=Depends(get_db)):
         "sessions": sessions,
         "last_uploads": last_uploads,
         "item_count": item_count,
+        "lan_url": f"http://{get_lan_ip()}:8000",
     })
 
 

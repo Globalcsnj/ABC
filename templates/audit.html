@@ -46,6 +46,9 @@ pause — you can resume this count anytime from the Home page.</p>
     <div class="scan-hint">Scan location → sublocation → items &nbsp;|&nbsp; Scanner types here automatically</div>
     <input type="text" id="scanInput" class="scan-input"
            placeholder="Waiting for scan..." autocomplete="off" autofocus>
+    <div class="scan-camera-row">
+        <button type="button" class="btn btn-outline" onclick="startCameraScan()">📷 Scan with Camera</button>
+    </div>
     <div id="scanFeedback" class="scan-feedback"></div>
 </div>
 
@@ -109,6 +112,9 @@ function updateProgress(found) {
     document.getElementById('progressText').textContent = `${found} of ${exp} expected items scanned`;
 }
 updateProgress({{ already_found }});
+
+// Camera scanning feeds barcodes into the same flow as the USB scanner
+window.onCameraScan = (code) => processScan(code);
 
 const scanInput = document.getElementById('scanInput');
 const feedback  = document.getElementById('scanFeedback');
