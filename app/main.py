@@ -319,13 +319,17 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     """, (session_id,)) as cur:
         summary = await cur.fetchall()
 
-    missing = await get_missing_items(session_id, session, db)
+    missing_raw = await get_missing_items(session_id, session, db)
     overrides = await load_group_overrides(db)
 
-    # Contrast the two big groups: Jewelry vs Manufactured
+    # Annotate each missing item with its group so the report can filter/sort
+    missing = []
     group_summary = {}
-    for m in missing:
+    for m in missing_raw:
         g = big_group(m, overrides)
+        d = dict(m)
+        d["group"] = g
+        missing.append(d)
         if g not in group_summary:
             group_summary[g] = {"count": 0, "cost": 0.0, "retail": 0.0}
         group_summary[g]["count"] += 1

@@ -129,10 +129,11 @@
 </div>
 {% endif %}
 
-<!-- All scanned items -->
+<!-- All scanned items (collapsible) -->
 <div class="card mt">
-    <h2>All Scanned Items</h2>
-    <table class="table">
+    <details>
+    <summary class="collapse-summary">✅ All Scanned Items ({{ scans|length }}) — click to expand</summary>
+    <table class="table mt">
         <thead>
             <tr>
                 <th>Status</th>
@@ -176,61 +177,67 @@
             {% endfor %}
         </tbody>
     </table>
+    </details>
 </div>
 
-<!-- Missing by category -->
+<!-- Missing by category (collapsible) -->
 {% if missing_by_cat %}
 <div class="card mt">
-    <h2>❌ Missing by Category</h2>
-    <p class="card-subtitle">Categories with items not found during the count. Click one to filter the list below.</p>
+    <details>
+    <summary class="collapse-summary">❌ Missing by Category ({{ missing_by_cat|length }}) — click to expand</summary>
+    <p class="card-subtitle mt">Click a category to filter the missing list below.</p>
     <div class="cat-list">
         {% for cat, cnt in missing_by_cat %}
-        <a href="#" class="cat-row" onclick="filterMissing('{{ cat|replace("'", "\\'") }}');return false;">
+        <a href="#missingList" class="cat-row" onclick="filterMissing('{{ cat|replace("'", "\\'") }}')">
             <span>{{ cat }}</span><span class="cat-count">{{ cnt }}</span>
         </a>
         {% endfor %}
     </div>
+    </details>
 </div>
 {% endif %}
 
-<!-- Missing items -->
+<!-- Missing items (collapsible, with group tabs + sort) -->
 {% if missing %}
-<div class="card mt">
-    <h2>❌ Items in Bravo NOT Found During Count</h2>
-    <p class="card-subtitle">These items exist in Bravo but were not scanned. They may be misplaced, sold, or on loan.</p>
+<div class="card mt" id="missingList">
+    <details open>
+    <summary class="collapse-summary">❌ Missing Items ({{ missing|length }}) — not found during the count</summary>
+
+    <div class="group-tabs mt">
+        <button class="group-tab active" data-group="" onclick="setGroup(this)">All ({{ missing|length }})</button>
+        {% for g, v in group_summary %}
+        <button class="group-tab" data-group="{{ g }}" onclick="setGroup(this)">{{ g }} ({{ v.count }})</button>
+        {% endfor %}
+    </div>
+
     <div class="cat-filter-bar">
         <input type="text" id="missingFilter" class="search-input"
-               placeholder="Filter missing items… e.g. gold, ring, AB1007">
+               placeholder="Filter… e.g. gold, ring, AB1007">
+        <select id="missingSort" onchange="renderMissing()">
+            <option value="category">Sort: Category</option>
+            <option value="description">Sort: Description</option>
+            <option value="item_number">Sort: Item #</option>
+            <option value="retail_desc">Sort: Price High→Low</option>
+            <option value="cost_desc">Sort: Cost High→Low</option>
+        </select>
     </div>
+    <p class="card-subtitle" id="missingCount"></p>
+
     <table class="table" id="missingTable">
         <thead>
             <tr>
-                <th>Bravo #</th>
-                <th>Barcode</th>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Status</th>
-                <th>Cost</th>
+                <th>Group</th><th>Bravo #</th><th>Barcode</th><th>Description</th>
+                <th>Category</th><th>Cost</th><th>Retail</th>
             </tr>
         </thead>
-        <tbody>
-            {% for item in missing %}
-            <tr class="row-missing missing-row">
-                <td>{{ item.item_number }}</td>
-                <td>
-                    <img src="/barcode/{{ item.barcode }}?height=28&text=0"
-                         alt="{{ item.barcode }}" class="barcode-thumb">
-                    <div class="barcode-num">{{ item.barcode }}</div>
-                </td>
-                <td>{{ item.description or '—' }}</td>
-                <td>{{ item.category or '—' }}</td>
-                <td>{{ item.item_status or '—' }}</td>
-                <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+        <tbody id="missingBody"></tbody>
     </table>
+    </details>
 </div>
+
+<script id="missingData" type="application/json">
+{{ missing|tojson }}
+</script>
 {% endif %}
 {% endblock %}
 
@@ -243,22 +250,65 @@ function reopenCount() {
     document.getElementById('reopenForm').submit();
 }
 
-function applyMissingFilter(q) {
-    q = (q || '').toLowerCase().trim();
-    document.querySelectorAll('#missingTable .missing-row').forEach(row => {
-        const text = row.textContent.toLowerCase();
-        row.style.display = (!q || text.includes(q)) ? '' : 'none';
+let MISSING = [];
+let currentGroup = '';
+
+function money(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
+
+function renderMissing() {
+    const body = document.getElementById('missingBody');
+    if (!body) return;
+    const q = (document.getElementById('missingFilter').value || '').toLowerCase().trim();
+    const sort = document.getElementById('missingSort').value;
+
+    let rows = MISSING.filter(m => !currentGroup || m.group === currentGroup);
+    if (q) rows = rows.filter(m =>
+        ((m.item_number||'') + ' ' + (m.description||'') + ' ' + (m.category||'') + ' ' + (m.barcode||''))
+        .toLowerCase().includes(q));
+
+    rows.sort((a, b) => {
+        if (sort === 'retail_desc') return (b.retail_price||0) - (a.retail_price||0);
+        if (sort === 'cost_desc') return (b.cost||0) - (a.cost||0);
+        return String(a[sort]||'').localeCompare(String(b[sort]||''));
     });
+
+    document.getElementById('missingCount').textContent =
+        `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`;
+
+    body.innerHTML = rows.map(m => `
+        <tr class="row-missing">
+            <td>${m.group}</td>
+            <td>${m.item_number||''}</td>
+            <td><img src="/barcode/${m.barcode}?height=24&text=0" class="barcode-thumb"><div class="barcode-num">${m.barcode||''}</div></td>
+            <td>${m.description||'—'}</td>
+            <td>${m.category||'—'}</td>
+            <td>${money(m.cost)}</td>
+            <td>${money(m.retail_price)}</td>
+        </tr>`).join('') || '<tr><td colspan="7" class="empty-state">No items match.</td></tr>';
+}
+
+function setGroup(btn) {
+    currentGroup = btn.dataset.group;
+    document.querySelectorAll('.group-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderMissing();
 }
 
 function filterMissing(cat) {
-    const input = document.getElementById('missingFilter');
-    if (input) { input.value = cat; applyMissingFilter(cat); input.scrollIntoView({behavior:'smooth'}); }
+    // From "Missing by Category" click: filter by category text, all groups
+    currentGroup = '';
+    document.querySelectorAll('.group-tab').forEach(b => b.classList.toggle('active', b.dataset.group === ''));
+    document.getElementById('missingFilter').value = cat;
+    renderMissing();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('missingFilter');
-    if (input) input.addEventListener('input', () => applyMissingFilter(input.value));
+    const data = document.getElementById('missingData');
+    if (data) {
+        try { MISSING = JSON.parse(data.textContent); } catch { MISSING = []; }
+        document.getElementById('missingFilter').addEventListener('input', renderMissing);
+        renderMissing();
+    }
 });
 </script>
 {% endblock %}

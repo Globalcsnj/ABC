@@ -413,6 +413,14 @@ body {
 
 .save-hint { font-size: 13px; color: var(--gray-600); margin: -8px 0 16px; }
 
+/* Collapsible sections + group tabs */
+.collapse-summary { cursor: pointer; font-size: 16px; font-weight: 600; color: var(--gray-800); padding: 6px 0; user-select: none; list-style: revert; }
+.collapse-summary:hover { color: var(--primary); }
+.group-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.group-tab { padding: 7px 16px; border: 1px solid var(--gray-200); background: white; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--gray-600); }
+.group-tab:hover { border-color: var(--primary); }
+.group-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
 /* Login */
 .login-wrap { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-card { background: white; border: 1px solid var(--gray-200); border-radius: 14px; padding: 34px; width: 100%; max-width: 360px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
