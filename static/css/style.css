@@ -371,6 +371,7 @@ body {
 .row-found td { background: #f0fdf4; }
 .row-unknown td { background: #fffbeb; }
 .row-missing td { background: #fef2f2; }
+.table-total td { border-top: 2px solid var(--gray-300, #d1d5db); background: var(--gray-50); }
 .found-text { color: #065f46; font-weight: 700; }
 .unknown-text { color: #92400e; }
 .status-dot { font-size: 12px; font-weight: 600; white-space: nowrap; }

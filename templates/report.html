@@ -92,6 +92,14 @@
             </tr>
             {% endfor %}
         </tbody>
+        <tfoot>
+            <tr class="table-total">
+                <td colspan="2"><strong>TOTAL</strong></td>
+                <td class="found-text"><strong>{{ summary|sum(attribute='found') }}</strong></td>
+                <td class="unknown-text"><strong>{{ summary|sum(attribute='unknown') }}</strong></td>
+                <td><strong>{{ summary|sum(attribute='total') }}</strong></td>
+            </tr>
+        </tfoot>
     </table>
 </div>
 
