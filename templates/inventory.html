@@ -91,10 +91,7 @@
                     {% else %}<span class="no-photo">—</span>{% endif %}
                 </td>
                 <td><strong>{{ item.item_number }}</strong></td>
-                <td>
-                    <img src="/barcode/{{ item.barcode }}?height=26&text=0" alt="{{ item.barcode }}" class="barcode-thumb">
-                    <div class="barcode-num">{{ item.barcode }}</div>
-                </td>
+                <td><code>{{ item.barcode }}</code></td>
                 <td><a href="/shop/item/{{ item.item_number }}" target="_blank">{{ item.description or '—' }}</a></td>
                 <td>{{ item.category or '—' }}</td>
                 <td>{{ item.product_type or '—' }}</td>

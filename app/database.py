@@ -75,6 +75,10 @@ async def init_db():
             );
 
             CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
+            CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
+            CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
+            CREATE INDEX IF NOT EXISTS idx_scans_session ON audit_scans(session_id);
+            CREATE INDEX IF NOT EXISTS idx_scans_barcode ON audit_scans(barcode);
 
             CREATE TABLE IF NOT EXISTS stores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,5 +204,8 @@ async def init_db():
         for col, decl in add_item_cols.items():
             if col not in item_cols:
                 await db.execute(f"ALTER TABLE items ADD COLUMN {col} {decl}")
+
+        # Indexes on migrated columns (created after the columns exist)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_items_sold ON items(sold)")
 
         await db.commit()

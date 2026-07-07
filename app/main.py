@@ -1577,6 +1577,7 @@ async def generate_barcode(code: str, height: int = 40, text: int = 1, mw: float
         "quiet_zone": 6,
         "write_text": bool(text),
     }
+    cache = {"Cache-Control": "public, max-age=604800, immutable"}
     try:
         Code128 = barcode.get_barcode_class("code128")
         bc = Code128(code, writer=SVGWriter())
@@ -1584,9 +1585,9 @@ async def generate_barcode(code: str, height: int = 40, text: int = 1, mw: float
     except Exception:
         # Fallback: plain text if barcode generation fails
         svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><text y="30" font-size="12">{code}</text></svg>'
-        return Response(content=svg, media_type="image/svg+xml")
+        return Response(content=svg, media_type="image/svg+xml", headers=cache)
 
-    return Response(content=buf.getvalue(), media_type="image/svg+xml")
+    return Response(content=buf.getvalue(), media_type="image/svg+xml", headers=cache)
 
 
 @app.post("/api/locations")

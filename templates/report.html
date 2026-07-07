@@ -161,11 +161,7 @@
                 </td>
                 <td><code>{{ scan.full_ref }}</code></td>
                 <td>{{ scan.item_number or '—' }}</td>
-                <td>
-                    <img src="/barcode/{{ scan.barcode }}?height=28&text=0"
-                         alt="{{ scan.barcode }}" class="barcode-thumb">
-                    <div class="barcode-num">{{ scan.barcode }}</div>
-                </td>
+                <td><code>{{ scan.barcode }}</code></td>
                 <td>{{ scan.description or '—' }}</td>
                 <td>{{ scan.category or '—' }}</td>
                 <td>{{ scan.item_status or '—' }}</td>
@@ -279,7 +275,7 @@ function renderMissing() {
         <tr class="row-missing">
             <td>${m.group}</td>
             <td>${m.item_number||''}</td>
-            <td><img src="/barcode/${m.barcode}?height=24&text=0" class="barcode-thumb"><div class="barcode-num">${m.barcode||''}</div></td>
+            <td><code>${m.barcode||''}</code></td>
             <td>${m.description||'—'}</td>
             <td>${m.category||'—'}</td>
             <td>${money(m.cost)}</td>
