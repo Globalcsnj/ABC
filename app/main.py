@@ -117,20 +117,33 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
     return templates.TemplateResponse("audit.html", {"request": request, "session": session})
 
 
-def big_group(row) -> str:
-    """Classify an item into one of the two big groups: Jewelry or Manufactured."""
-    pt = (row["product_type"] if "product_type" in row.keys() else "") or ""
-    if pt == "jewelry":
+JEWELRY_KEYWORDS = ("gold", "silver", "diamond", "ring", "chain", "charm", "earring",
+                    "bracelet", "necklace", "pendant", "stone", "jewel", "wristwatch", "watch")
+
+
+def classify_category(category: str, product_type: str = "", overrides: dict = None) -> str:
+    """Return 'Jewelry' or 'Manufactured' for a category, honoring manual overrides."""
+    cat = (category or "").strip()
+    if overrides and cat in overrides:
+        return overrides[cat]
+    if product_type == "jewelry":
         return "Jewelry"
-    if pt == "manufactured":
+    if product_type == "manufactured":
         return "Manufactured"
-    # Fall back to category keywords
-    cat = ((row["category"] if "category" in row.keys() else "") or "").lower()
-    jewelry_kw = ("gold", "silver", "diamond", "ring", "chain", "charm", "earring",
-                  "bracelet", "necklace", "pendant", "stone", "jewel", "wristwatch", "watch")
-    if any(k in cat for k in jewelry_kw):
+    if any(k in cat.lower() for k in JEWELRY_KEYWORDS):
         return "Jewelry"
     return "Manufactured"
+
+
+def big_group(row, overrides=None) -> str:
+    pt = (row["product_type"] if "product_type" in row.keys() else "") or ""
+    cat = (row["category"] if "category" in row.keys() else "") or ""
+    return classify_category(cat, pt, overrides)
+
+
+async def load_group_overrides(db) -> dict:
+    async with db.execute("SELECT category, big_group FROM category_overrides") as cur:
+        return {r["category"]: r["big_group"] for r in await cur.fetchall()}
 
 
 async def get_missing_items(session_id, session, db):
@@ -188,11 +201,12 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         summary = await cur.fetchall()
 
     missing = await get_missing_items(session_id, session, db)
+    overrides = await load_group_overrides(db)
 
     # Contrast the two big groups: Jewelry vs Manufactured
     group_summary = {}
     for m in missing:
-        g = big_group(m)
+        g = big_group(m, overrides)
         if g not in group_summary:
             group_summary[g] = {"count": 0, "cost": 0.0, "retail": 0.0}
         group_summary[g]["count"] += 1
@@ -239,11 +253,12 @@ async def report_missing_csv(session_id: int, db=Depends(get_db)):
     if not session:
         raise HTTPException(404)
     missing = await get_missing_items(session_id, session, db)
+    overrides = await load_group_overrides(db)
 
     # Group contrast
     groups = {}
     for m in missing:
-        g = big_group(m)
+        g = big_group(m, overrides)
         groups.setdefault(g, {"count": 0, "cost": 0.0, "retail": 0.0})
         groups[g]["count"] += 1
         groups[g]["cost"] += (m["cost"] or 0)
@@ -267,7 +282,7 @@ async def report_missing_csv(session_id: int, db=Depends(get_db)):
                 "Cost", "Retail Price", "Metal", "Purity", "Total Diamond", "Total Stone"])
     for m in missing:
         w.writerow([
-            big_group(m), m["item_number"], m["barcode"], m["description"], m["category"],
+            big_group(m, overrides), m["item_number"], m["barcode"], m["description"], m["category"],
             m["item_status"], m["cost"], m["retail_price"], m["metal_type"],
             m["metal_purity"], m["total_diamond"], m["total_stone_size"],
         ])
@@ -615,6 +630,42 @@ async def analysis_page(request: Request, db=Depends(get_db)):
         "priced": priced, "unpriced": unpriced,
         "by_cat": by_cat, "by_type": by_type, "by_source": by_source, "max_cat": max_cat,
     })
+
+
+@app.get("/categories", response_class=HTMLResponse)
+async def categories_page(request: Request, db=Depends(get_db)):
+    # Every category with counts + value + representative product type
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
+               COUNT(*) as cnt,
+               SUM(COALESCE(retail_price,0)) as retail,
+               SUM(COALESCE(cost,0)) as cost,
+               MAX(product_type) as product_type
+        FROM items GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    overrides = await load_group_overrides(db)
+    groups = {"Jewelry": [], "Manufactured": []}
+    for r in rows:
+        g = classify_category(r["category"], r["product_type"] or "", overrides)
+        r["group"] = g
+        r["overridden"] = r["category"] in overrides
+        groups.setdefault(g, []).append(r)
+    return templates.TemplateResponse("categories.html", {
+        "request": request, "groups": groups,
+        "jewelry_keywords": ", ".join(JEWELRY_KEYWORDS),
+    })
+
+
+@app.post("/api/categories/group")
+async def set_category_group(category: str = Form(...), group: str = Form(...), db=Depends(get_db)):
+    if group in ("Jewelry", "Manufactured"):
+        await db.execute(
+            "INSERT OR REPLACE INTO category_overrides (category, big_group) VALUES (?, ?)",
+            (category, group)
+        )
+        await db.commit()
+    return RedirectResponse("/categories", status_code=303)
 
 
 @app.get("/reconcile", response_class=HTMLResponse)
@@ -1304,15 +1355,17 @@ async def import_items(
                 [source] + seen_codes
             ) as cur:
                 newly_missing = await cur.fetchall()
+            overrides = await load_group_overrides(db)
             flagged_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for m in newly_missing:
-                newly_missing_groups[big_group(m)] = newly_missing_groups.get(big_group(m), 0) + 1
+                g = big_group(m, overrides)
+                newly_missing_groups[g] = newly_missing_groups.get(g, 0) + 1
                 await db.execute(
                     "INSERT INTO reconcile_log (import_id, item_number, barcode, description, "
                     "category, big_group, cost, retail_price, source, flagged_at, status) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'missing')",
                     (import_id, m["item_number"], m["barcode"], m["description"], m["category"],
-                     big_group(m), m["cost"], m["retail_price"], source, flagged_at)
+                     g, m["cost"], m["retail_price"], source, flagged_at)
                 )
             # Flag all not-in-file as missing (count = total currently missing this list)
             await db.execute(

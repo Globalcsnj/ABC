@@ -91,6 +91,11 @@ async def init_db():
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS category_overrides (
+                category TEXT PRIMARY KEY,
+                big_group TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS reconcile_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 import_id INTEGER,

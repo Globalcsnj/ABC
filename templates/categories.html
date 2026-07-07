@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Categories – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Categories &amp; Groups</h1>
+</div>
+
+<p class="save-hint">
+    Every scanned category is sorted into one of two big groups: <strong>Jewelry</strong> or <strong>Manufactured</strong>.
+    Auto-detected from the item's data or these keywords ({{ jewelry_keywords }}). Use the dropdown on any row to override it.
+</p>
+
+{% for group_name in ['Jewelry', 'Manufactured'] %}
+<div class="card mt">
+    <div class="card-header">
+        <h2>{% if group_name == 'Jewelry' %}💍{% else %}🏭{% endif %} {{ group_name }}
+            <span class="count-pill">{{ groups[group_name]|length }} categories · {{ groups[group_name]|sum(attribute='cnt') }} items</span>
+        </h2>
+    </div>
+    {% if groups[group_name] %}
+    <table class="table">
+        <thead>
+            <tr><th>Category</th><th>Items</th><th>Cost Value</th><th>Retail Value</th><th>Group</th></tr>
+        </thead>
+        <tbody>
+            {% for c in groups[group_name] %}
+            <tr>
+                <td>
+                    <a href="/inventory?category={{ c.category|urlencode }}">{{ c.category }}</a>
+                    {% if c.overridden %}<span class="badge badge-active" style="margin-left:6px">manual</span>{% endif %}
+                </td>
+                <td>{{ c.cnt }}</td>
+                <td>${{ "{:,.0f}".format(c.cost) }}</td>
+                <td>${{ "{:,.0f}".format(c.retail) }}</td>
+                <td>
+                    <form method="POST" action="/api/categories/group" style="display:flex;gap:6px">
+                        <input type="hidden" name="category" value="{{ c.category }}">
+                        <select name="group" onchange="this.form.submit()">
+                            <option value="Jewelry" {% if c.group=='Jewelry' %}selected{% endif %}>Jewelry</option>
+                            <option value="Manufactured" {% if c.group=='Manufactured' %}selected{% endif %}>Manufactured</option>
+                        </select>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No categories in this group.</div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}
