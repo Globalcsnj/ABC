@@ -117,6 +117,50 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
     return templates.TemplateResponse("audit.html", {"request": request, "session": session})
 
 
+def big_group(row) -> str:
+    """Classify an item into one of the two big groups: Jewelry or Manufactured."""
+    pt = (row["product_type"] if "product_type" in row.keys() else "") or ""
+    if pt == "jewelry":
+        return "Jewelry"
+    if pt == "manufactured":
+        return "Manufactured"
+    # Fall back to category keywords
+    cat = ((row["category"] if "category" in row.keys() else "") or "").lower()
+    jewelry_kw = ("gold", "silver", "diamond", "ring", "chain", "charm", "earring",
+                  "bracelet", "necklace", "pendant", "stone", "jewel", "wristwatch", "watch")
+    if any(k in cat for k in jewelry_kw):
+        return "Jewelry"
+    return "Manufactured"
+
+
+async def get_missing_items(session_id, session, db):
+    """Items expected for this count (respecting list + category filters) not scanned."""
+    query = """
+        SELECT i.item_number, i.barcode, i.description, i.category, i.item_status,
+               i.cost, i.retail_price, i.source, i.product_type,
+               i.metal_type, i.metal_purity, i.total_diamond, i.total_stone_size
+        FROM items i
+        WHERE i.barcode NOT IN (
+            SELECT barcode FROM audit_scans WHERE session_id = ? AND match_status = 'found'
+        ) AND COALESCE(i.sold,0) = 0
+    """
+    params = [session_id]
+    sess_source = session["source"] if "source" in session.keys() else ""
+    sess_cats = session["categories"] if "categories" in session.keys() else ""
+    if sess_source:
+        query += " AND i.source = ?"
+        params.append(sess_source)
+    if sess_cats:
+        cat_list = [c for c in sess_cats.split(",") if c]
+        if cat_list:
+            ph = ",".join("?" for _ in cat_list)
+            query += f" AND COALESCE(NULLIF(i.category,''),'Uncategorized') IN ({ph})"
+            params.extend(cat_list)
+    query += " ORDER BY i.category, i.item_number"
+    async with db.execute(query, params) as cur:
+        return await cur.fetchall()
+
+
 @app.get("/report/{session_id}", response_class=HTMLResponse)
 async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     async with db.execute("SELECT * FROM audit_sessions WHERE id = ?", (session_id,)) as cur:
@@ -143,31 +187,18 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     """, (session_id,)) as cur:
         summary = await cur.fetchall()
 
-    # Items expected for this count (respecting the session's list + categories)
-    # that were NOT scanned. session may have source and categories filters.
-    missing_query = """
-        SELECT i.item_number, i.barcode, i.description, i.category, i.item_status, i.cost
-        FROM items i
-        WHERE i.barcode NOT IN (
-            SELECT barcode FROM audit_scans WHERE session_id = ? AND match_status = 'found'
-        )
-    """
-    missing_params = [session_id]
-    sess_source = session["source"] if "source" in session.keys() else ""
-    sess_cats = session["categories"] if "categories" in session.keys() else ""
-    if sess_source:
-        missing_query += " AND i.source = ?"
-        missing_params.append(sess_source)
-    if sess_cats:
-        cat_list = [c for c in sess_cats.split(",") if c]
-        if cat_list:
-            placeholders = ",".join("?" for _ in cat_list)
-            # Match by category, treating empty category as 'Uncategorized'
-            missing_query += f" AND COALESCE(NULLIF(i.category,''),'Uncategorized') IN ({placeholders})"
-            missing_params.extend(cat_list)
-    missing_query += " ORDER BY i.item_number"
-    async with db.execute(missing_query, missing_params) as cur:
-        missing = await cur.fetchall()
+    missing = await get_missing_items(session_id, session, db)
+
+    # Contrast the two big groups: Jewelry vs Manufactured
+    group_summary = {}
+    for m in missing:
+        g = big_group(m)
+        if g not in group_summary:
+            group_summary[g] = {"count": 0, "cost": 0.0, "retail": 0.0}
+        group_summary[g]["count"] += 1
+        group_summary[g]["cost"] += (m["cost"] or 0)
+        group_summary[g]["retail"] += (m["retail_price"] or 0)
+    group_summary = sorted(group_summary.items(), key=lambda kv: kv[1]["count"], reverse=True)
 
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
@@ -194,10 +225,59 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "summary": summary,
         "missing": missing,
         "missing_by_cat": missing_by_cat,
+        "group_summary": group_summary,
         "found_count": found_count,
         "unknown_count": unknown_count,
         "missing_count": len(missing),
     })
+
+
+@app.get("/report/{session_id}/missing.csv")
+async def report_missing_csv(session_id: int, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM audit_sessions WHERE id = ?", (session_id,)) as cur:
+        session = await cur.fetchone()
+    if not session:
+        raise HTTPException(404)
+    missing = await get_missing_items(session_id, session, db)
+
+    # Group contrast
+    groups = {}
+    for m in missing:
+        g = big_group(m)
+        groups.setdefault(g, {"count": 0, "cost": 0.0, "retail": 0.0})
+        groups[g]["count"] += 1
+        groups[g]["cost"] += (m["cost"] or 0)
+        groups[g]["retail"] += (m["retail_price"] or 0)
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow([f"Missing Items Report - {session['name']}"])
+    w.writerow(["Generated", datetime.now().strftime("%Y-%m-%d %H:%M")])
+    w.writerow([])
+    w.writerow(["SUMMARY BY GROUP"])
+    w.writerow(["Group", "Items Missing", "Cost Value", "Retail Value"])
+    for g, v in sorted(groups.items(), key=lambda kv: kv[1]["count"], reverse=True):
+        w.writerow([g, v["count"], f"{v['cost']:.2f}", f"{v['retail']:.2f}"])
+    w.writerow(["TOTAL", len(missing),
+                f"{sum(g['cost'] for g in groups.values()):.2f}",
+                f"{sum(g['retail'] for g in groups.values()):.2f}"])
+    w.writerow([])
+    w.writerow(["MISSING ITEMS DETAIL"])
+    w.writerow(["Group", "Item #", "Barcode", "Description", "Category", "Status",
+                "Cost", "Retail Price", "Metal", "Purity", "Total Diamond", "Total Stone"])
+    for m in missing:
+        w.writerow([
+            big_group(m), m["item_number"], m["barcode"], m["description"], m["category"],
+            m["item_status"], m["cost"], m["retail_price"], m["metal_type"],
+            m["metal_purity"], m["total_diamond"], m["total_stone_size"],
+        ])
+
+    filename = f"missing_report_{session_id}.csv"
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Customer-facing catalog (public) ────────────────────────────────────────

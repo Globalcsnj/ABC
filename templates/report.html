@@ -5,6 +5,7 @@
     <h1>Report: {{ session.name }}</h1>
     <div class="header-actions">
         <span class="badge badge-{{ session.status }}">{{ session.status }}</span>
+        <a href="/report/{{ session.id }}/missing.csv" class="btn btn-primary">⬇ Download Missing (Excel)</a>
         <button onclick="window.print()" class="btn btn-outline">🖨 Print</button>
     </div>
 </div>
@@ -30,6 +31,34 @@
         <div class="stat-label">❌ Missing (in Bravo, not scanned)</div>
     </div>
 </div>
+
+<!-- Missing contrast: Jewelry vs Manufactured -->
+{% if group_summary %}
+<div class="card mt">
+    <h2>❌ Missing by Group — Jewelry vs Manufactured</h2>
+    <p class="card-subtitle">How many items in each big category are still missing (not scanned in this count).</p>
+    <table class="table">
+        <thead>
+            <tr><th>Group</th><th>Items Missing</th><th>Cost Value</th><th>Retail Value</th></tr>
+        </thead>
+        <tbody>
+            {% for g, v in group_summary %}
+            <tr class="row-missing">
+                <td><strong>{{ g }}</strong></td>
+                <td class="unknown-text"><strong>{{ v.count }}</strong></td>
+                <td>${{ "{:,.2f}".format(v.cost) }}</td>
+                <td>${{ "{:,.2f}".format(v.retail) }}</td>
+            </tr>
+            {% endfor %}
+            <tr>
+                <td><strong>TOTAL</strong></td>
+                <td><strong>{{ missing_count }}</strong></td>
+                <td colspan="2"></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endif %}
 
 <!-- Location summary -->
 <div class="card mt">
