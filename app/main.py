@@ -848,6 +848,9 @@ async def delete_store(store_id: int, db=Depends(get_db)):
     return RedirectResponse("/stores", status_code=303)
 
 
+OVERRIDE_CODE = "GCS2026"
+
+
 @app.post("/api/sessions/{session_id}/close")
 async def close_session(session_id: int, db=Depends(get_db)):
     await db.execute(
@@ -856,6 +859,26 @@ async def close_session(session_id: int, db=Depends(get_db)):
     )
     await db.commit()
     return RedirectResponse(f"/report/{session_id}", status_code=303)
+
+
+@app.post("/api/sessions/{session_id}/reopen")
+async def reopen_session(session_id: int, override: str = Form(...), db=Depends(get_db)):
+    if override.strip() != OVERRIDE_CODE:
+        return JSONResponse({"error": "Invalid override code"}, status_code=403)
+    await db.execute(
+        "UPDATE audit_sessions SET status='active', closed_at=NULL WHERE id=?", (session_id,)
+    )
+    await db.commit()
+    return RedirectResponse(f"/audit/{session_id}", status_code=303)
+
+
+@app.post("/api/scans/{scan_id}/delete")
+async def delete_scan(scan_id: int, override: str = Form(...), db=Depends(get_db)):
+    if override.strip() != OVERRIDE_CODE:
+        return JSONResponse({"error": "Invalid override code"}, status_code=403)
+    await db.execute("DELETE FROM audit_scans WHERE id=?", (scan_id,))
+    await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/sessions/{session_id}/rename")
@@ -967,7 +990,7 @@ async def process_scan(
         item_number = None
         msg = f"⚠️ NOT IN BRAVO — {code}"
 
-    await db.execute("""
+    async with db.execute("""
         INSERT INTO audit_scans
           (session_id, location_id, sublocation_id, barcode, item_number,
            full_ref, match_status, description, category, item_status, cost, item_date)
@@ -985,11 +1008,13 @@ async def process_scan(
         item_status,
         cost,
         item_date,
-    ))
+    )) as cur:
+        scan_id = cur.lastrowid
     await db.commit()
 
     return JSONResponse({
         "type": "item",
+        "scan_id": scan_id,
         "match_status": match_status,
         "barcode": code,
         "item_number": item_number,

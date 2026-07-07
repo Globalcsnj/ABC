@@ -5,10 +5,18 @@
     <h1>Report: {{ session.name }}</h1>
     <div class="header-actions">
         <span class="badge badge-{{ session.status }}">{{ session.status }}</span>
+        {% if session.status == 'closed' %}
+        <button onclick="reopenCount()" class="btn btn-outline">🔓 Reopen (override)</button>
+        {% else %}
+        <a href="/audit/{{ session.id }}" class="btn btn-outline">Continue Scanning</a>
+        {% endif %}
         <a href="/report/{{ session.id }}/missing.csv" class="btn btn-primary">⬇ Download Missing (Excel)</a>
         <button onclick="window.print()" class="btn btn-outline">🖨 Print</button>
     </div>
 </div>
+<form id="reopenForm" method="POST" action="/api/sessions/{{ session.id }}/reopen" style="display:none">
+    <input type="text" name="override" id="reopenCode">
+</form>
 
 <p class="save-hint">
     {% if store_name %}🏪 <strong>{{ store_name }}</strong> · {% endif %}
@@ -217,6 +225,13 @@
 
 {% block scripts %}
 <script>
+function reopenCount() {
+    const code = prompt('Enter override code to reopen this count:');
+    if (!code) return;
+    document.getElementById('reopenCode').value = code;
+    document.getElementById('reopenForm').submit();
+}
+
 function applyMissingFilter(q) {
     q = (q || '').toLowerCase().trim();
     document.querySelectorAll('#missingTable .missing-row').forEach(row => {

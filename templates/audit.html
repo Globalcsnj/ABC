@@ -216,6 +216,29 @@ function hideItemCard() {
     document.getElementById('lastItemCard').className = 'item-card hidden';
 }
 
+async function deleteScan(scanId, btn) {
+    const code = prompt('Enter override code to remove this scan:');
+    if (!code) return;
+    const body = new FormData();
+    body.append('override', code);
+    const res = await fetch(`/api/scans/${scanId}/delete`, { method: 'POST', body });
+    if (res.ok) {
+        const row = btn.closest('.scan-row');
+        if (row) {
+            const wasFound = row.classList.contains('scan-row-found');
+            row.remove();
+            if (wasFound) foundCount = Math.max(0, foundCount - 1);
+            else unknownCount = Math.max(0, unknownCount - 1);
+            updateCounters();
+            const count = scanList.querySelectorAll('.scan-row').length;
+            totalBadge.textContent = `Total: ${count}`;
+            updateSummary();
+        }
+    } else {
+        alert('Invalid override code. Scan not removed.');
+    }
+}
+
 function prependScanRow(data) {
     const empty = scanList.querySelector('.empty-state');
     if (empty) empty.remove();
@@ -229,6 +252,7 @@ function prependScanRow(data) {
         <span class="scan-cat">${data.category || ''}</span>
         <span class="scan-cost">${data.cost != null ? '$' + parseFloat(data.cost).toFixed(2) : ''}</span>
         <span class="scan-time">${new Date().toLocaleTimeString()}</span>
+        <button class="scan-del" title="Remove (override)" onclick="deleteScan(${data.scan_id}, this)">✕</button>
     `;
     scanList.prepend(row);
     setTimeout(() => row.classList.remove('new-scan'), 1200);
@@ -256,6 +280,7 @@ async function loadScans() {
             <span class="scan-cat">${s.category || ''}</span>
             <span class="scan-cost">${s.cost != null ? '$' + parseFloat(s.cost).toFixed(2) : ''}</span>
             <span class="scan-time">${s.scanned_at.substring(11, 19)}</span>
+            <button class="scan-del" title="Remove (override)" onclick="deleteScan(${s.id}, this)">✕</button>
         </div>
     `).join('');
 

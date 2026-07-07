@@ -324,7 +324,7 @@ body {
 /* Scan rows with status colors */
 .scan-row {
     display: grid;
-    grid-template-columns: 18px 200px 1fr auto auto auto;
+    grid-template-columns: 18px 200px 1fr auto auto auto auto;
     align-items: center;
     gap: 10px;
     padding: 9px 12px;
@@ -332,6 +332,11 @@ body {
     font-size: 13px;
     transition: background .4s;
 }
+.scan-del {
+    border: none; background: none; color: var(--gray-400); cursor: pointer;
+    font-size: 14px; padding: 2px 6px; border-radius: 4px;
+}
+.scan-del:hover { background: #fee2e2; color: var(--danger); }
 .scan-row-found { background: #f0fdf4; }
 .scan-row-unknown { background: #fffbeb; }
 .scan-row.new-scan { animation: flashIn .6s ease; }
