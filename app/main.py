@@ -197,7 +197,7 @@ async def home(request: Request, db=Depends(get_db)):
         "sessions": sessions,
         "last_uploads": last_uploads,
         "item_count": item_count,
-        "lan_url": f"http://{get_lan_ip()}:8000",
+        "lan_url": f"{'https' if os.path.exists(os.path.join(BASE_DIR, 'data', 'certs', 'cert.pem')) else 'http'}://{get_lan_ip()}:8000",
     })
 
 
