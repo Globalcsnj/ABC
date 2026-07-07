@@ -14,9 +14,6 @@
         <button onclick="window.print()" class="btn btn-outline">🖨 Print</button>
     </div>
 </div>
-<form id="reopenForm" method="POST" action="/api/sessions/{{ session.id }}/reopen" style="display:none">
-    <input type="text" name="override" id="reopenCode">
-</form>
 
 {% set cat_count = session.categories.split(',')|select|list|length if session.categories else 0 %}
 <p class="save-hint">
@@ -239,11 +236,23 @@
 
 {% block scripts %}
 <script>
-function reopenCount() {
+async function reopenCount() {
     const code = prompt('Enter override code to reopen this count:');
     if (!code) return;
-    document.getElementById('reopenCode').value = code;
-    document.getElementById('reopenForm').submit();
+    const body = new FormData();
+    body.append('override', code.trim());
+    try {
+        const res = await fetch('/api/sessions/{{ session.id }}/reopen', { method: 'POST', body });
+        if (res.ok) {
+            window.location.href = '/audit/{{ session.id }}';
+        } else if (res.status === 403) {
+            alert('Invalid override code. The count was not reopened.');
+        } else {
+            alert('Could not reopen (are you still signed in?). Try refreshing and signing in again.');
+        }
+    } catch (e) {
+        alert('Error reopening: ' + e.message);
+    }
 }
 
 let MISSING = [];

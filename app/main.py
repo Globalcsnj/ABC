@@ -1118,7 +1118,7 @@ async def reopen_session(session_id: int, override: str = Form(...), db=Depends(
         "UPDATE audit_sessions SET status='active', closed_at=NULL WHERE id=?", (session_id,)
     )
     await db.commit()
-    return RedirectResponse(f"/audit/{session_id}", status_code=303)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/scans/{scan_id}/delete")
