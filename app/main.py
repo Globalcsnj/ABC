@@ -1292,6 +1292,7 @@ async def import_items(
 
         # Reconciliation: items in this list not in the file and not already sold.
         missing_count = 0
+        newly_missing_groups = {"Jewelry": 0, "Manufactured": 0}
         if seen_codes:
             placeholders = ",".join("?" for _ in seen_codes)
             # Newly-disappeared items (were present before, missing=0) → log them
@@ -1305,6 +1306,7 @@ async def import_items(
                 newly_missing = await cur.fetchall()
             flagged_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for m in newly_missing:
+                newly_missing_groups[big_group(m)] = newly_missing_groups.get(big_group(m), 0) + 1
                 await db.execute(
                     "INSERT INTO reconcile_log (import_id, item_number, barcode, description, "
                     "category, big_group, cost, retail_price, source, flagged_at, status) "
@@ -1343,6 +1345,8 @@ async def import_items(
         "imported": inserted,
         "updated": updated,
         "missing": missing_count,
+        "newly_missing": sum(newly_missing_groups.values()),
+        "newly_missing_groups": newly_missing_groups,
         "skipped": skipped,
         "columns_found": columns_found,
         "categories": categories,

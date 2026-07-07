@@ -157,9 +157,21 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
                 + cats.map(c => `<div class="cat-row"><span>${c.category}</span><span class="cat-count">${c.cnt}</span></div>`).join('')
                 + `</div></details>`;
         }
+        // Daily reconciliation summary (items that disappeared this upload)
+        let recon = '';
+        const nm = json.newly_missing || 0;
+        if (nm > 0) {
+            const g = json.newly_missing_groups || {};
+            recon = `<div class="recon-summary">
+                <strong>📋 Today's reconciliation:</strong> ${nm} item(s) disappeared and may be sold —
+                ${g.Jewelry || 0} Jewelry, ${g.Manufactured || 0} Manufactured.
+                <a href="/reconcile">Review &amp; confirm →</a>
+            </div>`;
+        }
+
         const cols = (json.columns_found || []).join(', ');
         const colLine = cols ? `<div class="cols-found"><small>Columns read: ${cols}</small></div>` : '';
-        el.innerHTML = `<div>${msg}</div>${colLine}${dash}`;
+        el.innerHTML = `<div>${msg}</div>${recon}${colLine}${dash}`;
         el.className = 'import-result success';
     } catch (err) {
         el.textContent = '❌ Upload error: ' + err.message;
