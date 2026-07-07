@@ -36,6 +36,12 @@
             <option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ s|capitalize }}</option>
             {% endfor %}
         </select>
+        <select name="item_status" onchange="this.form.submit()">
+            <option value="">All Bravo statuses</option>
+            {% for st in item_statuses %}
+            <option value="{{ st }}" {% if item_status == st %}selected{% endif %}>{{ st }}</option>
+            {% endfor %}
+        </select>
         <select name="ptype" onchange="this.form.submit()">
             <option value="">All types</option>
             <option value="jewelry" {% if ptype=='jewelry' %}selected{% endif %}>Jewelry</option>

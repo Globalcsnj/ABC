@@ -10,8 +10,18 @@
         {% else %}
         <a href="/audit/{{ session.id }}" class="btn btn-outline">Continue Scanning</a>
         {% endif %}
-        <a href="/report/{{ session.id }}/missing.csv" class="btn btn-primary">⬇ Download Missing (Excel)</a>
-        <button onclick="window.print()" class="btn btn-outline">🖨 Print</button>
+        <div class="dl-dropdown">
+            <button class="btn btn-primary">⬇ Download ▾</button>
+            <div class="dl-menu">
+                <a href="/report/{{ session.id }}/full.csv">Full Report (all scans)</a>
+                <a href="/report/{{ session.id }}/found.csv">Found items</a>
+                <a href="/report/{{ session.id }}/missing.csv">Missing items</a>
+                <a href="/report/{{ session.id }}/missing.csv?group=Jewelry">Missing — Jewelry only</a>
+                <a href="/report/{{ session.id }}/missing.csv?group=Manufactured">Missing — Manufactured only</a>
+                <a href="/report/{{ session.id }}/findings.csv">Findings (not on list)</a>
+            </div>
+        </div>
+        <button onclick="window.print()" class="btn btn-outline">🖨 Print All</button>
     </div>
 </div>
 
@@ -105,8 +115,11 @@
 
 {% set findings = scans|selectattr("match_status", "equalto", "unknown")|list %}
 {% if findings %}
-<div class="card mt">
-    <h2>🔎 Findings for Future Research</h2>
+<div class="card mt" id="findingsCard">
+    <div class="card-header">
+        <h2>🔎 Findings for Future Research</h2>
+        <button class="btn btn-sm btn-outline" onclick="printEl('findingsCard','Findings')">🖨 Print</button>
+    </div>
     <p class="card-subtitle">Items found in the store but NOT on the list. Investigate these.</p>
     <table class="table">
         <thead>
@@ -214,6 +227,7 @@
             <option value="retail_desc">Sort: Price High→Low</option>
             <option value="cost_desc">Sort: Cost High→Low</option>
         </select>
+        <button class="btn btn-outline" onclick="printMissing()">🖨 Print this view</button>
     </div>
     <p class="card-subtitle" id="missingCount"></p>
 
@@ -237,6 +251,38 @@
 
 {% block scripts %}
 <script>
+function printEl(elId, title) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>${title} — {{ session.name }}</title>
+        <style>body{font-family:sans-serif;padding:20px}h2{font-size:18px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{border:1px solid #ccc;padding:6px;text-align:left}
+        button,.btn,select,input{display:none!important}</style></head><body>
+        <h2>{{ session.name }} — ${title}</h2>${el.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 300);
+}
+
+function printMissing() {
+    // Print the currently filtered/sorted missing rows
+    const rowsHtml = document.getElementById('missingBody').innerHTML;
+    const label = document.getElementById('missingCount').textContent;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Missing — {{ session.name }}</title>
+        <style>body{font-family:sans-serif;padding:20px}h2{font-size:18px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{border:1px solid #ccc;padding:6px;text-align:left}
+        img{display:none}</style></head><body>
+        <h2>{{ session.name }} — Missing Items</h2><p>${label}</p>
+        <table><thead><tr><th>Group</th><th>Item #</th><th>Barcode</th><th>Description</th>
+        <th>Category</th><th>Cost</th><th>Retail</th></tr></thead>
+        <tbody>${rowsHtml}</tbody></table></body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 300);
+}
+
 async function deleteFinding(scanId) {
     const code = prompt('Enter override code to delete this finding:');
     if (!code) return;

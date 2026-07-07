@@ -370,13 +370,15 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
 
 
 @app.get("/report/{session_id}/missing.csv")
-async def report_missing_csv(session_id: int, db=Depends(get_db)):
+async def report_missing_csv(session_id: int, group: str = "", db=Depends(get_db)):
     async with db.execute("SELECT * FROM audit_sessions WHERE id = ?", (session_id,)) as cur:
         session = await cur.fetchone()
     if not session:
         raise HTTPException(404)
     missing = await get_missing_items(session_id, session, db)
     overrides = await load_group_overrides(db)
+    if group in ("Jewelry", "Manufactured"):
+        missing = [m for m in missing if big_group(m, overrides) == group]
 
     # Group contrast
     groups = {}
@@ -418,6 +420,67 @@ async def report_missing_csv(session_id: int, db=Depends(get_db)):
     )
 
 
+def _csv_response(rows_writer, filename):
+    out = io.StringIO()
+    rows_writer(csv.writer(out))
+    return Response(content=out.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+async def _scans_for(session_id, db, match_status=None):
+    q = "SELECT * FROM audit_scans WHERE session_id=?"
+    params = [session_id]
+    if match_status:
+        q += " AND match_status=?"
+        params.append(match_status)
+    q += " ORDER BY location_id, sublocation_id, scanned_at"
+    async with db.execute(q, params) as cur:
+        return await cur.fetchall()
+
+
+@app.get("/report/{session_id}/found.csv")
+async def report_found_csv(session_id: int, db=Depends(get_db)):
+    scans = await _scans_for(session_id, db, "found")
+
+    def write(w):
+        w.writerow(["FOUND ITEMS", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        w.writerow(["Reference", "Item #", "Barcode", "Description", "Category",
+                    "Status", "Cost", "Location", "Sublocation", "Scanned At"])
+        for s in scans:
+            w.writerow([s["full_ref"], s["item_number"], s["barcode"], s["description"],
+                        s["category"], s["item_status"], s["cost"], s["location_id"],
+                        s["sublocation_id"], s["scanned_at"]])
+    return _csv_response(write, f"found_{session_id}.csv")
+
+
+@app.get("/report/{session_id}/findings.csv")
+async def report_findings_csv(session_id: int, db=Depends(get_db)):
+    scans = await _scans_for(session_id, db, "unknown")
+
+    def write(w):
+        w.writerow(["FINDINGS (scanned, not on list)", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        w.writerow(["Barcode", "Reference", "Location", "Sublocation", "Scanned At"])
+        for s in scans:
+            w.writerow([s["barcode"], s["full_ref"], s["location_id"],
+                        s["sublocation_id"], s["scanned_at"]])
+    return _csv_response(write, f"findings_{session_id}.csv")
+
+
+@app.get("/report/{session_id}/full.csv")
+async def report_full_csv(session_id: int, db=Depends(get_db)):
+    scans = await _scans_for(session_id, db)
+
+    def write(w):
+        w.writerow(["FULL REPORT — ALL SCANS", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        w.writerow(["Status", "Reference", "Item #", "Barcode", "Description", "Category",
+                    "Item Status", "Cost", "Location", "Sublocation", "Scanned At"])
+        for s in scans:
+            w.writerow([s["match_status"], s["full_ref"], s["item_number"], s["barcode"],
+                        s["description"], s["category"], s["item_status"], s["cost"],
+                        s["location_id"], s["sublocation_id"], s["scanned_at"]])
+    return _csv_response(write, f"full_report_{session_id}.csv")
+
+
 # ── Customer-facing catalog (public) ────────────────────────────────────────
 
 SHOP_SORTS = {
@@ -433,8 +496,10 @@ async def shop_page(
     request: Request, q: str = "", category: str = "",
     sort: str = "featured", max_price: str = "", db=Depends(get_db)
 ):
-    # Only retail items flagged for sale and not sold — never loan/layaway
-    where = ["source = 'retail'", "COALESCE(for_sale,1) = 1", "COALESCE(sold,0) = 0"]
+    # Only retail items flagged for sale and not sold — never loan/layaway.
+    # Layaway items can appear in a retail export with a LAYAWAY status → exclude.
+    where = ["source = 'retail'", "COALESCE(for_sale,1) = 1", "COALESCE(sold,0) = 0",
+             "UPPER(COALESCE(item_status,'')) NOT LIKE '%LAYAWAY%'"]
     params = []
     if q:
         like = f"%{q}%"
@@ -940,7 +1005,8 @@ INV_SORTS = {
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(
     request: Request, q: str = "", category: str = "", source: str = "",
-    ptype: str = "", status: str = "", sort: str = "number", db=Depends(get_db)
+    ptype: str = "", status: str = "", item_status: str = "", sort: str = "number",
+    db=Depends(get_db)
 ):
     where = []
     params = []
@@ -954,6 +1020,9 @@ async def inventory_page(
     if source:
         where.append("source = ?")
         params.append(source)
+    if item_status:
+        where.append("item_status = ?")
+        params.append(item_status)
     if ptype:
         where.append("product_type = ?")
         params.append(ptype)
@@ -982,13 +1051,18 @@ async def inventory_page(
     ) as cur:
         sources = [r["source"] for r in await cur.fetchall()]
     async with db.execute(
+        "SELECT DISTINCT item_status FROM items WHERE item_status IS NOT NULL AND item_status != '' ORDER BY item_status"
+    ) as cur:
+        item_statuses = [r["item_status"] for r in await cur.fetchall()]
+    async with db.execute(
         "SELECT id FROM audit_sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1"
     ) as cur:
         active = await cur.fetchone()
     return templates.TemplateResponse("inventory.html", {
         "request": request, "items": items, "total": total, "showing": len(items),
         "q": q, "category": category, "source": source, "ptype": ptype,
-        "status": status, "sort": sort, "categories": categories, "sources": sources,
+        "status": status, "item_status": item_status, "sort": sort,
+        "categories": categories, "sources": sources, "item_statuses": item_statuses,
         "active_session": active["id"] if active else None,
     })
 

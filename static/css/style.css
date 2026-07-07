@@ -413,6 +413,13 @@ body {
 
 .save-hint { font-size: 13px; color: var(--gray-600); margin: -8px 0 16px; }
 
+/* Download dropdown */
+.dl-dropdown { position: relative; display: inline-block; }
+.dl-menu { display: none; position: absolute; right: 0; top: 100%; background: white; min-width: 230px; border: 1px solid var(--gray-200); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; z-index: 200; }
+.dl-dropdown:hover .dl-menu { display: block; }
+.dl-menu a { display: block; padding: 9px 12px; border-radius: 6px; color: var(--gray-800); text-decoration: none; font-size: 14px; }
+.dl-menu a:hover { background: var(--gray-100); color: var(--primary); }
+
 /* Collapsible sections + group tabs */
 .collapse-summary { cursor: pointer; font-size: 16px; font-weight: 600; color: var(--gray-800); padding: 6px 0; user-select: none; list-style: revert; }
 .collapse-summary:hover { color: var(--primary); }
