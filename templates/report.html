@@ -18,10 +18,13 @@
     <input type="text" name="override" id="reopenCode">
 </form>
 
+{% set cat_count = session.categories.split(',')|select|list|length if session.categories else 0 %}
 <p class="save-hint">
     {% if store_name %}🏪 <strong>{{ store_name }}</strong> · {% endif %}
     {% if session.source %}<strong>{{ session.source|capitalize }}</strong> list{% else %}<strong>All lists</strong>{% endif %}
-    {% if session.categories %}· Categories: {{ session.categories }}{% else %}· All categories{% endif %}
+    {% if cat_count > 3 %}· <strong>{{ cat_count }}</strong> categories
+    {% elif cat_count > 0 %}· Categories: {{ session.categories }}
+    {% else %}· All categories{% endif %}
 </p>
 
 <!-- Stats -->
