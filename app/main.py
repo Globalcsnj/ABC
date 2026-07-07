@@ -14,6 +14,8 @@ import io
 import json
 import os
 import re
+import shutil
+import zipfile
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from .database import init_db, get_db, DB_PATH
@@ -28,12 +30,89 @@ async def lifespan(app: FastAPI):
 
 
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
+BACKUP_DIR = os.path.join(BASE_DIR, "data", "backups")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(BACKUP_DIR, exist_ok=True)
+
+# ── Admin authentication ────────────────────────────────────────────────────
+ADMIN_PASSWORD = "GCS2026"          # staff login for the admin app
+AUTH_COOKIE = "abc_auth"
+AUTH_TOKEN = "abc-authed-ok"        # opaque cookie value set on login
+# Paths the public (customers) can reach without logging in
+PUBLIC_PREFIXES = ("/shop", "/welcome", "/hold", "/qr", "/barcode", "/static",
+                   "/uploads", "/login", "/api/shop", "/favicon")
+
+
+def make_daily_backup():
+    """Copy the DB into data/backups with a timestamp; keep the newest 14."""
+    try:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        shutil.copy2(DB_PATH, os.path.join(BACKUP_DIR, f"inventory-{stamp}.db"))
+        backups = sorted(f for f in os.listdir(BACKUP_DIR) if f.endswith(".db"))
+        for old in backups[:-14]:
+            os.remove(os.path.join(BACKUP_DIR, old))
+    except Exception:
+        pass  # never let a backup failure break an import
+
 
 app = FastAPI(lifespan=lifespan, title="ABC Pawnshop Inventory")
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if path == "/" or not any(path == p or path.startswith(p + "/") or path.startswith(p)
+                              for p in PUBLIC_PREFIXES):
+        if request.cookies.get(AUTH_COOKIE) != AUTH_TOKEN:
+            return RedirectResponse("/login")
+    return await call_next(request)
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+
+
+# ── Auth & backup routes ────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = ""):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+
+
+@app.post("/login")
+async def login_submit(password: str = Form(...)):
+    if password.strip() == ADMIN_PASSWORD:
+        resp = RedirectResponse("/", status_code=303)
+        resp.set_cookie(AUTH_COOKIE, AUTH_TOKEN, httponly=True, max_age=60 * 60 * 12)
+        return resp
+    return RedirectResponse("/login?error=1", status_code=303)
+
+
+@app.get("/logout")
+async def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(AUTH_COOKIE)
+    return resp
+
+
+@app.get("/backup")
+async def backup_download():
+    """Download a zip of the whole database + uploaded photos."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(DB_PATH):
+            z.write(DB_PATH, "inventory.db")
+        for root, _, files in os.walk(UPLOAD_DIR):
+            for f in files:
+                full = os.path.join(root, f)
+                z.write(full, os.path.join("uploads", f))
+    buf.seek(0)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    return Response(
+        content=buf.getvalue(), media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="abc-backup-{stamp}.zip"'},
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,7 +193,33 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
         session = await cur.fetchone()
     if not session:
         raise HTTPException(404, "Session not found")
-    return templates.TemplateResponse("audit.html", {"request": request, "session": session})
+
+    # Expected item count for this count's scope (for the progress bar)
+    where = ["COALESCE(sold,0) = 0"]
+    params = []
+    sess_source = session["source"] if "source" in session.keys() else ""
+    sess_cats = session["categories"] if "categories" in session.keys() else ""
+    if sess_source:
+        where.append("source = ?")
+        params.append(sess_source)
+    if sess_cats:
+        cats = [c for c in sess_cats.split(",") if c]
+        if cats:
+            ph = ",".join("?" for _ in cats)
+            where.append(f"COALESCE(NULLIF(category,''),'Uncategorized') IN ({ph})")
+            params.extend(cats)
+    async with db.execute(f"SELECT COUNT(*) FROM items WHERE {' AND '.join(where)}", params) as cur:
+        expected = (await cur.fetchone())[0]
+    # How many distinct expected items already found in this session
+    async with db.execute(
+        "SELECT COUNT(*) FROM audit_scans WHERE session_id=? AND match_status='found'", (session_id,)
+    ) as cur:
+        already_found = (await cur.fetchone())[0]
+
+    return templates.TemplateResponse("audit.html", {
+        "request": request, "session": session,
+        "expected": expected, "already_found": already_found,
+    })
 
 
 JEWELRY_KEYWORDS = ("gold", "silver", "diamond", "ring", "chain", "charm", "earring",
@@ -623,12 +728,34 @@ async def analysis_page(request: Request, db=Depends(get_db)):
     """) as cur:
         by_source = [dict(r) for r in await cur.fetchall()]
 
+    # Inventory aging buckets (from Inventory Age column, days)
+    aging = {"0–30 days": 0, "31–60 days": 0, "61–90 days": 0, "90+ days": 0, "Unknown": 0}
+    async with db.execute(
+        "SELECT inventory_age FROM items WHERE COALESCE(sold,0)=0"
+    ) as cur:
+        for r in await cur.fetchall():
+            raw = re.sub(r"[^0-9]", "", (r["inventory_age"] or ""))
+            if not raw:
+                aging["Unknown"] += 1
+                continue
+            d = int(raw)
+            if d <= 30:
+                aging["0–30 days"] += 1
+            elif d <= 60:
+                aging["31–60 days"] += 1
+            elif d <= 90:
+                aging["61–90 days"] += 1
+            else:
+                aging["90+ days"] += 1
+    aging_max = max(aging.values()) or 1
+
     max_cat = max([c["retail"] for c in by_cat], default=1) or 1
     return templates.TemplateResponse("analysis.html", {
         "request": request, "total": total, "in_stock": in_stock,
         "cost_value": cost_value, "retail_value": retail_value, "margin": margin,
         "priced": priced, "unpriced": unpriced,
         "by_cat": by_cat, "by_type": by_type, "by_source": by_source, "max_cat": max_cat,
+        "aging": aging, "aging_max": aging_max,
     })
 
 
@@ -1256,6 +1383,8 @@ async def import_items(
             model = find_column(row, "Model", "Model Number", "Model No")
             quantity = find_column(row, "Quantity", "Qty")
             vendor = find_column(row, "Vendor", "Supplier")
+            inventory_age = find_column(row, "Inventory Age", "Age", "Days in Inventory")
+            date_to_inventory = find_column(row, "Date to Inventory", "Date In", "Received")
 
             if not item_number and not barcode:
                 skipped += 1
@@ -1304,8 +1433,9 @@ async def import_items(
                    cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
                    metal_color, total_stone_size, condition, diamond_authentic,
                    serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
-                   metal_weight, quality, authentic_stone, quantity, vendor, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                   metal_weight, quality, authentic_stone, quantity, vendor,
+                   inventory_age, date_to_inventory, missing)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=excluded.barcode, description=excluded.description,
                    category=excluded.category, item_type=excluded.item_type,
@@ -1321,13 +1451,15 @@ async def import_items(
                    total_jewelry_weight=excluded.total_jewelry_weight,
                    metal_weight=excluded.metal_weight, quality=excluded.quality,
                    authentic_stone=excluded.authentic_stone, quantity=excluded.quantity,
-                   vendor=excluded.vendor, missing=0
+                   vendor=excluded.vendor, inventory_age=excluded.inventory_age,
+                   date_to_inventory=excluded.date_to_inventory, missing=0
             """, (
                 item_number_u, barcode_u, description, category, item_type, item_status,
                 cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
                 metal_color, total_stone_size, condition, diamond_authentic,
                 serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                 metal_weight, quality, authentic_stone, quantity, vendor,
+                inventory_age, date_to_inventory,
             ))
             if exists:
                 updated += 1
@@ -1386,6 +1518,9 @@ async def import_items(
             "error": f"Could not read this file as a spreadsheet. Make sure it's a "
                      f"CSV exported from Bravo (not a PDF or Word doc). Details: {e}"
         }, status_code=400)
+
+    # Automatic daily backup tied to each upload
+    make_daily_backup()
 
     # Category breakdown of everything currently in the database
     async with db.execute("""

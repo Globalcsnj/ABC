@@ -15,6 +15,18 @@
 </div>
 
 <div class="card mt">
+    <h2>Inventory Aging</h2>
+    <p class="card-subtitle">How long in-stock items have been in inventory (from the Inventory Age column). Older stock may need discounting.</p>
+    {% for label, cnt in aging.items() %}
+    <div class="hbar-row">
+        <div class="hbar-label">{{ label }}</div>
+        <div class="hbar-track"><div class="hbar-fill{% if '90+' in label %} hbar-old{% endif %}" style="width: {{ (cnt / aging_max * 100)|round|int }}%"></div></div>
+        <div class="hbar-num">{{ cnt }}{% if in_stock %} · {{ (cnt / in_stock * 100)|round(1) }}%{% endif %}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card mt">
     <h2>Retail Value by Category</h2>
     {% if by_cat %}
     {% for c in by_cat %}

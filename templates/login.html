@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in – ABC MoneyLoan</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-logo">🏪 ABC MoneyLoan</div>
+            <div class="login-sub">Staff sign-in</div>
+            {% if error %}<div class="login-error">Incorrect password. Try again.</div>{% endif %}
+            <form method="POST" action="/login">
+                <input type="password" name="password" placeholder="Password" autofocus required class="login-input">
+                <button type="submit" class="btn btn-primary login-btn">Sign In</button>
+            </form>
+            <div class="login-note">The customer <a href="/shop">Shop</a> and <a href="/welcome">Landing page</a> stay public.</div>
+        </div>
+    </div>
+</body>
+</html>

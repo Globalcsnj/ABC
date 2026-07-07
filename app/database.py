@@ -194,6 +194,8 @@ async def init_db():
             "authentic_stone": "INTEGER DEFAULT 0",
             "quantity": "TEXT DEFAULT ''",
             "vendor": "TEXT DEFAULT ''",
+            "inventory_age": "TEXT DEFAULT ''",
+            "date_to_inventory": "TEXT DEFAULT ''",
         }
         for col, decl in add_item_cols.items():
             if col not in item_cols:

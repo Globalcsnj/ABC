@@ -14,6 +14,15 @@
 <p class="save-hint">Every scan is saved automatically. Use <strong>Save for Later</strong> to
 pause — you can resume this count anytime from the Home page.</p>
 
+<!-- Count progress -->
+<div class="count-progress">
+    <div class="count-progress-head">
+        <span id="progressText">0 of {{ expected }} expected items scanned</span>
+        <span id="progressPct">0%</span>
+    </div>
+    <div class="count-progress-track"><div class="count-progress-fill" id="progressFill" style="width:0%"></div></div>
+</div>
+
 <!-- Location context bar -->
 <div class="context-bar" id="contextBar">
     <div class="context-item">
@@ -86,10 +95,20 @@ pause — you can resume this count anytime from the Home page.</p>
 {% block scripts %}
 <script>
 const SESSION_ID = {{ session.id }};
+const EXPECTED = {{ expected }};
 let currentLocation = '';
 let currentSublocation = '';
 let foundCount = 0;
 let unknownCount = 0;
+
+function updateProgress(found) {
+    const exp = EXPECTED || 0;
+    const pct = exp ? Math.min(100, Math.round(found / exp * 100)) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+    document.getElementById('progressText').textContent = `${found} of ${exp} expected items scanned`;
+}
+updateProgress({{ already_found }});
 
 const scanInput = document.getElementById('scanInput');
 const feedback  = document.getElementById('scanFeedback');
@@ -293,6 +312,8 @@ async function loadScans() {
 async function updateSummary() {
     const res = await fetch(`/api/sessions/${SESSION_ID}/scans`);
     const scans = await res.json();
+
+    updateProgress(scans.filter(s => s.match_status === 'found').length);
 
     const groups = {};
     scans.forEach(s => {
