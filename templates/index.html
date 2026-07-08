@@ -111,6 +111,12 @@
 
 {% block scripts %}
 <script>
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
 function renameSession(id, currentName) {
     const newName = prompt('Rename this count:', currentName);
     if (newName === null) return;
@@ -148,7 +154,11 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
         let msg = `✅ ${json.imported} new`;
         if (json.updated) msg += `, ${json.updated} updated`;
         if (json.missing) msg += `, ${json.missing} now missing (possibly sold)`;
-        if (json.skipped) msg += ` · skipped ${json.skipped} blank rows`;
+        if (json.skipped) msg += ` · skipped ${json.skipped} row${json.skipped === 1 ? '' : 's'} (blank or duplicate barcode)`;
+        if ((json.barcode_conflicts || []).length) {
+            msg += `<br><small>⚠️ Skipped due to a barcode already used by another item: `
+                + json.barcode_conflicts.map(escapeHtml).join(', ') + '</small>';
+        }
         if (json.missing) {
             msg += ` — <a href="/reconcile">review possibly-sold items →</a>`;
         }

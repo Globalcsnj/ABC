@@ -1547,6 +1547,7 @@ async def import_items(
         updated = 0      # existing items refreshed
         skipped = 0
         seen_codes = []  # item numbers present in this file
+        barcode_conflicts = []  # item numbers skipped due to a barcode already used by another item
 
         for row in reader:
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
@@ -1601,7 +1602,10 @@ async def import_items(
 
             if not barcode and item_number:
                 digits = re.sub(r"[^0-9]", "", item_number)
-                barcode = digits
+                # Fall back to the full item number if it has no digits at all
+                # (e.g. all-letters IDs) — an empty string would collide with
+                # every other item missing a barcode, since barcode is UNIQUE.
+                barcode = digits or item_number
 
             item_number_u = item_number.upper() if item_number else None
             barcode_u = barcode.upper() if barcode else None
@@ -1626,40 +1630,48 @@ async def import_items(
 
             # UPSERT: refresh Bravo-sourced fields, but PRESERVE admin/sale fields
             # (retail_price, photo, for_sale, sold, sold_at) on conflict.
-            await db.execute("""
-                INSERT INTO items
-                  (item_number, barcode, description, category, item_type, item_status,
-                   cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
-                   metal_color, total_stone_size, condition, diamond_authentic,
-                   serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
-                   metal_weight, quality, authentic_stone, quantity, vendor,
-                   inventory_age, date_to_inventory, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                ON CONFLICT(item_number) DO UPDATE SET
-                   barcode=excluded.barcode, description=excluded.description,
-                   category=excluded.category, item_type=excluded.item_type,
-                   item_status=excluded.item_status, cost=excluded.cost,
-                   retail_price=COALESCE(excluded.retail_price, items.retail_price),
-                   item_date=excluded.item_date, source=excluded.source,
-                   product_type=excluded.product_type, total_diamond=excluded.total_diamond,
-                   metal_type=excluded.metal_type, metal_color=excluded.metal_color,
-                   total_stone_size=excluded.total_stone_size, condition=excluded.condition,
-                   diamond_authentic=excluded.diamond_authentic,
-                   serial_number=excluded.serial_number, manufacturer=excluded.manufacturer,
-                   model=excluded.model, metal_purity=excluded.metal_purity,
-                   total_jewelry_weight=excluded.total_jewelry_weight,
-                   metal_weight=excluded.metal_weight, quality=excluded.quality,
-                   authentic_stone=excluded.authentic_stone, quantity=excluded.quantity,
-                   vendor=excluded.vendor, inventory_age=excluded.inventory_age,
-                   date_to_inventory=excluded.date_to_inventory, missing=0
-            """, (
-                item_number_u, barcode_u, description, category, item_type, item_status,
-                cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
-                metal_color, total_stone_size, condition, diamond_authentic,
-                serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
-                metal_weight, quality, authentic_stone, quantity, vendor,
-                inventory_age, date_to_inventory,
-            ))
+            try:
+                await db.execute("""
+                    INSERT INTO items
+                      (item_number, barcode, description, category, item_type, item_status,
+                       cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
+                       metal_color, total_stone_size, condition, diamond_authentic,
+                       serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
+                       metal_weight, quality, authentic_stone, quantity, vendor,
+                       inventory_age, date_to_inventory, missing)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    ON CONFLICT(item_number) DO UPDATE SET
+                       barcode=excluded.barcode, description=excluded.description,
+                       category=excluded.category, item_type=excluded.item_type,
+                       item_status=excluded.item_status, cost=excluded.cost,
+                       retail_price=COALESCE(excluded.retail_price, items.retail_price),
+                       item_date=excluded.item_date, source=excluded.source,
+                       product_type=excluded.product_type, total_diamond=excluded.total_diamond,
+                       metal_type=excluded.metal_type, metal_color=excluded.metal_color,
+                       total_stone_size=excluded.total_stone_size, condition=excluded.condition,
+                       diamond_authentic=excluded.diamond_authentic,
+                       serial_number=excluded.serial_number, manufacturer=excluded.manufacturer,
+                       model=excluded.model, metal_purity=excluded.metal_purity,
+                       total_jewelry_weight=excluded.total_jewelry_weight,
+                       metal_weight=excluded.metal_weight, quality=excluded.quality,
+                       authentic_stone=excluded.authentic_stone, quantity=excluded.quantity,
+                       vendor=excluded.vendor, inventory_age=excluded.inventory_age,
+                       date_to_inventory=excluded.date_to_inventory, missing=0
+                """, (
+                    item_number_u, barcode_u, description, category, item_type, item_status,
+                    cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
+                    metal_color, total_stone_size, condition, diamond_authentic,
+                    serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
+                    metal_weight, quality, authentic_stone, quantity, vendor,
+                    inventory_age, date_to_inventory,
+                ))
+            except aiosqlite.IntegrityError:
+                # Another item in this file (or already in the database) already
+                # owns this barcode — a Bravo data issue, not a bad file. Skip
+                # this row instead of aborting the whole import.
+                skipped += 1
+                barcode_conflicts.append(f"{item_number_u or '(blank)'} (barcode {barcode_u})")
+                continue
             if exists:
                 updated += 1
             else:
@@ -1735,6 +1747,7 @@ async def import_items(
         "newly_missing": sum(newly_missing_groups.values()),
         "newly_missing_groups": newly_missing_groups,
         "skipped": skipped,
+        "barcode_conflicts": barcode_conflicts[:20],
         "columns_found": columns_found,
         "categories": categories,
     })
