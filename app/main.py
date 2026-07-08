@@ -9,6 +9,10 @@ try:
     import segno
 except ImportError:
     segno = None
+try:
+    import openpyxl
+except ImportError:
+    openpyxl = None
 import csv
 import io
 import json
@@ -164,6 +168,41 @@ def find_column(row: dict, *candidates):
     return ""
 
 
+def _cell_to_str(value) -> str:
+    """Normalize an Excel cell value to the same kind of string csv.DictReader
+    would hand us, so the rest of the import logic doesn't care which format
+    the file came in as."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else str(value)
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)
+
+
+def parse_xlsx_rows(content: bytes):
+    """Read the first sheet of an .xlsx file into (fieldnames, rows-as-dicts),
+    mirroring csv.DictReader's shape so both formats share one import path."""
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+    ws = wb.active
+    rows_iter = ws.iter_rows(values_only=True)
+    try:
+        header = next(rows_iter)
+    except StopIteration:
+        return [], []
+    fieldnames = [_cell_to_str(h).strip() or None for h in header]
+    rows = []
+    for raw in rows_iter:
+        if raw is None or all(c is None for c in raw):
+            continue
+        row = {key: _cell_to_str(val) for key, val in zip(fieldnames, raw) if key is not None}
+        rows.append(row)
+    return [f for f in fieldnames if f], rows
+
+
 async def save_photo(photo, prefix: str) -> str:
     """Save an uploaded image and return its stored filename, or '' if none/invalid."""
     if photo is None or not getattr(photo, "filename", ""):
@@ -197,7 +236,7 @@ async def home(request: Request, db=Depends(get_db)):
         "sessions": sessions,
         "last_uploads": last_uploads,
         "item_count": item_count,
-        "lan_url": f"{'https' if os.path.exists(os.path.join(BASE_DIR, 'data', 'certs', 'cert.pem')) else 'http'}://{get_lan_ip()}:8000",
+        "lan_url": f"http://{get_lan_ip()}:8000",
     })
 
 
@@ -1508,10 +1547,19 @@ async def import_items(
             "error": "That's a PDF. Please export the Bravo report as CSV or Excel "
                      "(File/Export → CSV) and upload that instead."
         }, status_code=400)
-    if content[:2] == b"PK":  # xlsx/zip
+    # Legacy binary .xls (pre-2007 Excel) — not supported, ask for a re-save.
+    if content[:8] == b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1":
         return JSONResponse({
-            "error": "That looks like an Excel (.xlsx) file. Please 'Save As' CSV "
-                     "in Excel and upload the .csv, or export CSV from Bravo."
+            "error": "That's an old-style .xls file. Please open it in Excel and "
+                     "'Save As' either .xlsx or .csv, then upload that instead."
+        }, status_code=400)
+
+    is_xlsx = content[:2] == b"PK"  # .xlsx is a zip archive
+    if is_xlsx and openpyxl is None:
+        return JSONResponse({
+            "error": "Excel (.xlsx) support isn't installed on this server. "
+                     "Please 'Save As' CSV in Excel and upload that instead, "
+                     "or ask an admin to run: pip install -r requirements.txt"
         }, status_code=400)
 
     # Replace mode: clear the existing items for THIS list before importing,
@@ -1520,36 +1568,46 @@ async def import_items(
         await db.execute("DELETE FROM items WHERE source = ?", (source,))
         await db.commit()
 
-    # Bravo exports are usually Windows-1252, not UTF-8. Try encodings in order.
-    text = None
-    for enc in ("utf-8-sig", "cp1252", "latin-1"):
+    if is_xlsx:
         try:
-            text = content.decode(enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    if text is None:
-        text = content.decode("utf-8", errors="replace")
-
-    # Bravo can export tab-, comma-, or semicolon-separated. Detect which.
-    first_line = text.split("\n", 1)[0]
-    if "\t" in first_line:
-        delimiter = "\t"
-    elif ";" in first_line and first_line.count(";") >= first_line.count(","):
-        delimiter = ";"
+            columns_found, rows = parse_xlsx_rows(content)
+        except Exception as e:
+            return JSONResponse({
+                "error": f"Could not read this Excel file. Make sure it's a valid "
+                         f".xlsx export (not corrupted or password-protected). Details: {e}"
+            }, status_code=400)
     else:
-        delimiter = ","
+        # Bravo exports are usually Windows-1252, not UTF-8. Try encodings in order.
+        text = None
+        for enc in ("utf-8-sig", "cp1252", "latin-1"):
+            try:
+                text = content.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            text = content.decode("utf-8", errors="replace")
+
+        # Bravo can export tab-, comma-, or semicolon-separated. Detect which.
+        first_line = text.split("\n", 1)[0]
+        if "\t" in first_line:
+            delimiter = "\t"
+        elif ";" in first_line and first_line.count(";") >= first_line.count(","):
+            delimiter = ";"
+        else:
+            delimiter = ","
+
+        rows = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        columns_found = rows.fieldnames or []
 
     try:
-        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-        columns_found = reader.fieldnames or []
         inserted = 0     # new items
         updated = 0      # existing items refreshed
         skipped = 0
         seen_codes = []  # item numbers present in this file
         barcode_conflicts = []  # item numbers skipped due to a barcode already used by another item
 
-        for row in reader:
+        for row in rows:
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
             barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
             description = find_column(row, "Description", "Item Description", "Desc")
