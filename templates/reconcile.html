@@ -23,6 +23,26 @@
 </div>
 
 <div class="card mt">
+    <h2>🔄 Set Lifecycle Stage from a List</h2>
+    <p class="card-subtitle">Paste item numbers or barcodes (one per line), pick a stage, and apply
+        — for moving batches to Scrap, Refined, Polish, etc.</p>
+    <form id="stageListForm">
+        <div class="form-group">
+            <textarea name="codes" rows="3" placeholder="AB1007081&#10;2000012659" class="search-input" style="font-family:monospace"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Stage</label>
+            <select name="stage">
+                <option>Inventory</option><option>Scrap</option><option>Refined</option>
+                <option>Polish</option><option>Sold</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Apply Stage</button>
+        <span id="stageListResult" class="import-result"></span>
+    </form>
+</div>
+
+<div class="card mt">
     <h2>❓ Items missing from the latest upload</h2>
     <p class="card-subtitle">
         These were in a previous upload but not the most recent one — they may have sold.
@@ -134,6 +154,22 @@
 
 {% block scripts %}
 <script>
+document.getElementById('stageListForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const el = document.getElementById('stageListResult');
+    el.textContent = '⏳ Applying...';
+    el.className = 'import-result';
+    try {
+        const res = await fetch('/api/items/stage-bulk', { method: 'POST', body: new FormData(e.target) });
+        const j = await res.json();
+        el.textContent = `✅ Set ${j.updated} item(s) to that stage.`;
+        el.className = 'import-result success';
+    } catch (err) {
+        el.textContent = '❌ ' + err.message;
+        el.className = 'import-result error';
+    }
+});
+
 document.getElementById('soldListForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const el = document.getElementById('soldListResult');
