@@ -6,6 +6,23 @@
 </div>
 
 <div class="card">
+    <h2>🧾 Deduct Pre-Sold Items</h2>
+    <p class="card-subtitle">Paste item numbers or barcodes (one per line) — or upload a CSV — of items being
+        sold that day. They'll be marked sold and removed from the salesperson's list and the shop.</p>
+    <form id="soldListForm" enctype="multipart/form-data">
+        <div class="form-group">
+            <textarea name="codes" rows="4" placeholder="AB1007081&#10;2000012659&#10;AB1011639" class="search-input" style="font-family:monospace"></textarea>
+        </div>
+        <div class="form-group">
+            <label>…or upload a CSV list</label>
+            <input type="file" name="file" accept=".csv,.txt">
+        </div>
+        <button type="submit" class="btn btn-primary">Mark These Sold</button>
+        <span id="soldListResult" class="import-result"></span>
+    </form>
+</div>
+
+<div class="card mt">
     <h2>❓ Items missing from the latest upload</h2>
     <p class="card-subtitle">
         These were in a previous upload but not the most recent one — they may have sold.
@@ -113,4 +130,27 @@
     </table>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('soldListForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const el = document.getElementById('soldListResult');
+    el.textContent = '⏳ Processing...';
+    el.className = 'import-result';
+    try {
+        const res = await fetch('/api/items/sold-list', { method: 'POST', body: new FormData(e.target) });
+        const j = await res.json();
+        let msg = `✅ Marked ${j.sold} item(s) sold.`;
+        if (j.not_found && j.not_found.length) msg += ` ⚠️ ${j.not_found.length} not found: ${j.not_found.slice(0,10).join(', ')}${j.not_found.length>10?'…':''}`;
+        el.textContent = msg;
+        el.className = 'import-result success';
+        setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+        el.textContent = '❌ ' + err.message;
+        el.className = 'import-result error';
+    }
+});
+</script>
 {% endblock %}

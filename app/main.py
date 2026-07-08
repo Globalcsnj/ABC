@@ -954,6 +954,43 @@ async def mark_sold(item_number: str, db=Depends(get_db)):
     return RedirectResponse("/reconcile", status_code=303)
 
 
+@app.post("/api/items/sold-list")
+async def mark_sold_from_list(
+    codes: str = Form(default=""),
+    file: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
+    """Deduct a list of pre-sold items: match by item number or barcode and mark sold."""
+    raw = codes or ""
+    if file is not None and getattr(file, "filename", ""):
+        try:
+            content = await file.read()
+            text = content.decode("utf-8-sig", errors="replace")
+            # Take the first column of each CSV line, or the whole line
+            for line in text.splitlines():
+                raw += "\n" + line.split(",")[0]
+        except Exception:
+            pass
+    tokens = [t.strip().upper() for t in re.split(r"[\s,;]+", raw) if t.strip()]
+
+    sold, notfound = 0, []
+    for code in tokens:
+        async with db.execute(
+            "SELECT item_number FROM items WHERE item_number = ? OR barcode = ?", (code, code)
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            notfound.append(code)
+            continue
+        await db.execute(
+            "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 "
+            "WHERE item_number = ? OR barcode = ?", (code, code)
+        )
+        sold += 1
+    await db.commit()
+    return JSONResponse({"ok": True, "sold": sold, "not_found": notfound})
+
+
 @app.post("/api/items/{item_number}/keep")
 async def mark_keep(item_number: str, db=Depends(get_db)):
     await db.execute("UPDATE items SET missing=0 WHERE item_number=?", (item_number,))

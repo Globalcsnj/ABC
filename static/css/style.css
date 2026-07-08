@@ -36,7 +36,9 @@ body {
     z-index: 100;
     box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
-.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; }
+.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; display: flex; align-items: center; }
+.brand-logo { height: 34px; width: auto; background: white; padding: 3px 8px; border-radius: 6px; }
+.shop-logo .brand-logo, .shop-logo img { height: 30px; }
 .nav-links { display: flex; align-items: center; gap: 6px; }
 .nav-links > a {
     color: rgba(255,255,255,.9);
