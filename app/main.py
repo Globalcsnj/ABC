@@ -301,7 +301,8 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         raise HTTPException(404)
 
     async with db.execute("""
-        SELECT s.*, i.item_number as bravo_number
+        SELECT s.*, i.item_number as bravo_number, i.retail_price as retail_price,
+               i.product_type as product_type
         FROM audit_scans s
         LEFT JOIN items i ON i.barcode = s.barcode
         WHERE s.session_id = ?
@@ -340,6 +341,21 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
 
+    # Found-by-group metrics (count, cost, retail) — mirrors Missing by Group
+    found_group = {}
+    found_cost = found_retail = 0.0
+    for s in scans:
+        if s["match_status"] != "found":
+            continue
+        g = big_group(s, overrides)
+        found_group.setdefault(g, {"count": 0, "cost": 0.0, "retail": 0.0})
+        found_group[g]["count"] += 1
+        found_group[g]["cost"] += (s["cost"] or 0)
+        found_group[g]["retail"] += (s["retail_price"] or 0)
+        found_cost += (s["cost"] or 0)
+        found_retail += (s["retail_price"] or 0)
+    found_group = sorted(found_group.items(), key=lambda kv: kv[1]["count"], reverse=True)
+
     # Breakdown of FOUND items by their Bravo status (Inventory / Layaway / Redeemed / …)
     status_summary = {}
     for s in scans:
@@ -373,6 +389,9 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "missing_by_cat": missing_by_cat,
         "group_summary": group_summary,
         "status_summary": status_summary,
+        "found_group": found_group,
+        "found_cost": found_cost,
+        "found_retail": found_retail,
         "found_count": found_count,
         "unknown_count": unknown_count,
         "missing_count": len(missing),

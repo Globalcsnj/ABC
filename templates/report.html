@@ -50,6 +50,35 @@
     </div>
 </div>
 
+<!-- Found contrast: Jewelry vs Manufactured (count / cost / retail) -->
+{% if found_group %}
+<div class="card mt">
+    <h2>✅ Found by Group — Jewelry vs Manufactured</h2>
+    <p class="card-subtitle">Scanned-and-matched items by big category, with value.</p>
+    <table class="table">
+        <thead>
+            <tr><th>Group</th><th>Items Found</th><th>Cost Value</th><th>Retail Value</th></tr>
+        </thead>
+        <tbody>
+            {% for g, v in found_group %}
+            <tr class="row-found">
+                <td><strong>{{ g }}</strong></td>
+                <td class="found-text"><strong>{{ v.count }}</strong></td>
+                <td>${{ "{:,.2f}".format(v.cost) }}</td>
+                <td>${{ "{:,.2f}".format(v.retail) }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total">
+                <td><strong>TOTAL</strong></td>
+                <td><strong>{{ found_count }}</strong></td>
+                <td><strong>${{ "{:,.2f}".format(found_cost) }}</strong></td>
+                <td><strong>${{ "{:,.2f}".format(found_retail) }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 <!-- Missing contrast: Jewelry vs Manufactured -->
 {% if group_summary %}
 <div class="card mt">
@@ -244,6 +273,13 @@
             <option value="retail_desc">Sort: Price High→Low</option>
             <option value="cost_desc">Sort: Cost High→Low</option>
         </select>
+        <select id="missingGroupBy" onchange="renderMissing()">
+            <option value="">Group by: none</option>
+            <option value="category">Group by: Category</option>
+            <option value="group">Group by: Jewelry/Manufactured</option>
+            <option value="item_status">Group by: Status</option>
+            <option value="metal_type">Group by: Metal</option>
+        </select>
         <button class="btn btn-outline" onclick="printMissing()">🖨 Print this view</button>
     </div>
     <p class="card-subtitle" id="missingCount"></p>
@@ -397,7 +433,7 @@ function renderMissing() {
     document.getElementById('missingCount').textContent =
         `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`;
 
-    body.innerHTML = rows.map(m => `
+    const rowHtml = (m) => `
         <tr class="row-missing">
             <td>${m.group}</td>
             <td>${m.item_number||''}</td>
@@ -406,7 +442,33 @@ function renderMissing() {
             <td>${m.category||'—'}</td>
             <td>${money(m.cost)}</td>
             <td>${money(m.retail_price)}</td>
-        </tr>`).join('') || '<tr><td colspan="7" class="empty-state">No items match.</td></tr>';
+        </tr>`;
+
+    const groupBy = document.getElementById('missingGroupBy').value;
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="empty-state">No items match.</td></tr>';
+        return;
+    }
+    if (!groupBy) {
+        body.innerHTML = rows.map(rowHtml).join('');
+        return;
+    }
+    // Group into sections with a subtotal header per group value
+    const groups = {};
+    rows.forEach(m => {
+        const key = (m[groupBy] || '—') || '—';
+        (groups[key] = groups[key] || []).push(m);
+    });
+    let html = '';
+    Object.keys(groups).sort().forEach(key => {
+        const list = groups[key];
+        const cost = list.reduce((s,m)=>s+(m.cost||0),0);
+        const retail = list.reduce((s,m)=>s+(m.retail_price||0),0);
+        html += `<tr class="group-header"><td colspan="5"><strong>${key}</strong> — ${list.length} item(s)</td>
+                 <td><strong>$${cost.toFixed(2)}</strong></td><td><strong>$${retail.toFixed(2)}</strong></td></tr>`;
+        html += list.map(rowHtml).join('');
+    });
+    body.innerHTML = html;
 }
 
 function setGroup(btn) {

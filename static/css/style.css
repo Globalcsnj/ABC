@@ -429,6 +429,7 @@ body {
 .group-tab { padding: 7px 16px; border: 1px solid var(--gray-200); background: white; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--gray-600); }
 .group-tab:hover { border-color: var(--primary); }
 .group-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+.group-header td { background: var(--gray-100); border-top: 2px solid var(--gray-300, #d1d5db); }
 
 /* Login */
 .login-wrap { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
