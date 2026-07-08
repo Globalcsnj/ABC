@@ -143,11 +143,25 @@
 </div>
 {% endif %}
 
+<!-- Found by status (Inventory / Layaway / Redeemed) -->
+{% if status_summary %}
+<div class="card mt">
+    <h2>📦 Found by Status</h2>
+    <p class="card-subtitle">Scanned items that matched, grouped by their Bravo status. Click one to filter the scan list below.</p>
+    <div class="group-tabs">
+        <button class="group-tab active" data-status="" onclick="setScanStatus(this)">All ({{ found_count }})</button>
+        {% for st, cnt in status_summary %}
+        <button class="group-tab" data-status="{{ st }}" onclick="setScanStatus(this)">{{ st }} ({{ cnt }})</button>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- All scanned items (collapsible) -->
 <div class="card mt">
-    <details>
+    <details open>
     <summary class="collapse-summary">✅ All Scanned Items ({{ scans|length }}) — click to expand</summary>
-    <table class="table mt">
+    <table class="table mt" id="scansTable">
         <thead>
             <tr>
                 <th>Status</th>
@@ -165,7 +179,7 @@
         </thead>
         <tbody>
             {% for scan in scans %}
-            <tr class="row-{{ scan.match_status }}">
+            <tr class="row-{{ scan.match_status }} scan-row-data" data-status="{{ (scan.item_status or 'Unspecified')|trim or 'Unspecified' }}" data-match="{{ scan.match_status }}">
                 <td>
                     {% if scan.match_status == 'found' %}
                     <span class="status-dot dot-found">✅ Found</span>
@@ -284,6 +298,19 @@ function printMissing() {
         <tbody>${rowsHtml}</tbody></table></body></html>`);
     w.document.close();
     setTimeout(() => { w.print(); }, 300);
+}
+
+function setScanStatus(btn) {
+    const status = btn.dataset.status;
+    document.querySelectorAll('[data-status]').forEach(b => {
+        if (b.classList.contains('group-tab')) b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    document.querySelectorAll('#scansTable .scan-row-data').forEach(row => {
+        // Only filter the FOUND rows by status; keep everything when "All"
+        const show = !status || row.dataset.status === status;
+        row.style.display = show ? '' : 'none';
+    });
 }
 
 async function deleteAllFindings(count) {

@@ -340,6 +340,15 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
 
+    # Breakdown of FOUND items by their Bravo status (Inventory / Layaway / Redeemed / …)
+    status_summary = {}
+    for s in scans:
+        if s["match_status"] != "found":
+            continue
+        st = (s["item_status"] or "Unspecified").strip() or "Unspecified"
+        status_summary[st] = status_summary.get(st, 0) + 1
+    status_summary = sorted(status_summary.items(), key=lambda kv: kv[1], reverse=True)
+
     # Which categories have missing items (so the user knows what's incomplete)
     missing_by_cat = {}
     for m in missing:
@@ -363,6 +372,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "missing": missing,
         "missing_by_cat": missing_by_cat,
         "group_summary": group_summary,
+        "status_summary": status_summary,
         "found_count": found_count,
         "unknown_count": unknown_count,
         "missing_count": len(missing),
