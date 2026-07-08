@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Record a Sale – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Record a Sale</h1>
+    <div class="header-actions">
+        <span class="count-pill">Today: {{ today|length }} sold · ${{ "{:,.2f}".format(total_today) }}</span>
+    </div>
+</div>
+
+<div class="scan-area">
+    <div class="scan-hint">Scan or type an item number / barcode to mark it sold. Each sale is recorded instantly.</div>
+    <input type="text" id="sellInput" class="scan-input" placeholder="Scan item…" autocomplete="off" autofocus>
+    <div id="sellFeedback" class="scan-feedback"></div>
+</div>
+
+<div class="card mt">
+    <h2>Today's Sales</h2>
+    <table class="table" id="todayTable">
+        <thead>
+            <tr><th>Item #</th><th>Description</th><th>Category</th><th>Price</th><th>Time</th></tr>
+        </thead>
+        <tbody>
+            {% for s in today %}
+            <tr>
+                <td>{{ s.item_number }}</td>
+                <td>{{ s.description or '—' }}</td>
+                <td>{{ s.category or '—' }}</td>
+                <td>{% if s.retail_price %}${{ "%.2f"|format(s.retail_price) }}{% else %}—{% endif %}</td>
+                <td>{{ s.sold_at[11:19] if s.sold_at else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not today %}<div class="empty-state">No sales recorded today yet.</div>{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const input = document.getElementById('sellInput');
+const feedback = document.getElementById('sellFeedback');
+input.focus();
+document.addEventListener('click', () => input.focus());
+
+let timer = null;
+function submitCode() {
+    clearTimeout(timer); timer = null;
+    const code = input.value.trim();
+    input.value = '';
+    if (code) recordSale(code);
+}
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitCode(); } });
+input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(submitCode, 120); });
+
+async function recordSale(code) {
+    const body = new FormData();
+    body.append('code', code);
+    try {
+        const res = await fetch('/api/sell', { method: 'POST', body });
+        const j = await res.json();
+        feedback.textContent = j.message;
+        feedback.className = 'scan-feedback ' + (j.ok ? 'feedback-item' : 'feedback-error');
+        if (j.ok) setTimeout(() => location.reload(), 900);
+    } catch (e) {
+        feedback.textContent = '❌ ' + e.message;
+        feedback.className = 'scan-feedback feedback-error';
+    }
+}
+</script>
+{% endblock %}

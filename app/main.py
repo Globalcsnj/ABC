@@ -954,6 +954,50 @@ async def mark_sold(item_number: str, db=Depends(get_db)):
     return RedirectResponse("/reconcile", status_code=303)
 
 
+@app.get("/sell", response_class=HTMLResponse)
+async def sell_page(request: Request, db=Depends(get_db)):
+    # Today's sales
+    async with db.execute("""
+        SELECT item_number, description, category, retail_price, sold_at
+        FROM items WHERE sold=1 AND date(sold_at)=date('now','localtime')
+        ORDER BY sold_at DESC
+    """) as cur:
+        today = await cur.fetchall()
+    total_today = sum((r["retail_price"] or 0) for r in today)
+    return templates.TemplateResponse("sell.html", {
+        "request": request, "today": today, "total_today": total_today,
+    })
+
+
+@app.post("/api/sell")
+async def record_sale(code: str = Form(...), db=Depends(get_db)):
+    """Record a single daily sale by scanning/typing an item number or barcode."""
+    c = code.strip().upper()
+    async with db.execute(
+        "SELECT item_number, description, retail_price, sold FROM items "
+        "WHERE item_number = ? OR barcode = ?", (c, c)
+    ) as cur:
+        item = await cur.fetchone()
+    if not item:
+        return JSONResponse({"ok": False, "message": f"⚠️ {c} not found in inventory"})
+    if item["sold"]:
+        return JSONResponse({"ok": False, "message": f"🔁 {item['item_number']} was already sold"})
+    await db.execute(
+        "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 "
+        "WHERE item_number = ? OR barcode = ?", (c, c)
+    )
+    await db.execute(
+        "UPDATE reconcile_log SET status='sold', resolved_at=CURRENT_TIMESTAMP "
+        "WHERE item_number=? AND status='missing'", (item["item_number"],)
+    )
+    await db.commit()
+    price = f"${item['retail_price']:.2f}" if item["retail_price"] else "—"
+    return JSONResponse({
+        "ok": True,
+        "message": f"✅ SOLD — {item['item_number']} · {item['description'] or ''} · {price}",
+    })
+
+
 @app.post("/api/items/sold-list")
 async def mark_sold_from_list(
     codes: str = Form(default=""),
