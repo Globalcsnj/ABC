@@ -23,6 +23,15 @@
             </label>
         </div>
         <div class="form-group">
+            <label>Lifecycle Stage</label>
+            <select name="stage">
+                {% set st = item.stage or 'Inventory' %}
+                {% for s in ['Inventory','Scrap','Refined','Polish','Sold'] %}
+                <option value="{{ s }}" {% if st == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
             <label>Product Photo</label>
             {% if item.photo %}<div><img src="/uploads/{{ item.photo }}" class="edit-photo"></div>{% endif %}
             <input type="file" name="photo" accept="image/*" class="photo-input">

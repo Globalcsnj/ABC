@@ -200,6 +200,7 @@ async def init_db():
             "vendor": "TEXT DEFAULT ''",
             "inventory_age": "TEXT DEFAULT ''",
             "date_to_inventory": "TEXT DEFAULT ''",
+            "stage": "TEXT DEFAULT ''",   # Inventory / Scrap / Refined / Polish / Sold
         }
         for col, decl in add_item_cols.items():
             if col not in item_cols:

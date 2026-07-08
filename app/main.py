@@ -725,6 +725,7 @@ async def edit_item(
     item_number: str,
     retail_price: str = Form(default=""),
     for_sale: str = Form(default=""),
+    stage: str = Form(default=""),
     photo: UploadFile = File(default=None),
     db=Depends(get_db)
 ):
@@ -733,16 +734,30 @@ async def edit_item(
     photo_name = await save_photo(photo, f"item_{item_number}")
     if photo_name:
         await db.execute(
-            "UPDATE items SET retail_price=?, for_sale=?, photo=? WHERE item_number=?",
-            (price, sale_flag, photo_name, item_number)
+            "UPDATE items SET retail_price=?, for_sale=?, stage=?, photo=? WHERE item_number=?",
+            (price, sale_flag, stage, photo_name, item_number)
         )
     else:
         await db.execute(
-            "UPDATE items SET retail_price=?, for_sale=? WHERE item_number=?",
-            (price, sale_flag, item_number)
+            "UPDATE items SET retail_price=?, for_sale=?, stage=? WHERE item_number=?",
+            (price, sale_flag, stage, item_number)
         )
     await db.commit()
     return RedirectResponse("/inventory", status_code=303)
+
+
+@app.post("/api/items/stage-bulk")
+async def set_stage_bulk(codes: str = Form(...), stage: str = Form(...), db=Depends(get_db)):
+    """Set the lifecycle stage for a pasted list of item numbers/barcodes."""
+    tokens = [t.strip().upper() for t in re.split(r"[\s,;]+", codes or "") if t.strip()]
+    updated = 0
+    for c in tokens:
+        async with db.execute(
+            "UPDATE items SET stage=? WHERE item_number=? OR barcode=?", (stage, c, c)
+        ) as cur:
+            updated += cur.rowcount
+    await db.commit()
+    return JSONResponse({"ok": True, "updated": updated})
 
 
 # ── Sold / reconciliation workflow ──────────────────────────────────────────
@@ -913,6 +928,7 @@ async def explore_page(request: Request, db=Depends(get_db)):
         SELECT item_number, description, category, item_status, source, product_type,
                cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
+               COALESCE(NULLIF(stage,''),'Inventory') as stage,
                COALESCE(sold,0) as sold
         FROM items ORDER BY category, item_number
     """) as cur:
