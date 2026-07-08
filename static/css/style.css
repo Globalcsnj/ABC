@@ -433,6 +433,11 @@ body {
 .col-check { display: block; padding: 6px 10px; font-size: 14px; cursor: pointer; white-space: nowrap; }
 .col-check:hover { background: var(--gray-100); border-radius: 6px; }
 .col-check input { margin-right: 8px; }
+.explore-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.explore-filters select, .explore-filters input { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 14px; }
+.explore-ranges { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 13px; color: var(--gray-600); }
+.explore-ranges input { width: 70px; padding: 6px 8px; border: 1px solid var(--gray-200); border-radius: 6px; }
+.range-group { display: inline-flex; align-items: center; gap: 4px; }
 
 /* Login */
 .login-wrap { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 20px; }

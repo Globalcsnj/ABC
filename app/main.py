@@ -907,6 +907,33 @@ async def set_category_group(category: str = Form(...), group: str = Form(...), 
     return RedirectResponse("/categories", status_code=303)
 
 
+@app.get("/explore", response_class=HTMLResponse)
+async def explore_page(request: Request, db=Depends(get_db)):
+    async with db.execute("""
+        SELECT item_number, description, category, item_status, source, product_type,
+               cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
+               metal_weight, total_diamond, total_stone_size, quality,
+               COALESCE(sold,0) as sold
+        FROM items ORDER BY category, item_number
+    """) as cur:
+        items = [dict(r) for r in await cur.fetchall()]
+    overrides = await load_group_overrides(db)
+    for it in items:
+        it["group"] = classify_category(it.get("category") or "", it.get("product_type") or "", overrides)
+
+    def distinct(field):
+        return sorted({(it.get(field) or "").strip() for it in items if (it.get(field) or "").strip()})
+
+    return templates.TemplateResponse("explore.html", {
+        "request": request,
+        "items_json": json.dumps(items),
+        "categories": distinct("category"),
+        "metals": distinct("metal_type"),
+        "purities": distinct("metal_purity"),
+        "statuses": distinct("item_status"),
+    })
+
+
 @app.get("/reconcile", response_class=HTMLResponse)
 async def reconcile_page(request: Request, frm: str = "", to: str = "",
                          status: str = "", db=Depends(get_db)):
