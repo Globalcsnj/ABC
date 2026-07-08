@@ -118,7 +118,10 @@
 <div class="card mt" id="findingsCard">
     <div class="card-header">
         <h2>🔎 Findings for Future Research</h2>
-        <button class="btn btn-sm btn-outline" onclick="printEl('findingsCard','Findings')">🖨 Print</button>
+        <div class="header-actions">
+            <button class="btn btn-sm btn-outline" onclick="printEl('findingsCard','Findings')">🖨 Print</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAllFindings({{ findings|length }})">🗑 Delete All ({{ findings|length }})</button>
+        </div>
     </div>
     <p class="card-subtitle">Items found in the store but NOT on the list. Investigate these.</p>
     <table class="table">
@@ -281,6 +284,26 @@ function printMissing() {
         <tbody>${rowsHtml}</tbody></table></body></html>`);
     w.document.close();
     setTimeout(() => { w.print(); }, 300);
+}
+
+async function deleteAllFindings(count) {
+    if (!confirm(`Delete ALL ${count} findings from this count? This removes every scanned item that isn't on the list.`)) return;
+    const code = prompt('Enter override code to delete all findings:');
+    if (!code) return;
+    const body = new FormData();
+    body.append('override', code.trim());
+    try {
+        const res = await fetch('/api/sessions/{{ session.id }}/findings/delete', { method: 'POST', body });
+        if (res.ok) {
+            const j = await res.json();
+            alert(`Deleted ${j.deleted} findings.`);
+            location.reload();
+        } else if (res.status === 403) {
+            alert('Invalid override code. Nothing was deleted.');
+        } else {
+            alert('Could not delete (are you still signed in?).');
+        }
+    } catch (e) { alert('Error: ' + e.message); }
 }
 
 async function deleteFinding(scanId) {

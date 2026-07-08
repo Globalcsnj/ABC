@@ -1204,6 +1204,19 @@ async def delete_scan(scan_id: int, override: str = Form(...), db=Depends(get_db
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/sessions/{session_id}/findings/delete")
+async def delete_all_findings(session_id: int, override: str = Form(...), db=Depends(get_db)):
+    """Delete every 'unknown' (findings) scan in this count — for clearing junk scans."""
+    if override.strip() != OVERRIDE_CODE:
+        return JSONResponse({"error": "Invalid override code"}, status_code=403)
+    async with db.execute(
+        "DELETE FROM audit_scans WHERE session_id=? AND match_status='unknown'", (session_id,)
+    ) as cur:
+        deleted = cur.rowcount
+    await db.commit()
+    return JSONResponse({"ok": True, "deleted": deleted})
+
+
 @app.post("/api/sessions/{session_id}/rename")
 async def rename_session(session_id: int, name: str = Form(...), db=Depends(get_db)):
     name = name.strip()
