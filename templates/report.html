@@ -244,16 +244,17 @@
             <option value="retail_desc">Sort: Price High→Low</option>
             <option value="cost_desc">Sort: Cost High→Low</option>
         </select>
+        <div class="dl-dropdown col-chooser">
+            <button type="button" class="btn btn-outline">🗂 Columns ▾</button>
+            <div class="dl-menu col-menu" id="colMenu"></div>
+        </div>
         <button class="btn btn-outline" onclick="printMissing()">🖨 Print this view</button>
     </div>
     <p class="card-subtitle" id="missingCount"></p>
 
     <table class="table" id="missingTable">
         <thead>
-            <tr>
-                <th>Group</th><th>Bravo #</th><th>Barcode</th><th>Description</th>
-                <th>Category</th><th>Cost</th><th>Retail</th>
-            </tr>
+            <tr id="missingHead"></tr>
         </thead>
         <tbody id="missingBody"></tbody>
     </table>
@@ -283,7 +284,8 @@ function printEl(elId, title) {
 }
 
 function printMissing() {
-    // Print the currently filtered/sorted missing rows
+    // Print the currently filtered/sorted missing rows, with the chosen columns
+    const headHtml = chosenCols().map(c => `<th>${c.label}</th>`).join('');
     const rowsHtml = document.getElementById('missingBody').innerHTML;
     const label = document.getElementById('missingCount').textContent;
     const w = window.open('', '_blank');
@@ -293,8 +295,7 @@ function printMissing() {
         th,td{border:1px solid #ccc;padding:6px;text-align:left}
         img{display:none}</style></head><body>
         <h2>{{ session.name }} — Missing Items</h2><p>${label}</p>
-        <table><thead><tr><th>Group</th><th>Item #</th><th>Barcode</th><th>Description</th>
-        <th>Category</th><th>Cost</th><th>Retail</th></tr></thead>
+        <table><thead><tr>${headHtml}</tr></thead>
         <tbody>${rowsHtml}</tbody></table></body></html>`);
     w.document.close();
     setTimeout(() => { w.print(); }, 300);
@@ -377,6 +378,92 @@ let currentGroup = '';
 
 function money(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
 
+// All columns the Missing Items table can show. `money` formats as currency,
+// `code` renders in a monospace <code> tag (for barcodes).
+const MISSING_COLUMNS = [
+    { key: 'group',            label: 'Group' },
+    { key: 'item_number',      label: 'Bravo #' },
+    { key: 'barcode',          label: 'Barcode', code: true },
+    { key: 'description',      label: 'Description' },
+    { key: 'category',         label: 'Category' },
+    { key: 'item_status',      label: 'Status' },
+    { key: 'source',           label: 'List' },
+    { key: 'product_type',     label: 'Type' },
+    { key: 'metal_type',       label: 'Metal' },
+    { key: 'metal_purity',     label: 'Purity' },
+    { key: 'total_diamond',    label: 'Total Diamond' },
+    { key: 'total_stone_size', label: 'Total Stone' },
+    { key: 'cost',             label: 'Cost', money: true },
+    { key: 'retail_price',     label: 'Retail', money: true },
+];
+const DEFAULT_COLS = ['group', 'item_number', 'barcode', 'description', 'category', 'cost', 'retail_price'];
+const COLS_STORAGE_KEY = 'abc_missing_cols';
+
+let selectedCols = loadCols();
+
+function loadCols() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(COLS_STORAGE_KEY));
+        if (Array.isArray(saved) && saved.length) {
+            // Keep only keys that still exist, preserving the canonical column order
+            const valid = MISSING_COLUMNS.map(c => c.key).filter(k => saved.includes(k));
+            if (valid.length) return valid;
+        }
+    } catch (e) { /* fall through to default */ }
+    return DEFAULT_COLS.slice();
+}
+
+function saveCols() {
+    try { localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(selectedCols)); } catch (e) { /* ignore */ }
+}
+
+function chosenCols() {
+    return MISSING_COLUMNS.filter(c => selectedCols.includes(c.key));
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+function cellValue(m, col) {
+    if (col.money) return money(m[col.key]);
+    const v = m[col.key];
+    if (v == null || v === '') return '—';
+    const safe = escapeHtml(v);
+    return col.code ? `<code>${safe}</code>` : safe;
+}
+
+function renderColMenu() {
+    const menu = document.getElementById('colMenu');
+    if (!menu) return;
+    menu.innerHTML = MISSING_COLUMNS.map(c => `
+        <label class="col-opt">
+            <input type="checkbox" value="${c.key}" ${selectedCols.includes(c.key) ? 'checked' : ''}>
+            ${c.label}
+        </label>`).join('');
+    menu.querySelectorAll('input[type=checkbox]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const checked = new Set([...menu.querySelectorAll('input:checked')].map(i => i.value));
+            selectedCols = MISSING_COLUMNS.map(c => c.key).filter(k => checked.has(k));
+            if (!selectedCols.length) {  // never allow an empty table
+                selectedCols = ['item_number'];
+                renderColMenu();
+            }
+            saveCols();
+            renderMissingHead();
+            renderMissing();
+        });
+    });
+}
+
+function renderMissingHead() {
+    const head = document.getElementById('missingHead');
+    if (!head) return;
+    head.innerHTML = chosenCols().map(c => `<th>${c.label}</th>`).join('');
+}
+
 function renderMissing() {
     const body = document.getElementById('missingBody');
     if (!body) return;
@@ -397,16 +484,11 @@ function renderMissing() {
     document.getElementById('missingCount').textContent =
         `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`;
 
+    const cols = chosenCols();
     body.innerHTML = rows.map(m => `
         <tr class="row-missing">
-            <td>${m.group}</td>
-            <td>${m.item_number||''}</td>
-            <td><code>${m.barcode||''}</code></td>
-            <td>${m.description||'—'}</td>
-            <td>${m.category||'—'}</td>
-            <td>${money(m.cost)}</td>
-            <td>${money(m.retail_price)}</td>
-        </tr>`).join('') || '<tr><td colspan="7" class="empty-state">No items match.</td></tr>';
+            ${cols.map(c => `<td>${cellValue(m, c)}</td>`).join('')}
+        </tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
 }
 
 function setGroup(btn) {
@@ -429,6 +511,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data) {
         try { MISSING = JSON.parse(data.textContent); } catch { MISSING = []; }
         document.getElementById('missingFilter').addEventListener('input', renderMissing);
+        renderColMenu();
+        renderMissingHead();
         renderMissing();
     }
 });

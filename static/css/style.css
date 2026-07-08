@@ -732,6 +732,13 @@ body {
 
 /* Category filter bar */
 .cat-filter-bar { margin-bottom: 8px; }
+
+/* Column chooser (report Missing Items table) */
+.col-chooser { vertical-align: middle; }
+.col-menu { max-height: 340px; overflow-y: auto; min-width: 190px; }
+.col-opt { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 14px; font-weight: 400; cursor: pointer; }
+.col-opt:hover { background: var(--gray-100); }
+.col-opt input { cursor: pointer; margin: 0; }
 .cat-filter-actions { font-size: 13px; color: var(--gray-600); margin-bottom: 12px; }
 .cat-filter-actions a { color: var(--primary); text-decoration: none; margin: 0 2px; }
 .cat-filter-actions a:hover { text-decoration: underline; }
