@@ -18,12 +18,8 @@ echo.
 echo Installing/updating dependencies...
 pip install -r requirements.txt -q
 
-REM Open the browser to the app after a short delay (HTTPS if a cert exists)
-if exist "%~dp0data\certs\cert.pem" (
-    start "" cmd /c "timeout /t 4 >nul & start https://localhost:8000"
-) else (
-    start "" cmd /c "timeout /t 4 >nul & start http://localhost:8000"
-)
+REM Open the browser to the app after a short delay
+start "" cmd /c "timeout /t 4 >nul & start http://localhost:8000"
 
 echo.
 echo Starting server... (leave this window open; close it to stop)
