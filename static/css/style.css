@@ -26,20 +26,27 @@ body {
 .navbar {
     background: var(--primary);
     color: white;
-    padding: 0 24px;
-    height: 56px;
+    padding: 8px 24px;
+    min-height: 56px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: 0 2px 4px rgba(0,0,0,.15);
 }
-.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; display: flex; align-items: center; }
-.brand-logo { height: 34px; width: auto; background: white; padding: 3px 8px; border-radius: 6px; }
+.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; display: flex; align-items: center; flex-shrink: 0; }
+.brand-logo { height: 34px; width: auto; max-width: 100%; object-fit: contain; background: white; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; }
 .shop-logo .brand-logo, .shop-logo img { height: 30px; }
-.nav-links { display: flex; align-items: center; gap: 6px; }
+.nav-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+    .brand-logo { height: 28px; }
+    .nav-links { gap: 2px; justify-content: flex-end; }
+    .nav-links > a, .nav-group-btn { padding: 6px 8px; font-size: 13px; }
+}
 .nav-links > a {
     color: rgba(255,255,255,.9);
     text-decoration: none;
@@ -175,7 +182,10 @@ body {
 .camera-video { width: 100%; max-width: 480px; border-radius: 8px; background: #000; display: block; }
 .camera-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .camera-error { color: var(--danger); font-size: 13px; margin-top: 10px; max-width: 480px; }
-.scan-camera-row { margin-top: 10px; }
+.scan-camera-row { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.manual-entry-panel { margin-top: 12px; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.manual-entry-panel.hidden { display: none; }
+.manual-entry-panel .scan-input { width: auto; flex: 1 1 260px; font-size: 16px; padding: 10px 14px; }
 .scan-reticle { width: 80%; max-width: 380px; height: 90px; margin: -110px auto 20px; border: 3px solid #febd69; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(0,0,0,.25); position: relative; }
 .camera-scan-status { text-align: center; font-weight: 700; color: var(--gray-800); margin: 6px 0; min-height: 20px; }
 

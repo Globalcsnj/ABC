@@ -48,6 +48,12 @@ pause — you can resume this count anytime from the Home page.</p>
            placeholder="Waiting for scan..." autocomplete="off" autofocus>
     <div class="scan-camera-row">
         <button type="button" class="btn btn-outline" onclick="startCameraScan()">📷 Scan with Camera</button>
+        <button type="button" class="btn btn-outline" id="manualToggleBtn" onclick="toggleManualEntry()">⌨️ No Scanner? Enter Manually</button>
+    </div>
+    <div id="manualEntryPanel" class="manual-entry-panel hidden">
+        <input type="text" id="manualInput" class="scan-input"
+               placeholder="Type barcode or item number" autocomplete="off">
+        <button type="button" class="btn btn-primary" onclick="submitManual()">Add</button>
     </div>
     <div id="scanFeedback" class="scan-feedback"></div>
 </div>
@@ -120,14 +126,48 @@ const scanInput = document.getElementById('scanInput');
 const feedback  = document.getElementById('scanFeedback');
 const scanList  = document.getElementById('scanList');
 const totalBadge = document.getElementById('totalBadge');
+const manualPanel = document.getElementById('manualEntryPanel');
+const manualInput = document.getElementById('manualInput');
+const manualToggleBtn = document.getElementById('manualToggleBtn');
 
-// Keep focus on input at all times
-document.addEventListener('click', () => scanInput.focus());
+// Keep focus on the scan input at all times — but not while the manual
+// entry panel is open, or this would yank focus away as soon as someone
+// tries to type a barcode/item number by hand.
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#manualEntryPanel')) return;
+    scanInput.focus();
+});
 scanInput.focus();
 // Re-grab focus if it ever drifts away (keeps scanner input landing here)
 setInterval(() => {
+    if (!manualPanel.classList.contains('hidden')) return;
     if (document.activeElement !== scanInput) scanInput.focus();
 }, 400);
+
+function toggleManualEntry() {
+    const nowHidden = manualPanel.classList.toggle('hidden');
+    manualToggleBtn.textContent = nowHidden ? '⌨️ No Scanner? Enter Manually' : '⌨️ Hide Manual Entry';
+    if (!nowHidden) {
+        manualInput.focus();
+    } else {
+        scanInput.focus();
+    }
+}
+
+function submitManual() {
+    const code = manualInput.value.trim();
+    if (!code) { manualInput.focus(); return; }
+    manualInput.value = '';
+    processScan(code);
+    manualInput.focus();
+}
+
+manualInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        submitManual();
+    }
+});
 
 // A scanner sends characters very fast then (optionally) an Enter.
 // We submit on Enter OR when typing pauses ~90ms — so it works whether or

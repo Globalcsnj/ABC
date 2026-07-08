@@ -1374,6 +1374,15 @@ async def process_scan(
     if not current_location:
         return JSONResponse({"type": "error", "message": "⚠️ Scan a location first (e.g. 001)"}, status_code=400)
 
+    # Lookup by barcode OR item number — lets staff without a scanner type
+    # either value in by hand and still match the same item.
+    async with db.execute(
+        "SELECT * FROM items WHERE barcode = ? OR item_number = ?", (code, code)
+    ) as cur:
+        item = await cur.fetchone()
+    if item and item["barcode"]:
+        code = item["barcode"]
+
     # Prevent duplicate scans of the same item within this count
     async with db.execute(
         "SELECT location_id, sublocation_id FROM audit_scans WHERE session_id = ? AND barcode = ?",
@@ -1389,12 +1398,6 @@ async def process_scan(
             "barcode": code,
             "message": f"🔁 Already scanned in this count (at {where}) — skipped",
         })
-
-    # Lookup by barcode in items table
-    async with db.execute(
-        "SELECT * FROM items WHERE barcode = ?", (code,)
-    ) as cur:
-        item = await cur.fetchone()
 
     full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
 
