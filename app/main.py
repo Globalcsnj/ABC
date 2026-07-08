@@ -375,6 +375,8 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         group_summary[g]["cost"] += (m["cost"] or 0)
         group_summary[g]["retail"] += (m["retail_price"] or 0)
     group_summary = sorted(group_summary.items(), key=lambda kv: kv[1]["count"], reverse=True)
+    missing_cost_total = sum(v["cost"] for _, v in group_summary)
+    missing_retail_total = sum(v["retail"] for _, v in group_summary)
 
     found_count = sum(1 for s in scans if s["match_status"] == "found")
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
@@ -415,6 +417,8 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "found_count": found_count,
         "unknown_count": unknown_count,
         "missing_count": len(missing),
+        "missing_cost_total": missing_cost_total,
+        "missing_retail_total": missing_retail_total,
     })
 
 

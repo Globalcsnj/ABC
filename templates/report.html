@@ -68,10 +68,11 @@
                 <td>${{ "{:,.2f}".format(v.retail) }}</td>
             </tr>
             {% endfor %}
-            <tr>
+            <tr class="table-total">
                 <td><strong>TOTAL</strong></td>
                 <td><strong>{{ missing_count }}</strong></td>
-                <td colspan="2"></td>
+                <td><strong>${{ "{:,.2f}".format(missing_cost_total) }}</strong></td>
+                <td><strong>${{ "{:,.2f}".format(missing_retail_total) }}</strong></td>
             </tr>
         </tbody>
     </table>
@@ -257,6 +258,7 @@
             <tr id="missingHead"></tr>
         </thead>
         <tbody id="missingBody"></tbody>
+        <tfoot id="missingFoot"></tfoot>
     </table>
     </details>
 </div>
@@ -287,16 +289,18 @@ function printMissing() {
     // Print the currently filtered/sorted missing rows, with the chosen columns
     const headHtml = chosenCols().map(c => `<th>${c.label}</th>`).join('');
     const rowsHtml = document.getElementById('missingBody').innerHTML;
+    const footHtml = document.getElementById('missingFoot').innerHTML;
     const label = document.getElementById('missingCount').textContent;
     const w = window.open('', '_blank');
     w.document.write(`<html><head><title>Missing — {{ session.name }}</title>
         <style>body{font-family:sans-serif;padding:20px}h2{font-size:18px}
         table{width:100%;border-collapse:collapse;font-size:13px}
         th,td{border:1px solid #ccc;padding:6px;text-align:left}
+        tfoot td{font-weight:bold;background:#f3f4f6}
         img{display:none}</style></head><body>
         <h2>{{ session.name }} — Missing Items</h2><p>${label}</p>
         <table><thead><tr>${headHtml}</tr></thead>
-        <tbody>${rowsHtml}</tbody></table></body></html>`);
+        <tbody>${rowsHtml}</tbody><tfoot>${footHtml}</tfoot></table></body></html>`);
     w.document.close();
     setTimeout(() => { w.print(); }, 300);
 }
@@ -481,14 +485,31 @@ function renderMissing() {
         return String(a[sort]||'').localeCompare(String(b[sort]||''));
     });
 
+    const totalCost = rows.reduce((s, m) => s + (Number(m.cost) || 0), 0);
+    const totalRetail = rows.reduce((s, m) => s + (Number(m.retail_price) || 0), 0);
     document.getElementById('missingCount').textContent =
-        `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`;
+        `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`
+        + ` · Cost ${money(totalCost)} · Retail ${money(totalRetail)}`;
 
     const cols = chosenCols();
     body.innerHTML = rows.map(m => `
         <tr class="row-missing">
             ${cols.map(c => `<td>${cellValue(m, c)}</td>`).join('')}
         </tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
+
+    // Footer totals row that respects the current filter/group and column choice
+    const foot = document.getElementById('missingFoot');
+    if (foot) {
+        if (!rows.length) { foot.innerHTML = ''; return; }
+        // Put the "TOTAL" label in the first column that isn't cost/retail
+        const labelIdx = cols.findIndex(c => c.key !== 'cost' && c.key !== 'retail_price');
+        foot.innerHTML = '<tr class="table-total">' + cols.map((c, i) => {
+            if (c.key === 'cost') return `<td><strong>${money(totalCost)}</strong></td>`;
+            if (c.key === 'retail_price') return `<td><strong>${money(totalRetail)}</strong></td>`;
+            if (i === labelIdx) return `<td><strong>TOTAL (${rows.length})</strong></td>`;
+            return '<td></td>';
+        }).join('') + '</tr>';
+    }
 }
 
 function setGroup(btn) {
