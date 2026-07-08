@@ -430,6 +430,9 @@ body {
 .group-tab:hover { border-color: var(--primary); }
 .group-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
 .group-header td { background: var(--gray-100); border-top: 2px solid var(--gray-300, #d1d5db); }
+.col-check { display: block; padding: 6px 10px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.col-check:hover { background: var(--gray-100); border-radius: 6px; }
+.col-check input { margin-right: 8px; }
 
 /* Login */
 .login-wrap { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 20px; }

@@ -280,17 +280,16 @@
             <option value="item_status">Group by: Status</option>
             <option value="metal_type">Group by: Metal</option>
         </select>
+        <div class="dl-dropdown">
+            <button type="button" class="btn btn-outline">🛠 Columns ▾</button>
+            <div class="dl-menu" id="columnMenu"></div>
+        </div>
         <button class="btn btn-outline" onclick="printMissing()">🖨 Print this view</button>
     </div>
     <p class="card-subtitle" id="missingCount"></p>
 
     <table class="table" id="missingTable">
-        <thead>
-            <tr>
-                <th>Group</th><th>Bravo #</th><th>Barcode</th><th>Description</th>
-                <th>Category</th><th>Cost</th><th>Retail</th>
-            </tr>
-        </thead>
+        <thead id="missingHead"></thead>
         <tbody id="missingBody"></tbody>
     </table>
     </details>
@@ -319,8 +318,8 @@ function printEl(elId, title) {
 }
 
 function printMissing() {
-    // Print the currently filtered/sorted missing rows
-    const rowsHtml = document.getElementById('missingBody').innerHTML;
+    // Print the currently filtered/sorted missing rows with the chosen columns
+    const tableHtml = document.getElementById('missingTable').outerHTML;
     const label = document.getElementById('missingCount').textContent;
     const w = window.open('', '_blank');
     w.document.write(`<html><head><title>Missing — {{ session.name }}</title>
@@ -329,9 +328,7 @@ function printMissing() {
         th,td{border:1px solid #ccc;padding:6px;text-align:left}
         img{display:none}</style></head><body>
         <h2>{{ session.name }} — Missing Items</h2><p>${label}</p>
-        <table><thead><tr><th>Group</th><th>Item #</th><th>Barcode</th><th>Description</th>
-        <th>Category</th><th>Cost</th><th>Retail</th></tr></thead>
-        <tbody>${rowsHtml}</tbody></table></body></html>`);
+        ${tableHtml}</body></html>`);
     w.document.close();
     setTimeout(() => { w.print(); }, 300);
 }
@@ -413,16 +410,66 @@ let currentGroup = '';
 
 function money(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
 
+// All columns available from the uploaded data. key = field on each item.
+const ALL_COLUMNS = [
+    {key: 'group', label: 'Group'},
+    {key: 'item_number', label: 'Item #'},
+    {key: 'barcode', label: 'Barcode'},
+    {key: 'description', label: 'Description'},
+    {key: 'category', label: 'Category'},
+    {key: 'item_status', label: 'Status'},
+    {key: 'source', label: 'List'},
+    {key: 'product_type', label: 'Type'},
+    {key: 'metal_type', label: 'Metal'},
+    {key: 'metal_purity', label: 'Purity'},
+    {key: 'total_diamond', label: 'Total Diamond'},
+    {key: 'total_stone_size', label: 'Total Stone'},
+    {key: 'cost', label: 'Cost', money: true},
+    {key: 'retail_price', label: 'Retail', money: true},
+];
+const COL_KEY = 'abc_missing_cols_{{ session.id }}';
+let selectedCols = [];
+
+function loadCols() {
+    try { selectedCols = JSON.parse(localStorage.getItem(COL_KEY)); } catch { selectedCols = null; }
+    if (!Array.isArray(selectedCols) || !selectedCols.length)
+        selectedCols = ['group','item_number','barcode','description','category','cost','retail_price'];
+}
+
+function buildColumnMenu() {
+    const menu = document.getElementById('columnMenu');
+    menu.innerHTML = ALL_COLUMNS.map(c => `
+        <label class="col-check"><input type="checkbox" value="${c.key}"
+            ${selectedCols.includes(c.key)?'checked':''}> ${c.label}</label>`).join('');
+    menu.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
+        selectedCols = ALL_COLUMNS.map(c=>c.key).filter(k =>
+            menu.querySelector(`input[value="${k}"]`).checked);
+        if (!selectedCols.length) selectedCols = ['item_number'];
+        localStorage.setItem(COL_KEY, JSON.stringify(selectedCols));
+        renderMissing();
+    }));
+}
+
+function cell(m, key) {
+    const col = ALL_COLUMNS.find(c => c.key === key);
+    if (col && col.money) return money(m[key]);
+    if (key === 'barcode') return `<code>${m.barcode||''}</code>`;
+    return (m[key] != null && m[key] !== '') ? m[key] : '—';
+}
+
 function renderMissing() {
     const body = document.getElementById('missingBody');
+    const head = document.getElementById('missingHead');
     if (!body) return;
     const q = (document.getElementById('missingFilter').value || '').toLowerCase().trim();
     const sort = document.getElementById('missingSort').value;
+    const cols = ALL_COLUMNS.filter(c => selectedCols.includes(c.key));
+
+    head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
     let rows = MISSING.filter(m => !currentGroup || m.group === currentGroup);
-    if (q) rows = rows.filter(m =>
-        ((m.item_number||'') + ' ' + (m.description||'') + ' ' + (m.category||'') + ' ' + (m.barcode||''))
-        .toLowerCase().includes(q));
+    if (q) rows = rows.filter(m => ALL_COLUMNS.some(c =>
+        String(m[c.key]||'').toLowerCase().includes(q)));
 
     rows.sort((a, b) => {
         if (sort === 'retail_desc') return (b.retail_price||0) - (a.retail_price||0);
@@ -433,39 +480,24 @@ function renderMissing() {
     document.getElementById('missingCount').textContent =
         `${rows.length} item(s)${currentGroup ? ' in ' + currentGroup : ''}${q ? ' matching "'+q+'"' : ''}`;
 
-    const rowHtml = (m) => `
-        <tr class="row-missing">
-            <td>${m.group}</td>
-            <td>${m.item_number||''}</td>
-            <td><code>${m.barcode||''}</code></td>
-            <td>${m.description||'—'}</td>
-            <td>${m.category||'—'}</td>
-            <td>${money(m.cost)}</td>
-            <td>${money(m.retail_price)}</td>
-        </tr>`;
+    const rowHtml = (m) => '<tr class="row-missing">' + cols.map(c => `<td>${cell(m,c.key)}</td>`).join('') + '</tr>';
+    const ncols = cols.length;
 
     const groupBy = document.getElementById('missingGroupBy').value;
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="empty-state">No items match.</td></tr>';
+        body.innerHTML = `<tr><td colspan="${ncols}" class="empty-state">No items match.</td></tr>`;
         return;
     }
-    if (!groupBy) {
-        body.innerHTML = rows.map(rowHtml).join('');
-        return;
-    }
-    // Group into sections with a subtotal header per group value
+    if (!groupBy) { body.innerHTML = rows.map(rowHtml).join(''); return; }
+
     const groups = {};
-    rows.forEach(m => {
-        const key = (m[groupBy] || '—') || '—';
-        (groups[key] = groups[key] || []).push(m);
-    });
+    rows.forEach(m => { const key = (m[groupBy] || '—') || '—'; (groups[key] = groups[key] || []).push(m); });
     let html = '';
     Object.keys(groups).sort().forEach(key => {
         const list = groups[key];
         const cost = list.reduce((s,m)=>s+(m.cost||0),0);
         const retail = list.reduce((s,m)=>s+(m.retail_price||0),0);
-        html += `<tr class="group-header"><td colspan="5"><strong>${key}</strong> — ${list.length} item(s)</td>
-                 <td><strong>$${cost.toFixed(2)}</strong></td><td><strong>$${retail.toFixed(2)}</strong></td></tr>`;
+        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toFixed(2)} · Retail $${retail.toFixed(2)}</td></tr>`;
         html += list.map(rowHtml).join('');
     });
     body.innerHTML = html;
@@ -490,6 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = document.getElementById('missingData');
     if (data) {
         try { MISSING = JSON.parse(data.textContent); } catch { MISSING = []; }
+        loadCols();
+        buildColumnMenu();
         document.getElementById('missingFilter').addEventListener('input', renderMissing);
         renderMissing();
     }
