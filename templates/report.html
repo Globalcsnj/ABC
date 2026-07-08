@@ -21,6 +21,7 @@
                 <a href="/report/{{ session.id }}/findings.csv">Findings (not on list)</a>
             </div>
         </div>
+        <button type="button" id="collapseAllBtn" onclick="toggleAllSections()" class="btn btn-outline">🔼 Collapse All</button>
         <button onclick="window.print()" class="btn btn-outline">🖨 Print All</button>
     </div>
 </div>
@@ -245,6 +246,16 @@
             <option value="retail_desc">Sort: Price High→Low</option>
             <option value="cost_desc">Sort: Cost High→Low</option>
         </select>
+        <select id="missingGroupBy" onchange="renderMissing()">
+            <option value="">Group by: None</option>
+            <option value="group">Group by: Jewelry/Mfg</option>
+            <option value="category">Group by: Category</option>
+            <option value="item_status">Group by: Status</option>
+            <option value="source">Group by: List</option>
+            <option value="product_type">Group by: Type</option>
+            <option value="metal_type">Group by: Metal</option>
+            <option value="metal_purity">Group by: Purity</option>
+        </select>
         <div class="dl-dropdown col-chooser">
             <button type="button" class="btn btn-outline">🗂 Columns ▾</button>
             <div class="dl-menu col-menu" id="colMenu"></div>
@@ -271,6 +282,15 @@
 
 {% block scripts %}
 <script>
+// Collapse/expand every <details> section on the report at once.
+function toggleAllSections() {
+    const sections = document.querySelectorAll('details');
+    const anyOpen = [...sections].some(d => d.open);
+    sections.forEach(d => d.open = !anyOpen);
+    const btn = document.getElementById('collapseAllBtn');
+    if (btn) btn.textContent = anyOpen ? '🔽 Expand All' : '🔼 Collapse All';
+}
+
 function printEl(elId, title) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -296,7 +316,7 @@ function printMissing() {
         <style>body{font-family:sans-serif;padding:20px}h2{font-size:18px}
         table{width:100%;border-collapse:collapse;font-size:13px}
         th,td{border:1px solid #ccc;padding:6px;text-align:left}
-        tfoot td{font-weight:bold;background:#f3f4f6}
+        tfoot td,.group-header td{font-weight:bold;background:#f3f4f6}
         img{display:none}</style></head><body>
         <h2>{{ session.name }} — Missing Items</h2><p>${label}</p>
         <table><thead><tr>${headHtml}</tr></thead>
@@ -492,10 +512,33 @@ function renderMissing() {
         + ` · Cost ${money(totalCost)} · Retail ${money(totalRetail)}`;
 
     const cols = chosenCols();
-    body.innerHTML = rows.map(m => `
-        <tr class="row-missing">
-            ${cols.map(c => `<td>${cellValue(m, c)}</td>`).join('')}
-        </tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
+    const groupBy = document.getElementById('missingGroupBy').value;
+    const itemRow = m => `<tr class="row-missing">${cols.map(c => `<td>${cellValue(m, c)}</td>`).join('')}</tr>`;
+
+    if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
+    } else if (groupBy) {
+        // Partition into groups by the chosen column, each with a header + subtotal
+        const groups = new Map();
+        rows.forEach(m => {
+            const raw = m[groupBy];
+            const key = (raw == null || raw === '') ? '—' : String(raw);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(m);
+        });
+        const keys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+        body.innerHTML = keys.map(key => {
+            const gRows = groups.get(key);
+            const gCost = gRows.reduce((s, m) => s + (Number(m.cost) || 0), 0);
+            const gRetail = gRows.reduce((s, m) => s + (Number(m.retail_price) || 0), 0);
+            const header = `<tr class="group-header"><td colspan="${cols.length}">`
+                + `${escapeHtml(key)} — ${gRows.length} item(s) · Cost ${money(gCost)} · Retail ${money(gRetail)}`
+                + `</td></tr>`;
+            return header + gRows.map(itemRow).join('');
+        }).join('');
+    } else {
+        body.innerHTML = rows.map(itemRow).join('');
+    }
 
     // Footer totals row that respects the current filter/group and column choice
     const foot = document.getElementById('missingFoot');
