@@ -1646,6 +1646,7 @@ async def import_items(
         updated = 0      # existing items refreshed
         skipped = 0
         seen_codes = []  # item numbers present in this file
+        barcode_conflicts = []  # rows imported without barcode (already taken)
 
         for row in reader:
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
@@ -1723,6 +1724,19 @@ async def import_items(
             if not barcode and item_number and not exists:
                 barcode = re.sub(r"[^0-9]", "", item_number)
             barcode_u = barcode.upper() if barcode else None
+
+            # A barcode can only belong to one item (UNIQUE). If this row's
+            # barcode is already on a DIFFERENT item number, import the row
+            # without the barcode instead of failing the whole upload.
+            if barcode_u:
+                async with db.execute(
+                    "SELECT item_number FROM items WHERE barcode = ? AND item_number != ?",
+                    (barcode_u, item_number_u)
+                ) as cur:
+                    clash = await cur.fetchone()
+                if clash:
+                    barcode_conflicts.append(f"{item_number_u} (barcode {barcode_u} already on {clash['item_number']})")
+                    barcode_u = None
 
             # UPSERT as a MERGE: on an existing item, only overwrite a field when
             # the new file actually has a value for it — blanks never wipe data.
@@ -1853,6 +1867,7 @@ async def import_items(
         "newly_missing": sum(newly_missing_groups.values()),
         "newly_missing_groups": newly_missing_groups,
         "skipped": skipped,
+        "barcode_conflicts": barcode_conflicts,
         "columns_found": columns_found,
         "categories": categories,
     })

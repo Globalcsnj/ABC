@@ -157,6 +157,14 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
                 + cats.map(c => `<div class="cat-row"><span>${c.category}</span><span class="cat-count">${c.cnt}</span></div>`).join('')
                 + `</div></details>`;
         }
+        // Barcode conflicts (row kept, barcode skipped because another item has it)
+        let conflicts = '';
+        const bc = json.barcode_conflicts || [];
+        if (bc.length) {
+            conflicts = `<div class="recon-summary">⚠️ ${bc.length} item(s) imported without a barcode
+                (their barcode belongs to another item):<br><small>${bc.slice(0,8).join('<br>')}${bc.length>8?'<br>…':''}</small></div>`;
+        }
+
         // Daily reconciliation summary (items that disappeared this upload)
         let recon = '';
         const nm = json.newly_missing || 0;
@@ -171,7 +179,7 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
 
         const cols = (json.columns_found || []).join(', ');
         const colLine = cols ? `<div class="cols-found"><small>Columns read: ${cols}</small></div>` : '';
-        el.innerHTML = `<div>${msg}</div>${recon}${colLine}${dash}`;
+        el.innerHTML = `<div>${msg}</div>${conflicts}${recon}${colLine}${dash}`;
         el.className = 'import-result success';
     } catch (err) {
         el.textContent = '❌ Upload error: ' + err.message;
