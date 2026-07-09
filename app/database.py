@@ -63,7 +63,7 @@ async def init_db():
 
             CREATE TABLE IF NOT EXISTS items (
                 item_number TEXT PRIMARY KEY,
-                barcode TEXT UNIQUE,
+                barcode TEXT,
                 description TEXT,
                 category TEXT,
                 item_type TEXT,
@@ -208,5 +208,27 @@ async def init_db():
 
         # Indexes on migrated columns (created after the columns exist)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_items_sold ON items(sold)")
+
+        # Migration: drop the UNIQUE constraint on items.barcode (multiple units
+        # of the same product legitimately share one barcode). SQLite can't drop
+        # a constraint, so rebuild the table once if the old schema is detected.
+        async with db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='items'"
+        ) as cur:
+            row = await cur.fetchone()
+        if row and row[0] and "barcode TEXT UNIQUE" in row[0]:
+            new_sql = row[0].replace("barcode TEXT UNIQUE", "barcode TEXT")
+            async with db.execute("PRAGMA table_info(items)") as cur:
+                cols = [r[1] for r in await cur.fetchall()]
+            collist = ", ".join(cols)
+            await db.execute("ALTER TABLE items RENAME TO items_old_uniq")
+            await db.execute(new_sql)
+            await db.execute(f"INSERT INTO items ({collist}) SELECT {collist} FROM items_old_uniq")
+            await db.execute("DROP TABLE items_old_uniq")
+            # Recreate the item indexes lost with the old table
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode)")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_items_source ON items(source)")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_items_sold ON items(sold)")
 
         await db.commit()

@@ -272,8 +272,9 @@ async def get_missing_items(session_id, session, db):
                i.cost, i.retail_price, i.source, i.product_type,
                i.metal_type, i.metal_purity, i.total_diamond, i.total_stone_size
         FROM items i
-        WHERE i.barcode NOT IN (
-            SELECT barcode FROM audit_scans WHERE session_id = ? AND match_status = 'found'
+        WHERE i.item_number NOT IN (
+            SELECT item_number FROM audit_scans
+            WHERE session_id = ? AND match_status = 'found' AND item_number IS NOT NULL
         ) AND COALESCE(i.sold,0) = 0
     """
     params = [session_id]
@@ -304,7 +305,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         SELECT s.*, i.item_number as bravo_number, i.retail_price as retail_price,
                i.product_type as product_type
         FROM audit_scans s
-        LEFT JOIN items i ON i.barcode = s.barcode
+        LEFT JOIN items i ON i.item_number = s.item_number
         WHERE s.session_id = ?
         ORDER BY s.location_id, s.sublocation_id, s.scanned_at
     """, (session_id,)) as cur:
@@ -969,12 +970,13 @@ async def load_workbench_data(db, session_id: int = 0):
             row = await cur.fetchone()
             session_name = row["name"] if row else ""
         async with db.execute(
-            "SELECT barcode FROM audit_scans WHERE session_id=? AND match_status='found'",
+            "SELECT item_number FROM audit_scans WHERE session_id=? AND match_status='found' "
+            "AND item_number IS NOT NULL",
             (session_id,)
         ) as cur:
-            found = {r["barcode"] for r in await cur.fetchall()}
+            found = {r["item_number"] for r in await cur.fetchall()}
         for it in items:
-            it["count_result"] = "Found" if (it.get("barcode") or "") in found else "Missing"
+            it["count_result"] = "Found" if (it.get("item_number") or "") in found else "Missing"
 
     def distinct(field):
         return sorted({(it.get(field) or "").strip() for it in items if (it.get(field) or "").strip()})
@@ -1085,18 +1087,25 @@ async def sell_page(request: Request, db=Depends(get_db)):
 async def record_sale(code: str = Form(...), db=Depends(get_db)):
     """Record a single daily sale by scanning/typing an item number or barcode."""
     c = code.strip().upper()
+    # Sell ONE unit: pick the first UNSOLD item matching the code (a barcode
+    # may cover several identical units — scan once per unit sold).
     async with db.execute(
-        "SELECT item_number, description, retail_price, sold FROM items "
-        "WHERE item_number = ? OR barcode = ?", (c, c)
+        "SELECT item_number, description, retail_price FROM items "
+        "WHERE (item_number = ? OR barcode = ?) AND COALESCE(sold,0)=0 "
+        "ORDER BY item_number LIMIT 1", (c, c)
     ) as cur:
         item = await cur.fetchone()
     if not item:
+        async with db.execute(
+            "SELECT COUNT(*) FROM items WHERE item_number = ? OR barcode = ?", (c, c)
+        ) as cur:
+            known = (await cur.fetchone())[0]
+        if known:
+            return JSONResponse({"ok": False, "message": f"🔁 All units of {c} are already sold"})
         return JSONResponse({"ok": False, "message": f"⚠️ {c} not found in inventory"})
-    if item["sold"]:
-        return JSONResponse({"ok": False, "message": f"🔁 {item['item_number']} was already sold"})
     await db.execute(
         "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 "
-        "WHERE item_number = ? OR barcode = ?", (c, c)
+        "WHERE item_number = ?", (item["item_number"],)
     )
     await db.execute(
         "UPDATE reconcile_log SET status='sold', resolved_at=CURRENT_TIMESTAMP "
@@ -1131,8 +1140,10 @@ async def mark_sold_from_list(
 
     sold, notfound = 0, []
     for code in tokens:
+        # Sell ONE unsold unit per listed code (list a barcode twice to sell 2 units)
         async with db.execute(
-            "SELECT item_number FROM items WHERE item_number = ? OR barcode = ?", (code, code)
+            "SELECT item_number FROM items WHERE (item_number = ? OR barcode = ?) "
+            "AND COALESCE(sold,0)=0 ORDER BY item_number LIMIT 1", (code, code)
         ) as cur:
             row = await cur.fetchone()
         if not row:
@@ -1140,7 +1151,7 @@ async def mark_sold_from_list(
             continue
         await db.execute(
             "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 "
-            "WHERE item_number = ? OR barcode = ?", (code, code)
+            "WHERE item_number = ?", (row["item_number"],)
         )
         sold += 1
     await db.commit()
@@ -1476,27 +1487,54 @@ async def process_scan(
     if not current_location:
         return JSONResponse({"type": "error", "message": "⚠️ Scan a location first (e.g. 001)"}, status_code=400)
 
-    # Prevent duplicate scans of the same item within this count
-    async with db.execute(
-        "SELECT location_id, sublocation_id FROM audit_scans WHERE session_id = ? AND barcode = ?",
-        (session_id, code)
-    ) as cur:
-        existing = await cur.fetchone()
-    if existing:
-        where = existing["location_id"] or "?"
-        if existing["sublocation_id"]:
-            where = existing["sublocation_id"]
-        return JSONResponse({
-            "type": "duplicate",
-            "barcode": code,
-            "message": f"🔁 Already scanned in this count (at {where}) — skipped",
-        })
-
-    # Lookup by barcode in items table
-    async with db.execute(
-        "SELECT * FROM items WHERE barcode = ?", (code,)
-    ) as cur:
+    # Multiple units of the same product can share a barcode (distinct item
+    # numbers). Each scan claims the next unclaimed unit; once every unit is
+    # accounted for, further scans are duplicates.
+    async with db.execute("""
+        SELECT * FROM items
+        WHERE barcode = ? AND item_number NOT IN (
+            SELECT item_number FROM audit_scans
+            WHERE session_id = ? AND match_status = 'found' AND item_number IS NOT NULL
+        )
+        ORDER BY item_number LIMIT 1
+    """, (code, session_id)) as cur:
         item = await cur.fetchone()
+
+    if item is None:
+        # No unclaimed unit — is this barcode known at all?
+        async with db.execute(
+            "SELECT COUNT(*) FROM items WHERE barcode = ?", (code,)
+        ) as cur:
+            total_units = (await cur.fetchone())[0]
+        if total_units:
+            async with db.execute(
+                "SELECT location_id, sublocation_id FROM audit_scans "
+                "WHERE session_id = ? AND barcode = ? ORDER BY id DESC LIMIT 1",
+                (session_id, code)
+            ) as cur:
+                existing = await cur.fetchone()
+            where = ""
+            if existing:
+                where = existing["sublocation_id"] or existing["location_id"] or ""
+            unit_note = f"all {total_units} units" if total_units > 1 else "already"
+            return JSONResponse({
+                "type": "duplicate",
+                "barcode": code,
+                "message": f"🔁 {unit_note} scanned in this count{(' (at ' + where + ')') if where else ''} — skipped",
+            })
+        # Unknown barcode: block repeat unknown scans of the same code
+        async with db.execute(
+            "SELECT location_id, sublocation_id FROM audit_scans WHERE session_id = ? AND barcode = ?",
+            (session_id, code)
+        ) as cur:
+            existing = await cur.fetchone()
+        if existing:
+            where = existing["sublocation_id"] or existing["location_id"] or "?"
+            return JSONResponse({
+                "type": "duplicate",
+                "barcode": code,
+                "message": f"🔁 Already scanned in this count (at {where}) — skipped",
+            })
 
     full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
 
@@ -1508,7 +1546,20 @@ async def process_scan(
         cost = item["cost"]
         item_date = item["item_date"]
         item_number = item["item_number"]
-        msg = f"✅ FOUND — {item['item_number']} | {description}"
+        # Show which unit this scan claimed when the barcode has multiples
+        async with db.execute(
+            "SELECT COUNT(*) FROM items WHERE barcode = ?", (code,)
+        ) as cur:
+            total_units = (await cur.fetchone())[0]
+        unit_suffix = ""
+        if total_units > 1:
+            async with db.execute(
+                "SELECT COUNT(*) FROM audit_scans WHERE session_id = ? AND barcode = ? AND match_status = 'found'",
+                (session_id, code)
+            ) as cur:
+                scanned_so_far = (await cur.fetchone())[0]
+            unit_suffix = f" (unit {scanned_so_far + 1} of {total_units})"
+        msg = f"✅ FOUND — {item['item_number']} | {description}{unit_suffix}"
     else:
         match_status = "unknown"
         description = None
@@ -1725,18 +1776,8 @@ async def import_items(
                 barcode = re.sub(r"[^0-9]", "", item_number)
             barcode_u = barcode.upper() if barcode else None
 
-            # A barcode can only belong to one item (UNIQUE). If this row's
-            # barcode is already on a DIFFERENT item number, import the row
-            # without the barcode instead of failing the whole upload.
-            if barcode_u:
-                async with db.execute(
-                    "SELECT item_number FROM items WHERE barcode = ? AND item_number != ?",
-                    (barcode_u, item_number_u)
-                ) as cur:
-                    clash = await cur.fetchone()
-                if clash:
-                    barcode_conflicts.append(f"{item_number_u} (barcode {barcode_u} already on {clash['item_number']})")
-                    barcode_u = None
+            # NOTE: multiple units of the same product may share one barcode —
+            # that's allowed. Each unit keeps its own item number.
 
             # UPSERT as a MERGE: on an existing item, only overwrite a field when
             # the new file actually has a value for it — blanks never wipe data.
