@@ -344,10 +344,15 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     # Found-by-group metrics (count, cost, retail) — mirrors Missing by Group
     found_group = {}
     found_cost = found_retail = 0.0
+    found_items = []
     for s in scans:
         if s["match_status"] != "found":
             continue
         g = big_group(s, overrides)
+        d = dict(s)
+        d["group"] = g
+        d["location"] = " › ".join(x for x in (s["location_id"], s["sublocation_id"]) if x)
+        found_items.append(d)
         found_group.setdefault(g, {"count": 0, "cost": 0.0, "retail": 0.0})
         found_group[g]["count"] += 1
         found_group[g]["cost"] += (s["cost"] or 0)
@@ -390,6 +395,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         "group_summary": group_summary,
         "status_summary": status_summary,
         "found_group": found_group,
+        "found_items": found_items,
         "found_cost": found_cost,
         "found_retail": found_retail,
         "found_count": found_count,
@@ -726,24 +732,36 @@ async def edit_item(
     retail_price: str = Form(default=""),
     for_sale: str = Form(default=""),
     stage: str = Form(default=""),
+    product_type: str = Form(default=""),
     photo: UploadFile = File(default=None),
     db=Depends(get_db)
 ):
     price = float(retail_price) if retail_price.replace(".", "", 1).isdigit() else None
     sale_flag = 1 if for_sale == "on" else 0
+    ptype = product_type if product_type in ("jewelry", "manufactured", "general") else ""
     photo_name = await save_photo(photo, f"item_{item_number}")
     if photo_name:
         await db.execute(
-            "UPDATE items SET retail_price=?, for_sale=?, stage=?, photo=? WHERE item_number=?",
-            (price, sale_flag, stage, photo_name, item_number)
+            "UPDATE items SET retail_price=?, for_sale=?, stage=?, product_type=COALESCE(NULLIF(?,''), product_type), photo=? WHERE item_number=?",
+            (price, sale_flag, stage, ptype, photo_name, item_number)
         )
     else:
         await db.execute(
-            "UPDATE items SET retail_price=?, for_sale=?, stage=? WHERE item_number=?",
-            (price, sale_flag, stage, item_number)
+            "UPDATE items SET retail_price=?, for_sale=?, stage=?, product_type=COALESCE(NULLIF(?,''), product_type) WHERE item_number=?",
+            (price, sale_flag, stage, ptype, item_number)
         )
     await db.commit()
     return RedirectResponse("/inventory", status_code=303)
+
+
+@app.post("/api/items/{item_number}/delete")
+async def delete_item(item_number: str, override: str = Form(...), db=Depends(get_db)):
+    """Permanently remove an item from inventory (junk rows, duplicates)."""
+    if override.strip() != OVERRIDE_CODE:
+        return JSONResponse({"error": "Invalid override code"}, status_code=403)
+    await db.execute("DELETE FROM items WHERE item_number = ?", (item_number,))
+    await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/items/stage-bulk")
@@ -816,7 +834,7 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
 
 
 @app.get("/analysis", response_class=HTMLResponse)
-async def analysis_page(request: Request, db=Depends(get_db)):
+async def analysis_page(request: Request, session_id: int = 0, db=Depends(get_db)):
     async def scalar(sql, params=()):
         async with db.execute(sql, params) as cur:
             row = await cur.fetchone()
@@ -877,12 +895,13 @@ async def analysis_page(request: Request, db=Depends(get_db)):
     aging_max = max(aging.values()) or 1
 
     max_cat = max([c["retail"] for c in by_cat], default=1) or 1
+    wb = await load_workbench_data(db, session_id)
     return templates.TemplateResponse("analysis.html", {
         "request": request, "total": total, "in_stock": in_stock,
         "cost_value": cost_value, "retail_value": retail_value, "margin": margin,
         "priced": priced, "unpriced": unpriced,
         "by_cat": by_cat, "by_type": by_type, "by_source": by_source, "max_cat": max_cat,
-        "aging": aging, "aging_max": aging_max,
+        "aging": aging, "aging_max": aging_max, **wb,
     })
 
 
@@ -922,10 +941,17 @@ async def set_category_group(category: str = Form(...), group: str = Form(...), 
     return RedirectResponse("/categories", status_code=303)
 
 
-@app.get("/explore", response_class=HTMLResponse)
-async def explore_page(request: Request, db=Depends(get_db)):
+@app.get("/explore")
+async def explore_redirect():
+    # Explore is merged into Inventory Analysis
+    return RedirectResponse("/analysis")
+
+
+async def load_workbench_data(db, session_id: int = 0):
+    """Items + filter option lists for the analysis workbench. When a count
+    session is given, each item is tagged Found/Missing for that count."""
     async with db.execute("""
-        SELECT item_number, description, category, item_status, source, product_type,
+        SELECT item_number, barcode, description, category, item_status, source, product_type,
                cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
                COALESCE(NULLIF(stage,''),'Inventory') as stage,
@@ -937,17 +963,31 @@ async def explore_page(request: Request, db=Depends(get_db)):
     for it in items:
         it["group"] = classify_category(it.get("category") or "", it.get("product_type") or "", overrides)
 
+    session_name = ""
+    if session_id:
+        async with db.execute("SELECT name FROM audit_sessions WHERE id=?", (session_id,)) as cur:
+            row = await cur.fetchone()
+            session_name = row["name"] if row else ""
+        async with db.execute(
+            "SELECT barcode FROM audit_scans WHERE session_id=? AND match_status='found'",
+            (session_id,)
+        ) as cur:
+            found = {r["barcode"] for r in await cur.fetchall()}
+        for it in items:
+            it["count_result"] = "Found" if (it.get("barcode") or "") in found else "Missing"
+
     def distinct(field):
         return sorted({(it.get(field) or "").strip() for it in items if (it.get(field) or "").strip()})
 
-    return templates.TemplateResponse("explore.html", {
-        "request": request,
+    return {
         "items_json": json.dumps(items),
-        "categories": distinct("category"),
-        "metals": distinct("metal_type"),
-        "purities": distinct("metal_purity"),
-        "statuses": distinct("item_status"),
-    })
+        "wb_categories": distinct("category"),
+        "wb_metals": distinct("metal_type"),
+        "wb_purities": distinct("metal_purity"),
+        "wb_statuses": distinct("item_status"),
+        "wb_session_id": session_id,
+        "wb_session_name": session_name,
+    }
 
 
 @app.get("/reconcile", response_class=HTMLResponse)
@@ -1648,13 +1688,13 @@ async def import_items(
                 skipped += 1
                 continue
 
-            # Skip report footer/header junk rows (e.g. "REPORT PRINTED ON ...").
-            # Real item numbers have no spaces and aren't sentences.
+            # Skip report footer/header junk rows (e.g. "REPORT PRINTED ON ...",
+            # "Page 1 of 13"). Real item numbers have no spaces and aren't sentences.
             junk = item_number and (
                 " " in item_number
                 or item_number.upper().startswith(("REPORT", "TOTAL", "PAGE", "PRINTED"))
             )
-            if junk and not barcode:
+            if junk:
                 skipped += 1
                 continue
 

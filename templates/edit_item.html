@@ -23,6 +23,15 @@
             </label>
         </div>
         <div class="form-group">
+            <label>Product Type (drives Jewelry / Manufactured grouping)</label>
+            <select name="product_type">
+                {% set pt = item.product_type or 'general' %}
+                <option value="jewelry" {% if pt == 'jewelry' %}selected{% endif %}>Jewelry</option>
+                <option value="manufactured" {% if pt == 'manufactured' %}selected{% endif %}>Manufactured</option>
+                <option value="general" {% if pt == 'general' %}selected{% endif %}>General (auto by category)</option>
+            </select>
+        </div>
+        <div class="form-group">
             <label>Lifecycle Stage</label>
             <select name="stage">
                 {% set st = item.stage or 'Inventory' %}
@@ -38,5 +47,24 @@
         </div>
         <button type="submit" class="btn btn-primary">Save</button>
     </form>
+    <hr style="margin:18px 0; border:none; border-top:1px solid var(--gray-200)">
+    <button class="btn btn-danger" onclick="deleteItem()">🗑 Delete this item (override)</button>
+    <p class="card-subtitle">Use for junk rows or items that shouldn't exist. Requires the override code.</p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteItem() {
+    if (!confirm('Delete {{ item.item_number }} permanently from inventory?')) return;
+    const code = prompt('Enter override code:');
+    if (!code) return;
+    const body = new FormData();
+    body.append('override', code.trim());
+    const res = await fetch('/api/items/{{ item.item_number }}/delete', { method: 'POST', body });
+    if (res.ok) { window.location.href = '/inventory'; }
+    else if (res.status === 403) { alert('Invalid override code.'); }
+    else { alert('Could not delete.'); }
+}
+</script>
 {% endblock %}

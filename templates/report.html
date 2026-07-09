@@ -10,6 +10,7 @@
         {% else %}
         <a href="/audit/{{ session.id }}" class="btn btn-outline">Continue Scanning</a>
         {% endif %}
+        <a href="/analysis?session_id={{ session.id }}" class="btn btn-outline">📊 Analyze this count</a>
         <div class="dl-dropdown">
             <button class="btn btn-primary">⬇ Download ▾</button>
             <div class="dl-menu">
@@ -186,52 +187,55 @@
 </div>
 {% endif %}
 
-<!-- All scanned items (collapsible) -->
-<div class="card mt">
+<!-- Found items (dynamic — same tooling as Missing) -->
+{% if found_items %}
+<div class="card mt" id="foundList">
     <details open>
-    <summary class="collapse-summary">✅ All Scanned Items ({{ scans|length }}) — click to expand</summary>
-    <table class="table mt" id="scansTable">
-        <thead>
-            <tr>
-                <th>Status</th>
-                <th>Reference</th>
-                <th>Bravo #</th>
-                <th>Barcode</th>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Item Status</th>
-                <th>Cost</th>
-                <th>Date In</th>
-                <th>Location</th>
-                <th>Scanned At</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for scan in scans %}
-            <tr class="row-{{ scan.match_status }} scan-row-data" data-status="{{ (scan.item_status or 'Unspecified')|trim or 'Unspecified' }}" data-match="{{ scan.match_status }}">
-                <td>
-                    {% if scan.match_status == 'found' %}
-                    <span class="status-dot dot-found">✅ Found</span>
-                    {% else %}
-                    <span class="status-dot dot-unknown">⚠️ Unknown</span>
-                    {% endif %}
-                </td>
-                <td><code>{{ scan.full_ref }}</code></td>
-                <td>{{ scan.item_number or '—' }}</td>
-                <td><code>{{ scan.barcode }}</code></td>
-                <td>{{ scan.description or '—' }}</td>
-                <td>{{ scan.category or '—' }}</td>
-                <td>{{ scan.item_status or '—' }}</td>
-                <td>{% if scan.cost %}${{ "%.2f"|format(scan.cost) }}{% else %}—{% endif %}</td>
-                <td>{{ scan.item_date or '—' }}</td>
-                <td>{{ scan.location_id or '' }}{% if scan.sublocation_id %} › {{ scan.sublocation_id }}{% endif %}</td>
-                <td>{{ scan.scanned_at[11:19] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+    <summary class="collapse-summary">✅ Found Items ({{ found_items|length }})</summary>
+
+    <div class="group-tabs mt">
+        <button class="group-tab active" data-group="" onclick="setFGroup(this)">All ({{ found_items|length }})</button>
+        {% for g, v in found_group %}
+        <button class="group-tab" data-group="{{ g }}" onclick="setFGroup(this)">{{ g }} ({{ v.count }})</button>
+        {% endfor %}
+    </div>
+
+    <div class="cat-filter-bar">
+        <input type="text" id="foundFilter" class="search-input" placeholder="Filter found items…">
+        <select id="foundSort" onchange="renderFound()">
+            <option value="location">Sort: Location</option>
+            <option value="category">Sort: Category</option>
+            <option value="description">Sort: Description</option>
+            <option value="item_number">Sort: Item #</option>
+            <option value="retail_desc">Sort: Price High→Low</option>
+            <option value="cost_desc">Sort: Cost High→Low</option>
+        </select>
+        <select id="foundGroupBy" onchange="renderFound()">
+            <option value="">Group by: none</option>
+            <option value="location">Group by: Location</option>
+            <option value="category">Group by: Category</option>
+            <option value="group">Group by: Jewelry/Manufactured</option>
+            <option value="item_status">Group by: Status</option>
+        </select>
+        <div class="dl-dropdown">
+            <button type="button" class="btn btn-outline">🛠 Columns ▾</button>
+            <div class="dl-menu" id="foundColumnMenu"></div>
+        </div>
+        <button class="btn btn-outline" onclick="printFound()">🖨 Print this view</button>
+    </div>
+    <p class="card-subtitle" id="foundCountLine"></p>
+
+    <table class="table" id="foundTable">
+        <thead id="foundHead"></thead>
+        <tbody id="foundBody"></tbody>
     </table>
     </details>
 </div>
+
+<script id="foundData" type="application/json">
+{{ found_items|tojson }}
+</script>
+{% endif %}
 
 <!-- Missing by category (collapsible) -->
 {% if missing_by_cat %}
@@ -333,17 +337,119 @@ function printMissing() {
     setTimeout(() => { w.print(); }, 300);
 }
 
-function setScanStatus(btn) {
-    const status = btn.dataset.status;
-    document.querySelectorAll('[data-status]').forEach(b => {
-        if (b.classList.contains('group-tab')) b.classList.remove('active');
+// ── Found items list (same tooling as Missing) ─────────────────────────
+let FOUND = [];
+let foundStatus = '';   // set by the Found-by-Status tabs
+let foundGroup = '';    // set by the Jewelry/Manufactured tabs
+
+const FOUND_COLS = [
+    {key:'group', label:'Group'},
+    {key:'item_number', label:'Item #'},
+    {key:'barcode', label:'Barcode'},
+    {key:'full_ref', label:'Reference'},
+    {key:'description', label:'Description'},
+    {key:'category', label:'Category'},
+    {key:'item_status', label:'Status'},
+    {key:'location', label:'Location'},
+    {key:'item_date', label:'Date In'},
+    {key:'scanned_at', label:'Scanned At'},
+    {key:'cost', label:'Cost', money:true},
+    {key:'retail_price', label:'Retail', money:true},
+];
+const FCOL_KEY = 'abc_found_cols_{{ session.id }}';
+let foundCols = [];
+
+function loadFoundCols() {
+    try { foundCols = JSON.parse(localStorage.getItem(FCOL_KEY)); } catch { foundCols = null; }
+    if (!Array.isArray(foundCols) || !foundCols.length)
+        foundCols = ['group','item_number','barcode','description','category','item_status','location','retail_price'];
+}
+function buildFoundColMenu() {
+    const menu = document.getElementById('foundColumnMenu');
+    if (!menu) return;
+    menu.innerHTML = FOUND_COLS.map(c => `<label class="col-check"><input type="checkbox" value="${c.key}"
+        ${foundCols.includes(c.key)?'checked':''}> ${c.label}</label>`).join('');
+    menu.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
+        foundCols = FOUND_COLS.map(c=>c.key).filter(k => menu.querySelector(`input[value="${k}"]`).checked);
+        if (!foundCols.length) foundCols = ['item_number'];
+        localStorage.setItem(FCOL_KEY, JSON.stringify(foundCols));
+        renderFound();
+    }));
+}
+function fcell(m, key) {
+    const col = FOUND_COLS.find(c => c.key === key);
+    if (col && col.money) return money(m[key]);
+    if (key === 'barcode' || key === 'full_ref') return `<code>${m[key]||''}</code>`;
+    if (key === 'scanned_at') return (m.scanned_at||'').substring(0, 16);
+    return (m[key] != null && m[key] !== '') ? m[key] : '—';
+}
+function renderFound() {
+    const body = document.getElementById('foundBody');
+    if (!body) return;
+    const q = (document.getElementById('foundFilter').value || '').toLowerCase().trim();
+    const sort = document.getElementById('foundSort').value;
+    const cols = FOUND_COLS.filter(c => foundCols.includes(c.key));
+
+    document.getElementById('foundHead').innerHTML =
+        '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+
+    let rows = FOUND.filter(m => !foundGroup || m.group === foundGroup);
+    if (foundStatus) rows = rows.filter(m => ((m.item_status||'Unspecified').trim()||'Unspecified') === foundStatus);
+    if (q) rows = rows.filter(m => FOUND_COLS.some(c => String(m[c.key]||'').toLowerCase().includes(q)));
+
+    rows.sort((a, b) => {
+        if (sort === 'retail_desc') return (b.retail_price||0) - (a.retail_price||0);
+        if (sort === 'cost_desc') return (b.cost||0) - (a.cost||0);
+        return String(a[sort]||'').localeCompare(String(b[sort]||''));
     });
+
+    document.getElementById('foundCountLine').textContent =
+        `${rows.length} item(s)${foundGroup ? ' in ' + foundGroup : ''}${foundStatus ? ' · ' + foundStatus : ''}${q ? ' matching "'+q+'"' : ''}`;
+
+    const rowHtml = (m) => '<tr class="row-found">' + cols.map(c => `<td>${fcell(m,c.key)}</td>`).join('') + '</tr>';
+    const ncols = cols.length;
+    const groupBy = document.getElementById('foundGroupBy').value;
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="${ncols}" class="empty-state">No items match.</td></tr>`; return; }
+    if (!groupBy) { body.innerHTML = rows.map(rowHtml).join(''); return; }
+    const groups = {};
+    rows.forEach(m => { const key = (m[groupBy] || '—') || '—'; (groups[key] = groups[key] || []).push(m); });
+    let html = '';
+    Object.keys(groups).sort().forEach(key => {
+        const list = groups[key];
+        const cost = list.reduce((s,m)=>s+(m.cost||0),0);
+        const retail = list.reduce((s,m)=>s+(m.retail_price||0),0);
+        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toFixed(2)} · Retail $${retail.toFixed(2)}</td></tr>`;
+        html += list.map(rowHtml).join('');
+    });
+    body.innerHTML = html;
+}
+function setFGroup(btn) {
+    foundGroup = btn.dataset.group;
+    btn.closest('.group-tabs').querySelectorAll('.group-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.querySelectorAll('#scansTable .scan-row-data').forEach(row => {
-        // Only filter the FOUND rows by status; keep everything when "All"
-        const show = !status || row.dataset.status === status;
-        row.style.display = show ? '' : 'none';
-    });
+    renderFound();
+}
+function setScanStatus(btn) {
+    foundStatus = btn.dataset.status;
+    btn.closest('.group-tabs').querySelectorAll('.group-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderFound();
+    const list = document.getElementById('foundList');
+    if (list) list.scrollIntoView({behavior:'smooth'});
+}
+function printFound() {
+    const tableHtml = document.getElementById('foundTable').outerHTML;
+    const label = document.getElementById('foundCountLine').textContent;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Found — {{ session.name }}</title>
+        <style>body{font-family:sans-serif;padding:20px}h2{font-size:18px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{border:1px solid #ccc;padding:6px;text-align:left}
+        img{display:none}</style></head><body>
+        <h2>{{ session.name }} — Found Items</h2><p>${label}</p>
+        ${tableHtml}</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 300);
 }
 
 async function deleteAllFindings(count) {
@@ -526,6 +632,14 @@ document.addEventListener('DOMContentLoaded', () => {
         buildColumnMenu();
         document.getElementById('missingFilter').addEventListener('input', renderMissing);
         renderMissing();
+    }
+    const fdata = document.getElementById('foundData');
+    if (fdata) {
+        try { FOUND = JSON.parse(fdata.textContent); } catch { FOUND = []; }
+        loadFoundCols();
+        buildFoundColMenu();
+        document.getElementById('foundFilter').addEventListener('input', renderFound);
+        renderFound();
     }
 });
 </script>
