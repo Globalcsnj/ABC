@@ -1698,12 +1698,7 @@ async def import_items(
                 skipped += 1
                 continue
 
-            if not barcode and item_number:
-                digits = re.sub(r"[^0-9]", "", item_number)
-                barcode = digits
-
             item_number_u = item_number.upper() if item_number else None
-            barcode_u = barcode.upper() if barcode else None
             cost_val = clean_money(cost_raw)
             # Sale price comes from the CSV "Price" column; None if blank so a
             # manually-set price is preserved on re-upload.
@@ -1723,8 +1718,19 @@ async def import_items(
             async with db.execute("SELECT item_number FROM items WHERE item_number = ?", (item_number_u,)) as cur:
                 exists = await cur.fetchone() is not None
 
-            # UPSERT: refresh Bravo-sourced fields, but PRESERVE admin/sale fields
-            # (retail_price, photo, for_sale, sold, sold_at) on conflict.
+            # Derive a barcode from the item number ONLY for brand-new items —
+            # never overwrite an existing item's real barcode with derived digits.
+            if not barcode and item_number and not exists:
+                barcode = re.sub(r"[^0-9]", "", item_number)
+            barcode_u = barcode.upper() if barcode else None
+
+            # UPSERT as a MERGE: on an existing item, only overwrite a field when
+            # the new file actually has a value for it — blanks never wipe data.
+            # Admin fields (retail_price, photo, for_sale, sold, product_type once
+            # set) are preserved. Status/date DO refresh when provided.
+            cost_in = cost_val if cost_raw else None
+            dia_auth_in = diamond_authentic if diamond_auth_raw else None
+            stone_auth_in = authentic_stone if stone_auth_raw else None
             await db.execute("""
                 INSERT INTO items
                   (item_number, barcode, description, category, item_type, item_status,
@@ -1735,28 +1741,41 @@ async def import_items(
                    inventory_age, date_to_inventory, missing)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
-                   barcode=excluded.barcode, description=excluded.description,
-                   category=excluded.category, item_type=excluded.item_type,
-                   item_status=excluded.item_status, cost=excluded.cost,
+                   barcode=COALESCE(NULLIF(excluded.barcode,''), items.barcode),
+                   description=COALESCE(NULLIF(excluded.description,''), items.description),
+                   category=COALESCE(NULLIF(excluded.category,''), items.category),
+                   item_type=COALESCE(NULLIF(excluded.item_type,''), items.item_type),
+                   item_status=COALESCE(NULLIF(excluded.item_status,''), items.item_status),
+                   cost=COALESCE(excluded.cost, items.cost),
                    retail_price=COALESCE(excluded.retail_price, items.retail_price),
-                   item_date=excluded.item_date, source=excluded.source,
-                   product_type=excluded.product_type, total_diamond=excluded.total_diamond,
-                   metal_type=excluded.metal_type, metal_color=excluded.metal_color,
-                   total_stone_size=excluded.total_stone_size, condition=excluded.condition,
-                   diamond_authentic=excluded.diamond_authentic,
-                   serial_number=excluded.serial_number, manufacturer=excluded.manufacturer,
-                   model=excluded.model, metal_purity=excluded.metal_purity,
-                   total_jewelry_weight=excluded.total_jewelry_weight,
-                   metal_weight=excluded.metal_weight, quality=excluded.quality,
-                   authentic_stone=excluded.authentic_stone, quantity=excluded.quantity,
-                   vendor=excluded.vendor, inventory_age=excluded.inventory_age,
-                   date_to_inventory=excluded.date_to_inventory, missing=0
+                   item_date=COALESCE(NULLIF(excluded.item_date,''), items.item_date),
+                   source=COALESCE(NULLIF(excluded.source,''), items.source),
+                   product_type=COALESCE(NULLIF(items.product_type,''), excluded.product_type),
+                   total_diamond=COALESCE(NULLIF(excluded.total_diamond,''), items.total_diamond),
+                   metal_type=COALESCE(NULLIF(excluded.metal_type,''), items.metal_type),
+                   metal_color=COALESCE(NULLIF(excluded.metal_color,''), items.metal_color),
+                   total_stone_size=COALESCE(NULLIF(excluded.total_stone_size,''), items.total_stone_size),
+                   condition=COALESCE(NULLIF(excluded.condition,''), items.condition),
+                   diamond_authentic=COALESCE(excluded.diamond_authentic, items.diamond_authentic),
+                   serial_number=COALESCE(NULLIF(excluded.serial_number,''), items.serial_number),
+                   manufacturer=COALESCE(NULLIF(excluded.manufacturer,''), items.manufacturer),
+                   model=COALESCE(NULLIF(excluded.model,''), items.model),
+                   metal_purity=COALESCE(NULLIF(excluded.metal_purity,''), items.metal_purity),
+                   total_jewelry_weight=COALESCE(NULLIF(excluded.total_jewelry_weight,''), items.total_jewelry_weight),
+                   metal_weight=COALESCE(NULLIF(excluded.metal_weight,''), items.metal_weight),
+                   quality=COALESCE(NULLIF(excluded.quality,''), items.quality),
+                   authentic_stone=COALESCE(excluded.authentic_stone, items.authentic_stone),
+                   quantity=COALESCE(NULLIF(excluded.quantity,''), items.quantity),
+                   vendor=COALESCE(NULLIF(excluded.vendor,''), items.vendor),
+                   inventory_age=COALESCE(NULLIF(excluded.inventory_age,''), items.inventory_age),
+                   date_to_inventory=COALESCE(NULLIF(excluded.date_to_inventory,''), items.date_to_inventory),
+                   missing=0
             """, (
                 item_number_u, barcode_u, description, category, item_type, item_status,
-                cost_val, retail_val, item_date, source, ptype, total_diamond, metal_type,
-                metal_color, total_stone_size, condition, diamond_authentic,
+                cost_in, retail_val, item_date, source, ptype, total_diamond, metal_type,
+                metal_color, total_stone_size, condition, dia_auth_in,
                 serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
-                metal_weight, quality, authentic_stone, quantity, vendor,
+                metal_weight, quality, stone_auth_in, quantity, vendor,
                 inventory_age, date_to_inventory,
             ))
             if exists:
