@@ -443,6 +443,7 @@ body {
 .login-wrap { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-card { background: white; border: 1px solid var(--gray-200); border-radius: 14px; padding: 34px; width: 100%; max-width: 360px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
 .login-logo { font-size: 22px; font-weight: 800; }
+.login-logo .brand-logo { height: 52px; background: none; padding: 0; }
 .login-sub { color: var(--gray-600); margin: 4px 0 20px; }
 .login-input { width: 100%; padding: 12px 14px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 16px; margin-bottom: 12px; }
 .login-btn { width: 100%; padding: 12px; }
