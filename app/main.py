@@ -1277,15 +1277,28 @@ async def load_workbench_data(db, session_id: int = 0):
         SELECT item_number, barcode, description, category, item_status, source, product_type,
                cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
-               manufacturer, model, vendor,
+               manufacturer, model, vendor, item_date, date_to_inventory, sold_at,
                COALESCE(NULLIF(stage,''),'Inventory') as stage,
                COALESCE(sold,0) as sold
         FROM items ORDER BY category, item_number
     """) as cur:
         items = [dict(r) for r in await cur.fetchall()]
     overrides = await load_group_overrides(db)
+
+    def _year(*vals):
+        """First 4-digit year (19xx/20xx) found in the given date strings."""
+        for v in vals:
+            if not v:
+                continue
+            m = re.search(r"(19|20)\d{2}", str(v))
+            if m:
+                return m.group(0)
+        return ""
+
     for it in items:
         it["group"] = classify_category(it.get("category") or "", it.get("product_type") or "", overrides)
+        # Year an item entered inventory — drives the "measure by year" views
+        it["year"] = _year(it.get("date_to_inventory"), it.get("item_date"))
 
     session_name = ""
     if session_id:
@@ -1310,6 +1323,7 @@ async def load_workbench_data(db, session_id: int = 0):
         "wb_metals": distinct("metal_type"),
         "wb_purities": distinct("metal_purity"),
         "wb_statuses": distinct("item_status"),
+        "wb_years": sorted({it["year"] for it in items if it["year"]}, reverse=True),
         "wb_session_id": session_id,
         "wb_session_name": session_name,
     }

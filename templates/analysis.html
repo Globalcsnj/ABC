@@ -51,6 +51,10 @@
             <option value="sold">Sold</option>
             <option value="instock">In stock (unsold)</option>
         </select>
+        <select id="fYear">
+            <option value="">All years</option>
+            {% for y in wb_years %}<option>{{ y }}</option>{% endfor %}
+        </select>
         <select id="fStage">
             <option value="">Any stage</option>
             <option>Inventory</option><option>Scrap</option><option>Refined</option>
@@ -115,6 +119,12 @@
     </table>
     </div>
 </div>
+
+<div class="topic-head mt" id="by-status"><h2>📊 By Status (Shrink, Inventory…)</h2></div>
+<div class="card-grid" id="chart-status"></div>
+
+<div class="topic-head mt" id="by-year"><h2>📅 By Year</h2></div>
+<div class="card-grid" id="chart-year"></div>
 
 <div class="topic-head mt" id="by-type"><h2>💍 By Type — Jewelry &amp; Manufactured</h2></div>
 <div class="card-grid" id="chart-type"></div>
@@ -204,6 +214,8 @@
         <a href="#workbench">🔎 Explore &amp; Filter</a>
         <a href="#items">📋 Matching Items</a>
         <a href="#by-category">💰 By Category</a>
+        <a href="#by-status">📊 By Status</a>
+        <a href="#by-year">📅 By Year</a>
         <a href="#by-type">💍 By Type</a>
         <a href="#by-price">🏷️ By Price</a>
         <a href="#by-store">🏬 By List / Store</a>
@@ -228,7 +240,7 @@ const COLS = [
     {k:'metal_type',l:'Metal'},{k:'metal_purity',l:'Purity'},
     {k:'total_jewelry_weight',l:'Jewelry Wt'},{k:'metal_weight',l:'Metal Wt'},
     {k:'total_diamond',l:'Diamond'},{k:'total_stone_size',l:'Stone'},
-    {k:'quality',l:'Quality'},{k:'stage',l:'Stage'},{k:'count_result',l:'Count Result'},
+    {k:'quality',l:'Quality'},{k:'stage',l:'Stage'},{k:'year',l:'Year'},{k:'count_result',l:'Count Result'},
     {k:'cost',l:'Cost',money:true},{k:'retail_price',l:'Retail',money:true},
 ];
 let selCols = ['item_number','description','category','metal_type','metal_purity','total_jewelry_weight','total_diamond','retail_price'];
@@ -245,6 +257,7 @@ function applyFilters(){
         if(val('fMetal') && it.metal_type!==val('fMetal')) return false;
         if(val('fPurity') && it.metal_purity!==val('fPurity')) return false;
         if(val('fStage') && (it.stage||'Inventory')!==val('fStage')) return false;
+        if(val('fYear') && (it.year||'')!==val('fYear')) return false;
         if(SESSION_CTX && val('fMatch') && it.count_result!==val('fMatch')) return false;
         const fs=val('fStatus');
         if(fs){
@@ -317,11 +330,40 @@ function renderInto(hostId, cands){
     shown.forEach((c,i)=>barChart(document.getElementById(`${hostId}_${i}`), c.data, c.fmt || fmtCount));
 }
 
+// Count items per year for a given status keyword (e.g. SHRINK), in year order.
+function statusByYear(rows, statusKeyword){
+    const kw = statusKeyword.toUpperCase();
+    const m = {};
+    rows.forEach(r=>{
+        if (!(r.item_status||'').toUpperCase().includes(kw)) return;
+        const y = r.year || 'Unknown';
+        m[y] = (m[y]||0) + 1;
+    });
+    return Object.entries(m).sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+}
+function countByYear(rows, valFn){
+    const m = {};
+    rows.forEach(r=>{ const y=r.year||'Unknown'; m[y]=(m[y]||0)+(valFn(r)||0); });
+    return Object.entries(m).sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+}
+
 function renderCharts(rows){
     // By Category
     renderInto('chart-category', [
         {title:'Retail Value by Category', data:sumBy(rows,r=>r.category,r=>r.retail_price), fmt:fmtMoney, core:true},
         {title:'Item Count by Category',   data:sumBy(rows,r=>r.category,r=>1), fmt:fmtCount, core:true},
+    ]);
+    // By Status — every status, plus Shrink measured by year
+    renderInto('chart-status', [
+        {title:'By Status — Count', data:sumBy(rows,r=>(r.item_status||'—'),r=>1), fmt:fmtCount, core:true},
+        {title:'Shrink by Year', data:statusByYear(rows,'SHRINK'), fmt:fmtCount, core:true},
+        {title:'Shrink Retail Value by Year',
+         data:countByYear(rows.filter(r=>(r.item_status||'').toUpperCase().includes('SHRINK')), r=>r.retail_price), fmt:fmtMoney},
+    ]);
+    // By Year — everything measured by year
+    renderInto('chart-year', [
+        {title:'Items by Year', data:countByYear(rows, r=>1), fmt:fmtCount, core:true},
+        {title:'Retail Value by Year', data:countByYear(rows, r=>r.retail_price), fmt:fmtMoney, core:true},
     ]);
     // By Type — Jewelry vs Manufactured, then the finer type lenses
     renderInto('chart-type', [
@@ -385,7 +427,7 @@ function render(){
 
 // True when any search box, dropdown, or range input has a value.
 function isFiltered(){
-    const ids = ['fq','fCategory','fGroup','fMetal','fPurity','fStatus','fStage','fMatch',
+    const ids = ['fq','fCategory','fGroup','fMetal','fPurity','fStatus','fStage','fYear','fMatch',
                  'priceMin','priceMax','wtMin','wtMax','diaMin','diaMax'];
     return ids.some(id => (val(id)||'').trim() !== '');
 }
