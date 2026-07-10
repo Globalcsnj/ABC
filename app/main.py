@@ -972,6 +972,7 @@ async def load_workbench_data(db, session_id: int = 0):
         SELECT item_number, barcode, description, category, item_status, source, product_type,
                cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
+               manufacturer, model, vendor,
                COALESCE(NULLIF(stage,''),'Inventory') as stage,
                COALESCE(sold,0) as sold
         FROM items ORDER BY category, item_number

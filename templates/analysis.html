@@ -140,18 +140,7 @@
 
 <div class="stat-row dash-stats mt" id="kpis"></div>
 
-<div class="card-grid mt">
-    <div class="card"><h2>By Metal — Jewelry Weight</h2><div id="chartMetal"></div></div>
-    <div class="card"><h2>By Category — Retail Value</h2><div id="chartCat"></div></div>
-    <div class="card"><h2>By Status — Count</h2><div id="chartStatus"></div></div>
-    <div class="card"><h2>By Purity — Count</h2><div id="chartPurity"></div></div>
-    <div class="card"><h2>By Stage — Count</h2><div id="chartStage"></div></div>
-    {% if wb_session_id %}
-    <div class="card"><h2>Count Result — Found vs Missing</h2><div id="chartMatch"></div></div>
-    {% else %}
-    <div class="card"><h2>By Stage — Retail Value</h2><div id="chartStageVal"></div></div>
-    {% endif %}
-</div>
+<div class="card-grid mt" id="charts"></div>
 
 <div class="card mt">
     <div class="card-header">
@@ -233,6 +222,37 @@ function barChart(el, data, fmt){
         <div class="hbar-num">${fmt(v)}</div></div>`).join('') || '<div class="empty-state">No data</div>';
 }
 
+const fmtMoney = v=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:0});
+const fmtCount = v=>v;
+
+// Build only the charts that have meaningful data for THIS dataset, so a
+// manufactured-goods list doesn't show empty Metal/Purity boxes and a jewelry
+// list doesn't waste space on manufacturer. Core charts always show; the rest
+// appear only when they have at least two distinct buckets.
+function renderCharts(rows){
+    const cands = [
+        {title:'By Category — Retail Value', data:sumBy(rows,r=>r.category,r=>r.retail_price), fmt:fmtMoney, core:true},
+        {title:'By Status — Count',          data:sumBy(rows,r=>(r.sold?'Sold':(r.item_status||'—')),r=>1), fmt:fmtCount, core:true},
+    ];
+    if (SESSION_CTX) {
+        cands.push({title:'Count Result — Found vs Missing', data:sumBy(rows,r=>r.count_result,r=>1), fmt:fmtCount, core:true});
+    }
+    // Manufactured-goods lenses
+    cands.push({title:'By Category — Count',   data:sumBy(rows,r=>r.category,r=>1), fmt:fmtCount});
+    cands.push({title:'By Manufacturer — Count', data:sumBy(rows,r=>r.manufacturer,r=>1), fmt:fmtCount});
+    cands.push({title:'By Vendor — Count',     data:sumBy(rows,r=>r.vendor,r=>1), fmt:fmtCount});
+    // Jewelry lenses
+    cands.push({title:'By Metal — Jewelry Weight', data:sumBy(rows,r=>r.metal_type,r=>num(r.total_jewelry_weight)), fmt:v=>v.toFixed(1)});
+    cands.push({title:'By Purity — Count',     data:sumBy(rows,r=>r.metal_purity,r=>1), fmt:fmtCount});
+    // Stage (only interesting once items move beyond plain Inventory)
+    cands.push({title:'By Stage — Count',      data:sumBy(rows,r=>(r.stage||'Inventory'),r=>1), fmt:fmtCount});
+
+    const shown = cands.filter(c => c.core || c.data.length >= 2);
+    const host = document.getElementById('charts');
+    host.innerHTML = shown.map((c,i)=>`<div class="card"><h2>${c.title}</h2><div id="chart_${i}"></div></div>`).join('');
+    shown.forEach((c,i)=>barChart(document.getElementById('chart_'+i), c.data, c.fmt));
+}
+
 function render(){
     const rows=applyFilters();
     const cnt=rows.length;
@@ -241,22 +261,19 @@ function render(){
     const jwt=rows.reduce((s,r)=>s+(num(r.total_jewelry_weight)||0),0);
     const mwt=rows.reduce((s,r)=>s+(num(r.metal_weight)||0),0);
     const dia=rows.reduce((s,r)=>s+(num(r.total_diamond)||0),0);
-    document.getElementById('kpis').innerHTML = [
+    const kpis = [
         ['Items', cnt.toLocaleString()],
         ['Retail Value', '$'+retail.toLocaleString(undefined,{maximumFractionDigits:0})],
         ['Cost Value', '$'+cost.toLocaleString(undefined,{maximumFractionDigits:0})],
-        ['Jewelry Weight', jwt.toFixed(1)],
-        ['Metal Weight', mwt.toFixed(1)],
-        ['Total Diamond', dia.toFixed(2)],
-    ].map(([l,v])=>`<div class="stat-card"><div class="stat-num">${v}</div><div class="stat-label">${l}</div></div>`).join('');
+    ];
+    // Only surface jewelry metrics when the filtered set actually has them
+    if (jwt>0) kpis.push(['Jewelry Weight', jwt.toFixed(1)]);
+    if (mwt>0) kpis.push(['Metal Weight', mwt.toFixed(1)]);
+    if (dia>0) kpis.push(['Total Diamond', dia.toFixed(2)]);
+    document.getElementById('kpis').innerHTML = kpis
+        .map(([l,v])=>`<div class="stat-card"><div class="stat-num">${v}</div><div class="stat-label">${l}</div></div>`).join('');
 
-    barChart(document.getElementById('chartMetal'), sumBy(rows,r=>r.metal_type,r=>num(r.total_jewelry_weight)), v=>v.toFixed(1));
-    barChart(document.getElementById('chartCat'), sumBy(rows,r=>r.category,r=>r.retail_price), v=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:0}));
-    barChart(document.getElementById('chartStatus'), sumBy(rows,r=>(r.sold?'Sold':(r.item_status||'—')),r=>1), v=>v);
-    barChart(document.getElementById('chartPurity'), sumBy(rows,r=>r.metal_purity,r=>1), v=>v);
-    barChart(document.getElementById('chartStage'), sumBy(rows,r=>(r.stage||'Inventory'),r=>1), v=>v);
-    barChart(document.getElementById('chartStageVal'), sumBy(rows,r=>(r.stage||'Inventory'),r=>r.retail_price), v=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:0}));
-    barChart(document.getElementById('chartMatch'), sumBy(rows,r=>r.count_result,r=>1), v=>v);
+    renderCharts(rows);
 
     const cols=COLS.filter(c=>selCols.includes(c.k));
     document.getElementById('resHead').innerHTML='<tr>'+cols.map(c=>`<th>${c.l}</th>`).join('')+'</tr>';
