@@ -872,6 +872,11 @@ html { scroll-behavior: smooth; }
 .aged-summary { margin-bottom: 10px; color: var(--gray-700); }
 .badge-old { background: #fee2e2; color: #991b1b; }
 
+/* Best-sellers reorder bar (inline in table) */
+.seller-bar-wrap { position: relative; min-width: 180px; padding: 4px 8px; border-radius: 5px; overflow: hidden; }
+.seller-bar { position: absolute; inset: 0; background: #dbeafe; border-radius: 5px; z-index: 0; }
+.seller-name { position: relative; z-index: 1; font-weight: 600; font-size: 13px; }
+
 /* Campaigns */
 .campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .campaign-form .cf-row .form-group { flex: 1; min-width: 140px; }

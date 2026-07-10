@@ -33,6 +33,51 @@
 </div>
 
 <div class="card mt">
+    <div class="card-header">
+        <h2>🔁 Best Sellers — Reorder Candidates</h2>
+    </div>
+    <p class="card-subtitle">Products that have sold most often (grouped by description).
+    A low or zero <strong>In stock</strong> count on a strong seller is a clear signal to source more.</p>
+    {% if best_sellers %}
+    <div style="overflow-x:auto">
+    <table class="table">
+        <thead><tr>
+            <th>Product</th><th>Category</th><th>Sold (all)</th>
+            <th>Sold (90d)</th><th>Avg price</th><th>Revenue</th><th>In stock</th><th>Reorder?</th>
+        </tr></thead>
+        <tbody>
+            {% for b in best_sellers %}
+            <tr>
+                <td>
+                    <div class="seller-bar-wrap">
+                        <div class="seller-bar" style="width: {{ (b.sold_cnt / max_seller * 100)|round|int }}%"></div>
+                        <span class="seller-name">{{ b.description }}</span>
+                    </div>
+                </td>
+                <td>{{ b.category }}</td>
+                <td class="found-text"><strong>{{ b.sold_cnt }}</strong></td>
+                <td>{{ b.sold_90 }}</td>
+                <td>{% if b.avg_price %}${{ "%.0f"|format(b.avg_price) }}{% else %}—{% endif %}</td>
+                <td>${{ "%.0f"|format(b.revenue) }}</td>
+                <td>{{ b.in_stock }}</td>
+                <td>
+                    {% if b.sold_cnt >= 2 and b.in_stock == 0 %}
+                        <span class="badge badge-old">⚠ Reorder</span>
+                    {% elif b.sold_cnt >= 2 and b.in_stock <= 1 %}
+                        <span class="badge badge-unknown">Low</span>
+                    {% else %}<span class="muted-sm">OK</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No sales recorded yet — best sellers appear once items are marked sold.</div>
+    {% endif %}
+</div>
+
+<div class="card mt">
     <h2>Sold per Day (last 14 days)</h2>
     {% if per_day %}
     <div class="bar-chart">

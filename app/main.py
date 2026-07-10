@@ -930,14 +930,48 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
     """) as cur:
         sellthrough = [dict(r) for r in await cur.fetchall()]
 
+    # Best-selling products (reorder candidates). Each item_number is unique
+    # stock, so we group sold items by their description to see which products
+    # sell repeatedly — the ones worth sourcing more of.
+    async with db.execute("""
+        SELECT UPPER(TRIM(description)) as pkey,
+               MAX(description) as description,
+               MAX(COALESCE(NULLIF(category,''),'Uncategorized')) as category,
+               COUNT(*) as sold_cnt,
+               SUM(CASE WHEN sold_at >= datetime('now','-90 days') THEN 1 ELSE 0 END) as sold_90,
+               SUM(COALESCE(retail_price,0)) as revenue,
+               AVG(retail_price) as avg_price
+        FROM items
+        WHERE sold=1 AND TRIM(COALESCE(description,'')) != ''
+        GROUP BY pkey
+        ORDER BY sold_cnt DESC, revenue DESC
+        LIMIT 20
+    """) as cur:
+        best_sellers = [dict(r) for r in await cur.fetchall()]
+
+    # How many of each best-seller are still in stock (0 → definitely reorder)
+    if best_sellers:
+        keys = [b["pkey"] for b in best_sellers]
+        ph = ",".join("?" for _ in keys)
+        async with db.execute(
+            f"""SELECT UPPER(TRIM(description)) as pkey, COUNT(*) as stock
+                FROM items WHERE COALESCE(sold,0)=0 AND UPPER(TRIM(description)) IN ({ph})
+                GROUP BY pkey""", keys
+        ) as cur:
+            stock_map = {r["pkey"]: r["stock"] for r in await cur.fetchall()}
+        for b in best_sellers:
+            b["in_stock"] = stock_map.get(b["pkey"], 0)
+
     max_day = max([d["cnt"] for d in per_day], default=1) or 1
     max_cat = max([c["cnt"] for c in top_cats], default=1) or 1
+    max_seller = max([b["sold_cnt"] for b in best_sellers], default=1) or 1
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "in_stock": in_stock, "sold_total": sold_total, "sold_value": sold_value,
         "sold_7": sold_7, "sold_30": sold_30, "stock_value": stock_value,
         "per_day": per_day, "top_cats": top_cats, "sellthrough": sellthrough,
+        "best_sellers": best_sellers, "max_seller": max_seller,
         "max_day": max_day, "max_cat": max_cat,
     })
 
