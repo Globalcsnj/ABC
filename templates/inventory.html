@@ -72,6 +72,7 @@
         {% if category %}· {{ category }}{% endif %}{% if source %}· {{ source|capitalize }}{% endif %}{% if status %}· {{ status }}{% endif %}
     </p>
 
+    <div style="overflow-x:auto">
     <table class="table">
         <thead>
             <tr>
@@ -85,7 +86,7 @@
                 <th>Cost</th>
                 <th>Sale Price</th>
                 <th>Shop</th>
-                <th></th>
+                <th class="col-action">Edit</th>
             </tr>
         </thead>
         <tbody>
@@ -105,11 +106,12 @@
                 <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
                 <td>{% if item.retail_price %}<strong>${{ "%.2f"|format(item.retail_price) }}</strong>{% else %}—{% endif %}</td>
                 <td>{% if item.for_sale != 0 %}✓{% else %}—{% endif %}</td>
-                <td><a href="/inventory/{{ item.item_number }}/edit" class="btn btn-sm btn-outline">Edit</a></td>
+                <td class="col-action"><a href="/inventory/{{ item.item_number }}/edit" class="btn btn-sm btn-outline">Edit</a></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% if total > showing and not q %}
     <p class="card-subtitle">Only the first {{ showing }} are shown. Use search to find a specific item.</p>
     {% endif %}

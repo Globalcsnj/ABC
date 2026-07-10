@@ -878,6 +878,7 @@ html { scroll-behavior: smooth; }
 .seller-name { position: relative; z-index: 1; font-weight: 600; font-size: 13px; }
 
 .photo-actions { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+.col-action { white-space: nowrap; text-align: right; }
 
 /* Campaigns */
 .campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
