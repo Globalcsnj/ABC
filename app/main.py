@@ -230,9 +230,22 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
     ) as cur:
         already_found = (await cur.fetchone())[0]
 
+    # Store name for the header so the counter knows exactly where they are
+    store_name = ""
+    sess_store = session["store_id"] if "store_id" in session.keys() else None
+    if sess_store:
+        async with db.execute("SELECT name FROM stores WHERE id=?", (sess_store,)) as cur:
+            row = await cur.fetchone()
+            store_name = row["name"] if row else ""
+    if not store_name:
+        async with db.execute("SELECT name FROM stores ORDER BY id LIMIT 1") as cur:
+            row = await cur.fetchone()
+            store_name = row["name"] if row else ""
+
     return templates.TemplateResponse("audit.html", {
         "request": request, "session": session,
         "expected": expected, "already_found": already_found,
+        "store_name": store_name,
     })
 
 
@@ -312,12 +325,16 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         scans = await cur.fetchall()
 
     async with db.execute("""
-        SELECT location_id, sublocation_id, COUNT(*) as total,
-               SUM(CASE WHEN match_status IN ('found','extra') THEN 1 ELSE 0 END) as found,
-               SUM(CASE WHEN match_status='unknown' THEN 1 ELSE 0 END) as unknown
-        FROM audit_scans WHERE session_id = ?
-        GROUP BY location_id, sublocation_id
-        ORDER BY location_id, sublocation_id
+        SELECT s.location_id, s.sublocation_id, COUNT(*) as total,
+               SUM(CASE WHEN s.match_status IN ('found','extra') THEN 1 ELSE 0 END) as found,
+               SUM(CASE WHEN s.match_status='unknown' THEN 1 ELSE 0 END) as unknown,
+               l.name as location_name, sl.name as sublocation_name
+        FROM audit_scans s
+        LEFT JOIN locations l ON l.id = s.location_id
+        LEFT JOIN sublocations sl ON sl.id = s.sublocation_id
+        WHERE s.session_id = ?
+        GROUP BY s.location_id, s.sublocation_id
+        ORDER BY s.location_id, s.sublocation_id
     """, (session_id,)) as cur:
         summary = await cur.fetchall()
 
@@ -1459,11 +1476,15 @@ async def process_scan(
             (code, f"SalesFloor {code}")
         )
         await db.commit()
+        async with db.execute("SELECT name FROM locations WHERE id=?", (code,)) as cur:
+            row = await cur.fetchone()
+        loc_name = (row["name"] if row else "") or f"SalesFloor {code}"
         return JSONResponse({
             "type": "location",
             "location_id": code,
+            "location_name": loc_name,
             "sublocation_id": "",
-            "message": f"📍 Location: SalesFloor {code}"
+            "message": f"📍 Location {code} — {loc_name}"
         })
 
     if kind == "sublocation":
@@ -1477,11 +1498,19 @@ async def process_scan(
             (code, loc_id, f"Section {code}")
         )
         await db.commit()
+        async with db.execute("SELECT name FROM locations WHERE id=?", (loc_id,)) as cur:
+            row = await cur.fetchone()
+        loc_name = (row["name"] if row else "") or f"SalesFloor {loc_id}"
+        async with db.execute("SELECT name FROM sublocations WHERE id=?", (code,)) as cur:
+            row = await cur.fetchone()
+        sub_name = (row["name"] if row else "") or f"Section {code}"
         return JSONResponse({
             "type": "sublocation",
             "location_id": loc_id,
+            "location_name": loc_name,
             "sublocation_id": code,
-            "message": f"📦 Sublocation: {code}"
+            "sublocation_name": sub_name,
+            "message": f"📦 {loc_name} › {code}{(' — ' + sub_name) if sub_name != 'Section ' + code else ''}"
         })
 
     # ── Item scan ─────────────────────────────────────────────────────────────

@@ -110,11 +110,12 @@
 
 <!-- Location summary -->
 <div class="card mt">
-    <h2>Summary by Location</h2>
+    <h2>Summary by Location{% if store_name %} — {{ store_name }}{% endif %}</h2>
     <table class="table">
         <thead>
             <tr>
                 <th>Location</th>
+                <th>Location Name</th>
                 <th>Sublocation</th>
                 <th>Found</th>
                 <th>Unknown</th>
@@ -125,7 +126,8 @@
             {% for row in summary %}
             <tr>
                 <td>{{ row.location_id or '—' }}</td>
-                <td>{{ row.sublocation_id or '—' }}</td>
+                <td>{{ row.location_name or '—' }}</td>
+                <td>{{ row.sublocation_id or '—' }}{% if row.sublocation_name and row.sublocation_name != 'Section ' + (row.sublocation_id or '') %} · {{ row.sublocation_name }}{% endif %}</td>
                 <td class="found-text"><strong>{{ row.found }}</strong></td>
                 <td class="unknown-text">{{ row.unknown }}</td>
                 <td>{{ row.total }}</td>
@@ -134,7 +136,7 @@
         </tbody>
         <tfoot>
             <tr class="table-total">
-                <td colspan="2"><strong>TOTAL</strong></td>
+                <td colspan="3"><strong>TOTAL</strong></td>
                 <td class="found-text"><strong>{{ summary|sum(attribute='found') }}</strong></td>
                 <td class="unknown-text"><strong>{{ summary|sum(attribute='unknown') }}</strong></td>
                 <td><strong>{{ summary|sum(attribute='total') }}</strong></td>

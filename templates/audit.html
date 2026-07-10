@@ -26,6 +26,11 @@ pause — you can resume this count anytime from the Home page.</p>
 <!-- Location context bar -->
 <div class="context-bar" id="contextBar">
     <div class="context-item">
+        <span class="context-label">Store</span>
+        <span class="context-value">{{ store_name or 'ABC Money Loan' }}</span>
+    </div>
+    <div class="context-arrow">›</div>
+    <div class="context-item">
         <span class="context-label">Location</span>
         <span class="context-value" id="currentLocationLabel">— scan location —</span>
     </div>
@@ -172,7 +177,8 @@ async function processScan(code, forceExtra) {
         currentLocation = data.location_id;
         currentSublocation = '';
         foundCount = 0; unknownCount = 0;
-        document.getElementById('currentLocationLabel').textContent = 'SalesFloor ' + data.location_id;
+        document.getElementById('currentLocationLabel').textContent =
+            data.location_id + ' — ' + (data.location_name || 'SalesFloor ' + data.location_id);
         document.getElementById('currentSublocationLabel').textContent = '— scan sublocation —';
         updateCounters();
         clearScanList();
@@ -181,8 +187,11 @@ async function processScan(code, forceExtra) {
         currentLocation = data.location_id;
         currentSublocation = data.sublocation_id;
         foundCount = 0; unknownCount = 0;
-        document.getElementById('currentLocationLabel').textContent = 'SalesFloor ' + data.location_id;
-        document.getElementById('currentSublocationLabel').textContent = data.sublocation_id;
+        document.getElementById('currentLocationLabel').textContent =
+            data.location_id + ' — ' + (data.location_name || 'SalesFloor ' + data.location_id);
+        document.getElementById('currentSublocationLabel').textContent =
+            data.sublocation_id + (data.sublocation_name && data.sublocation_name !== 'Section ' + data.sublocation_id
+                ? ' — ' + data.sublocation_name : '');
         updateCounters();
         await loadScans();
         hideItemCard();
