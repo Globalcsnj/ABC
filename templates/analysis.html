@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Inventory Analysis – ABC{% endblock %}
 {% block content %}
+<div class="analysis-layout">
+<div class="analysis-main">
+
 <div class="page-header">
-    <h1>Inventory Analysis</h1>
+    <h1>Inventory Analysis{% if wb_session_id %} — Count{% endif %}</h1>
 </div>
 
-<div class="stat-row dash-stats">
+{% if wb_session_id %}
+<div class="count-context-banner" id="overview">
+    <div>
+        📊 Analyzing count: <strong>{{ wb_session_name }}</strong>
+        <span class="ccb-sub">Every item below is tagged <b>Found</b> or <b>Missing</b> for this count.</span>
+    </div>
+    <div class="ccb-actions">
+        <a href="/report/{{ wb_session_id }}" class="btn btn-sm btn-outline">← Back to report</a>
+        <a href="/analysis" class="btn btn-sm btn-outline">Clear count context</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="stat-row dash-stats" {% if not wb_session_id %}id="overview"{% endif %}>
     <div class="stat-card"><div class="stat-num">{{ "{:,}".format(in_stock) }}</div><div class="stat-label">Items in Stock</div></div>
     <div class="stat-card stat-found"><div class="stat-num">${{ "{:,.0f}".format(retail_value) }}</div><div class="stat-label">Retail Value</div></div>
     <div class="stat-card"><div class="stat-num">${{ "{:,.0f}".format(cost_value) }}</div><div class="stat-label">Cost Value</div></div>
@@ -14,7 +30,7 @@
     <div class="stat-card stat-missing"><div class="stat-num">{{ "{:,}".format(unpriced) }}</div><div class="stat-label">Needs Price</div></div>
 </div>
 
-<div class="card mt">
+<div class="card mt" id="aging">
     <h2>Inventory Aging</h2>
     <p class="card-subtitle">How long in-stock items have been in inventory (from the Inventory Age column). Older stock may need discounting.</p>
     {% for label, cnt in aging.items() %}
@@ -26,21 +42,41 @@
     {% endfor %}
 </div>
 
-<div class="card mt">
-    <h2>Retail Value by Category</h2>
-    {% if by_cat %}
-    {% for c in by_cat %}
-    <div class="hbar-row">
-        <div class="hbar-label"><a href="/inventory?category={{ c.category|urlencode }}">{{ c.category }}</a></div>
-        <div class="hbar-track"><div class="hbar-fill" style="width: {{ (c.retail / max_cat * 100)|round|int }}%"></div></div>
-        <div class="hbar-num">{{ c.cnt }} · ${{ "%.0f"|format(c.retail) }}
-            {% if retail_value %}· {{ (c.retail / retail_value * 100)|round(1) }}%{% endif %}</div>
+<div class="card mt" id="offers">
+    <div class="card-header">
+        <h2>🏷️ Aged Stock — 90+ Days (Offer Candidates)</h2>
+        {% if aged_count %}<a href="/analysis/aged.csv" class="btn btn-sm btn-outline">⬇ Download list</a>{% endif %}
     </div>
-    {% endfor %}
-    {% else %}<div class="empty-state">No inventory yet</div>{% endif %}
+    <p class="card-subtitle">In-stock items that have sat 90+ days — the best candidates for markdowns and campaigns.</p>
+    {% if aged_count %}
+    <div class="aged-summary">
+        <strong>{{ "{:,}".format(aged_count) }}</strong> items ·
+        <strong>${{ "{:,.0f}".format(aged_retail) }}</strong> retail tied up
+    </div>
+    <div style="overflow-x:auto">
+    <table class="table">
+        <thead><tr><th>Days</th><th>Item #</th><th>Description</th><th>Category</th><th>Status</th><th>Retail</th></tr></thead>
+        <tbody>
+            {% for a in aged_items[:100] %}
+            <tr>
+                <td><span class="badge badge-old">{{ a.age_days }}d</span></td>
+                <td><code>{{ a.item_number }}</code></td>
+                <td>{{ a.description }}</td>
+                <td>{{ a.category }}</td>
+                <td>{{ a.item_status or '—' }}</td>
+                <td>{% if a.retail_price %}${{ "%.0f"|format(a.retail_price) }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if aged_count > 100 %}<p class="card-subtitle">Showing top 100 by age — download the full list above.</p>{% endif %}
+    {% else %}
+    <div class="empty-state">No items over 90 days (or the Inventory Age column wasn't in the upload).</div>
+    {% endif %}
 </div>
 
-<div class="card-grid mt">
+<div class="card-grid mt" id="breakdown">
     <div class="card">
         <h2>By Product Type</h2>
         <table class="table">
@@ -66,7 +102,7 @@
     </div>
 </div>
 
-<div class="card mt">
+<div class="card mt" id="categories">
     <h2>Value by Category (detail)</h2>
     <table class="table">
         <thead><tr>
@@ -94,15 +130,7 @@
     <h1>Explore &amp; Filter</h1>
     <button class="btn btn-outline" onclick="downloadCsv()">⬇ Download filtered</button>
 </div>
-
-{% if wb_session_id %}
-<div class="phone-banner">
-    📊 Analyzing count: <strong>{{ wb_session_name }}</strong> — each item is tagged
-    Found or Missing for this count.
-    <a href="/report/{{ wb_session_id }}">← Back to the report</a> ·
-    <a href="/analysis">Clear count context</a>
-</div>
-{% endif %}
+<p class="card-subtitle">Live-filtered view — totals and charts below update as you filter.</p>
 
 <div class="card">
     <div class="explore-filters">
@@ -142,7 +170,7 @@
 
 <div class="card-grid mt" id="charts"></div>
 
-<div class="card mt">
+<div class="card mt" id="items">
     <div class="card-header">
         <h2>Matching Items (<span id="resCount">0</span>)</h2>
         <div class="dl-dropdown">
@@ -152,6 +180,23 @@
     </div>
     <div style="overflow-x:auto"><table class="table" id="resTable"><thead id="resHead"></thead><tbody id="resBody"></tbody></table></div>
 </div>
+
+</div><!-- /.analysis-main -->
+
+<aside class="analysis-rail">
+    <div class="rail-title">On this page</div>
+    <nav class="rail-nav">
+        <a href="#overview">📈 Overview</a>
+        <a href="#aging">⏳ Inventory Aging</a>
+        <a href="#offers">🏷️ Aged Stock (90+)</a>
+        <a href="#breakdown">🗂️ Type &amp; List</a>
+        <a href="#categories">💰 Value by Category</a>
+        <a href="#workbench">🔎 Explore &amp; Filter</a>
+        <a href="#charts">📊 Charts</a>
+        <a href="#items">📋 Matching Items</a>
+    </nav>
+</aside>
+</div><!-- /.analysis-layout -->
 
 <script id="itemsData" type="application/json">{{ items_json|safe }}</script>
 {% endblock %}
@@ -305,6 +350,24 @@ function downloadCsv(){
 document.querySelectorAll('.explore-filters select').forEach(e=>e.addEventListener('change', render));
 document.querySelectorAll('.explore-filters input, .explore-ranges input').forEach(e=>e.addEventListener('input', render));
 buildColMenu(); render();
-if (SESSION_CTX) document.getElementById('workbench').scrollIntoView();
+
+// Right-rail scrollspy: highlight the section currently in view
+(function(){
+    const links = Array.from(document.querySelectorAll('.rail-nav a'));
+    const map = {};
+    links.forEach(a => { const el = document.querySelector(a.getAttribute('href')); if (el) map[a.getAttribute('href')] = a; });
+    const targets = Object.keys(map).map(h => document.querySelector(h)).filter(Boolean);
+    if (!('IntersectionObserver' in window) || !targets.length) return;
+    const obs = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+            if (e.isIntersecting) {
+                links.forEach(l => l.classList.remove('active'));
+                const a = map['#' + e.target.id];
+                if (a) a.classList.add('active');
+            }
+        });
+    }, { rootMargin: '-10% 0px -70% 0px' });
+    targets.forEach(t => obs.observe(t));
+})();
 </script>
 {% endblock %}

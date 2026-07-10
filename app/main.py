@@ -912,6 +912,22 @@ async def analysis_page(request: Request, session_id: int = 0, db=Depends(get_db
                 aging["90+ days"] += 1
     aging_max = max(aging.values()) or 1
 
+    # Aged stock: in-stock items 90+ days old — candidates for offers/markdowns
+    async with db.execute("""
+        SELECT item_number, barcode, description, category, cost, retail_price,
+               inventory_age, item_status
+        FROM items WHERE COALESCE(sold,0)=0 AND inventory_age IS NOT NULL AND inventory_age != ''
+    """) as cur:
+        aged_rows = [dict(r) for r in await cur.fetchall()]
+    aged_items = []
+    for r in aged_rows:
+        raw = re.sub(r"[^0-9]", "", r["inventory_age"] or "")
+        if raw and int(raw) > 90:
+            r["age_days"] = int(raw)
+            aged_items.append(r)
+    aged_items.sort(key=lambda r: r["age_days"], reverse=True)
+    aged_retail = sum(r["retail_price"] or 0 for r in aged_items)
+
     max_cat = max([c["retail"] for c in by_cat], default=1) or 1
     wb = await load_workbench_data(db, session_id)
     return templates.TemplateResponse("analysis.html", {
@@ -919,8 +935,37 @@ async def analysis_page(request: Request, session_id: int = 0, db=Depends(get_db
         "cost_value": cost_value, "retail_value": retail_value, "margin": margin,
         "priced": priced, "unpriced": unpriced,
         "by_cat": by_cat, "by_type": by_type, "by_source": by_source, "max_cat": max_cat,
-        "aging": aging, "aging_max": aging_max, **wb,
+        "aging": aging, "aging_max": aging_max,
+        "aged_items": aged_items, "aged_count": len(aged_items), "aged_retail": aged_retail,
+        **wb,
     })
+
+
+@app.get("/analysis/aged.csv")
+async def aged_stock_csv(db=Depends(get_db)):
+    """Items in stock 90+ days — the offers/markdown candidate list."""
+    async with db.execute("""
+        SELECT item_number, barcode, description, category, cost, retail_price,
+               inventory_age, item_status
+        FROM items WHERE COALESCE(sold,0)=0 AND inventory_age IS NOT NULL AND inventory_age != ''
+    """) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    aged = []
+    for r in rows:
+        raw = re.sub(r"[^0-9]", "", r["inventory_age"] or "")
+        if raw and int(raw) > 90:
+            r["age_days"] = int(raw)
+            aged.append(r)
+    aged.sort(key=lambda r: r["age_days"], reverse=True)
+
+    def write(w):
+        w.writerow(["AGED STOCK 90+ DAYS — OFFER CANDIDATES", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        w.writerow(["Days in Stock", "Item #", "Barcode", "Description", "Category",
+                    "Status", "Cost", "Retail Price"])
+        for r in aged:
+            w.writerow([r["age_days"], r["item_number"], r["barcode"], r["description"],
+                        r["category"], r["item_status"], r["cost"], r["retail_price"]])
+    return _csv_response(write, "aged_stock_offers.csv")
 
 
 @app.get("/categories", response_class=HTMLResponse)
