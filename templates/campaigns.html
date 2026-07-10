@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Campaigns – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Campaigns &amp; Offers</h1>
+</div>
+
+<div class="card">
+    <h2>New Campaign from Aged Stock</h2>
+    <p class="card-subtitle">Bundle slow-moving items into a shareable offer. By default it pulls in-stock
+    items that have sat 90+ days — the ones most worth moving.</p>
+    <form method="POST" action="/campaigns/create" class="campaign-form">
+        <div class="form-group">
+            <label>Campaign name</label>
+            <input type="text" name="name" placeholder="e.g. Summer Clearance — Jewelry" required>
+        </div>
+        <div class="form-group">
+            <label>Short blurb (shown to customers)</label>
+            <input type="text" name="blurb" placeholder="Limited-time markdowns on select pieces">
+        </div>
+        <div class="cf-row">
+            <div class="form-group">
+                <label>Discount %</label>
+                <input type="number" name="discount_pct" value="20" min="0" max="90" step="1">
+            </div>
+            <div class="form-group">
+                <label>Minimum age (days)</label>
+                <input type="number" name="min_age" value="90" min="0" step="1">
+            </div>
+            <div class="form-group">
+                <label>Category (optional)</label>
+                <select name="category">
+                    <option value="">All categories</option>
+                    {% for c in categories %}<option value="{{ c.category }}">{{ c.category }} ({{ c.cnt }})</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Campaign</button>
+    </form>
+</div>
+
+<div class="card mt">
+    <h2>Your Campaigns</h2>
+    {% if campaigns %}
+    <table class="table">
+        <thead><tr><th>Name</th><th>Items</th><th>Discount</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+            {% for c in campaigns %}
+            <tr>
+                <td><strong>{{ c.name }}</strong>{% if c.blurb %}<div class="muted-sm">{{ c.blurb }}</div>{% endif %}</td>
+                <td>{{ c.item_count }}</td>
+                <td>{{ c.discount_pct|round|int }}%</td>
+                <td><span class="badge badge-{{ 'found' if c.status == 'active' else 'unknown' }}">{{ c.status }}</span></td>
+                <td>{{ c.created_at[:16] }}</td>
+                <td class="action-cell">
+                    <a href="/campaigns/{{ c.id }}" class="btn btn-sm btn-primary">Manage</a>
+                    {% if c.status == 'active' %}<a href="/offer/{{ c.id }}" target="_blank" class="btn btn-sm btn-outline">View public ↗</a>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No campaigns yet. Create one above to turn aged stock into an offer.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -124,6 +124,23 @@ async def init_db():
                 status TEXT DEFAULT 'new',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS campaigns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                blurb TEXT DEFAULT '',
+                discount_pct REAL DEFAULT 0,
+                status TEXT DEFAULT 'active',       -- active / ended
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS campaign_items (
+                campaign_id INTEGER NOT NULL,
+                item_number TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (campaign_id, item_number),
+                FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+            );
         """)
 
         # Seed the default store if none exist

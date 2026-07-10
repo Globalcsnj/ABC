@@ -9,6 +9,7 @@ try:
     import segno
 except ImportError:
     segno = None
+import asyncio
 import csv
 import io
 import json
@@ -16,6 +17,8 @@ import os
 import re
 import shutil
 import socket
+import urllib.parse
+import urllib.request
 import zipfile
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -41,7 +44,7 @@ AUTH_COOKIE = "abc_auth"
 AUTH_TOKEN = "abc-authed-ok"        # opaque cookie value set on login
 # Paths the public (customers) can reach without logging in
 PUBLIC_PREFIXES = ("/shop", "/welcome", "/hold", "/qr", "/barcode", "/static",
-                   "/uploads", "/login", "/api/shop", "/favicon")
+                   "/uploads", "/login", "/api/shop", "/favicon", "/offer")
 
 
 def get_lan_ip():
@@ -176,6 +179,94 @@ async def save_photo(photo, prefix: str) -> str:
     with open(os.path.join(UPLOAD_DIR, fname), "wb") as f:
         f.write(await photo.read())
     return fname
+
+
+# ── Reference-image suggestions (Openverse: openly/CC-licensed images) ─────────
+OPENVERSE_URL = "https://api.openverse.org/v1/images/"
+
+
+def _fetch_openverse(query: str, n: int = 8):
+    """Blocking call to Openverse; run in a thread. Returns a list of candidates
+    or raises. Only CC-licensed / public-domain images so they're safe to reuse."""
+    params = urllib.parse.urlencode({
+        "q": query, "page_size": n, "mature": "false",
+    })
+    req = urllib.request.Request(
+        OPENVERSE_URL + "?" + params,
+        headers={"User-Agent": "ABC-Pawnshop-Inventory/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    out = []
+    for r in data.get("results", []):
+        url = r.get("url")
+        if not url:
+            continue
+        out.append({
+            "url": url,
+            "thumb": r.get("thumbnail") or url,
+            "title": (r.get("title") or "")[:80],
+            "source": r.get("source") or "",
+            "license": (r.get("license") or "").upper(),
+            "creator": r.get("creator") or "",
+        })
+    return out
+
+
+def _download_image(url: str, prefix: str) -> str:
+    """Download a remote image into uploads/ so it serves offline. Returns the
+    stored filename or '' on failure."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ABC-Pawnshop-Inventory/1.0"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            data = resp.read()
+        ext = ".jpg"
+        for c, e in ((".png", ".png"), ("png", ".png"), ("webp", ".webp"),
+                     ("gif", ".gif"), ("jpeg", ".jpg"), ("jpg", ".jpg")):
+            if c in ctype:
+                ext = e
+                break
+        if len(data) > 8_000_000 or len(data) < 100:
+            return ""
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", prefix)
+        fname = f"{safe}{ext}"
+        with open(os.path.join(UPLOAD_DIR, fname), "wb") as f:
+            f.write(data)
+        return fname
+    except Exception:
+        return ""
+
+
+@app.get("/api/images/suggest")
+async def suggest_images(q: str = "", db=Depends(get_db)):
+    """Return CC-licensed candidate images for staff to review/approve."""
+    query = q.strip()
+    if not query:
+        return JSONResponse({"error": "Nothing to search for", "results": []})
+    try:
+        results = await asyncio.to_thread(_fetch_openverse, query)
+        return JSONResponse({"results": results, "query": query})
+    except Exception as e:
+        return JSONResponse({
+            "error": "Could not reach the image service (is the store PC online?).",
+            "detail": str(e)[:120], "results": [],
+        })
+
+
+@app.post("/api/images/approve")
+async def approve_image(item_number: str = Form(...), url: str = Form(...),
+                        db=Depends(get_db)):
+    """Staff approves a suggested image → download it locally and set it on the item."""
+    async with db.execute("SELECT item_number FROM items WHERE item_number=?", (item_number,)) as cur:
+        if not await cur.fetchone():
+            return JSONResponse({"error": "Item not found"}, status_code=404)
+    fname = await asyncio.to_thread(_download_image, url, f"item_{item_number}")
+    if not fname:
+        return JSONResponse({"error": "Could not download that image. Try another."}, status_code=400)
+    await db.execute("UPDATE items SET photo=? WHERE item_number=?", (fname, item_number))
+    await db.commit()
+    return JSONResponse({"ok": True, "photo": fname})
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -966,6 +1057,141 @@ async def aged_stock_csv(db=Depends(get_db)):
             w.writerow([r["age_days"], r["item_number"], r["barcode"], r["description"],
                         r["category"], r["item_status"], r["cost"], r["retail_price"]])
     return _csv_response(write, "aged_stock_offers.csv")
+
+
+# ── Campaigns (offers built from aged stock) ──────────────────────────────────
+def _offer_price(retail, discount_pct):
+    if retail is None:
+        return None
+    return round(retail * (1 - (discount_pct or 0) / 100.0), 2)
+
+
+@app.get("/campaigns", response_class=HTMLResponse)
+async def campaigns_page(request: Request, db=Depends(get_db)):
+    async with db.execute("""
+        SELECT c.*, COUNT(ci.item_number) as item_count
+        FROM campaigns c LEFT JOIN campaign_items ci ON ci.campaign_id = c.id
+        GROUP BY c.id ORDER BY c.created_at DESC
+    """) as cur:
+        campaigns = [dict(r) for r in await cur.fetchall()]
+    # Category list for the "create from aged stock" filter
+    async with db.execute("""
+        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category, COUNT(*) as cnt
+        FROM items WHERE COALESCE(sold,0)=0 GROUP BY category ORDER BY cnt DESC
+    """) as cur:
+        categories = [dict(r) for r in await cur.fetchall()]
+    return templates.TemplateResponse("campaigns.html", {
+        "request": request, "campaigns": campaigns, "categories": categories,
+    })
+
+
+@app.post("/campaigns/create")
+async def create_campaign(name: str = Form(...), blurb: str = Form(default=""),
+                          discount_pct: float = Form(default=0), min_age: int = Form(default=90),
+                          category: str = Form(default=""), db=Depends(get_db)):
+    async with db.execute(
+        "INSERT INTO campaigns (name, blurb, discount_pct) VALUES (?, ?, ?)",
+        (name.strip(), blurb.strip(), discount_pct)
+    ) as cur:
+        cid = cur.lastrowid
+
+    where = ["COALESCE(sold,0)=0", "inventory_age IS NOT NULL", "inventory_age != ''"]
+    params = []
+    if category:
+        where.append("COALESCE(NULLIF(category,''),'Uncategorized') = ?")
+        params.append(category)
+    async with db.execute(
+        f"SELECT item_number, inventory_age FROM items WHERE {' AND '.join(where)}", params
+    ) as cur:
+        rows = await cur.fetchall()
+    added = 0
+    for r in rows:
+        raw = re.sub(r"[^0-9]", "", r["inventory_age"] or "")
+        if raw and int(raw) >= min_age:
+            await db.execute(
+                "INSERT OR IGNORE INTO campaign_items (campaign_id, item_number) VALUES (?, ?)",
+                (cid, r["item_number"])
+            )
+            added += 1
+    await db.commit()
+    return RedirectResponse(f"/campaigns/{cid}", status_code=303)
+
+
+@app.get("/campaigns/{campaign_id}", response_class=HTMLResponse)
+async def campaign_detail(request: Request, campaign_id: int, db=Depends(get_db)):
+    async with db.execute("SELECT * FROM campaigns WHERE id=?", (campaign_id,)) as cur:
+        campaign = await cur.fetchone()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    async with db.execute("""
+        SELECT i.item_number, i.description, i.category, i.photo, i.retail_price, i.inventory_age
+        FROM campaign_items ci JOIN items i ON i.item_number = ci.item_number
+        WHERE ci.campaign_id = ? ORDER BY i.category, i.description
+    """, (campaign_id,)) as cur:
+        items = [dict(r) for r in await cur.fetchall()]
+    disc = campaign["discount_pct"] or 0
+    for it in items:
+        it["offer_price"] = _offer_price(it["retail_price"], disc)
+    with_img = sum(1 for it in items if it["photo"])
+    return templates.TemplateResponse("campaign_detail.html", {
+        "request": request, "c": campaign, "items": items,
+        "with_img": with_img, "total_items": len(items),
+    })
+
+
+@app.post("/campaigns/{campaign_id}/remove-item")
+async def campaign_remove_item(campaign_id: int, item_number: str = Form(...), db=Depends(get_db)):
+    await db.execute(
+        "DELETE FROM campaign_items WHERE campaign_id=? AND item_number=?",
+        (campaign_id, item_number)
+    )
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/campaigns/{campaign_id}/status")
+async def campaign_set_status(campaign_id: int, status: str = Form(...), db=Depends(get_db)):
+    if status not in ("active", "ended"):
+        return JSONResponse({"error": "bad status"}, status_code=400)
+    await db.execute("UPDATE campaigns SET status=? WHERE id=?", (status, campaign_id))
+    await db.commit()
+    return RedirectResponse(f"/campaigns/{campaign_id}", status_code=303)
+
+
+@app.post("/campaigns/{campaign_id}/delete")
+async def campaign_delete(campaign_id: int, override: str = Form(...), db=Depends(get_db)):
+    if override.strip() != OVERRIDE_CODE:
+        return JSONResponse({"error": "Invalid override code"}, status_code=403)
+    await db.execute("DELETE FROM campaign_items WHERE campaign_id=?", (campaign_id,))
+    await db.execute("DELETE FROM campaigns WHERE id=?", (campaign_id,))
+    await db.commit()
+    return RedirectResponse("/campaigns", status_code=303)
+
+
+@app.get("/offer/{campaign_id}", response_class=HTMLResponse)
+async def public_offer_page(request: Request, campaign_id: int, db=Depends(get_db)):
+    """Customer-facing campaign/offer page (public)."""
+    async with db.execute(
+        "SELECT * FROM campaigns WHERE id=? AND status='active'", (campaign_id,)
+    ) as cur:
+        campaign = await cur.fetchone()
+    if not campaign:
+        raise HTTPException(404, "This offer is no longer available")
+    async with db.execute("""
+        SELECT i.item_number, i.description, i.category, i.photo, i.retail_price
+        FROM campaign_items ci JOIN items i ON i.item_number = ci.item_number
+        WHERE ci.campaign_id = ? AND COALESCE(i.sold,0)=0
+        ORDER BY i.category, i.description
+    """, (campaign_id,)) as cur:
+        items = [dict(r) for r in await cur.fetchall()]
+    disc = campaign["discount_pct"] or 0
+    for it in items:
+        it["offer_price"] = _offer_price(it["retail_price"], disc)
+    async with db.execute("SELECT name, address FROM stores ORDER BY id LIMIT 1") as cur:
+        store = await cur.fetchone()
+    return templates.TemplateResponse("offer.html", {
+        "request": request, "c": campaign, "items": items, "store": store,
+    })
 
 
 @app.get("/categories", response_class=HTMLResponse)

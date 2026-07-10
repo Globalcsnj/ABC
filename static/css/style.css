@@ -872,6 +872,57 @@ html { scroll-behavior: smooth; }
 .aged-summary { margin-bottom: 10px; color: var(--gray-700); }
 .badge-old { background: #fee2e2; color: #991b1b; }
 
+/* Campaigns */
+.campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.campaign-form .cf-row .form-group { flex: 1; min-width: 140px; }
+.muted-sm { font-size: 12px; color: var(--gray-500); }
+.campaign-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 14px; margin-top: 12px;
+}
+.campaign-item { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; background: white; }
+.ci-img, .prod-img { position: relative; }
+.ci-img { height: 150px; display: flex; align-items: center; justify-content: center; background: var(--gray-100); }
+.ci-img img { width: 100%; height: 100%; object-fit: cover; }
+.ci-noimg { font-size: 40px; color: var(--gray-300); }
+.ci-body { padding: 10px; }
+.ci-desc { font-weight: 600; font-size: 13px; line-height: 1.3; margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ci-meta { font-size: 11px; color: var(--gray-500); margin-bottom: 6px; }
+.ci-price { margin-bottom: 8px; }
+.ci-old { text-decoration: line-through; color: var(--gray-400); font-size: 13px; margin-right: 6px; }
+.ci-new { color: var(--danger); font-weight: 700; font-size: 16px; }
+.ci-actions { display: flex; gap: 6px; }
+
+/* Image picker modal */
+.img-modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000;
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+.img-modal.hidden { display: none; }
+.img-modal-box { background: white; border-radius: 12px; max-width: 760px; width: 100%;
+    max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+.img-modal-head { display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid var(--gray-200); }
+.img-modal-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--gray-500); }
+.img-modal-note { padding: 8px 18px; font-size: 12px; color: var(--gray-500); }
+.img-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr));
+    gap: 10px; padding: 14px 18px; overflow-y: auto; }
+.img-choice { border: 2px solid var(--gray-200); border-radius: 8px; overflow: hidden; cursor: pointer;
+    transition: border-color .15s; }
+.img-choice:hover { border-color: var(--primary); }
+.img-choice.picking { opacity: .5; pointer-events: none; }
+.img-choice img { width: 100%; height: 110px; object-fit: cover; display: block; }
+.img-choice-meta { font-size: 10px; color: var(--gray-500); padding: 4px 6px; }
+
+/* Public offer page */
+.offer-hero { text-align: center; padding: 34px 20px 24px; background: linear-gradient(135deg,#1e3a8a,#3b82f6); color: white; }
+.offer-hero h1 { margin: 8px 0 6px; font-size: 26px; }
+.offer-hero p { opacity: .95; margin: 0 0 6px; }
+.offer-hero-sub { font-size: 13px; opacity: .85; }
+.offer-badge { display: inline-block; background: #fbbf24; color: #78350f; font-weight: 800;
+    padding: 4px 14px; border-radius: 999px; font-size: 14px; letter-spacing: .03em; }
+.offer-tag { position: absolute; top: 8px; left: 8px; background: var(--danger); color: white;
+    font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+
 /* Print */
 @media print {
     .navbar, .btn, .page-header form { display: none; }

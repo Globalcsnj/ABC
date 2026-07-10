@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ c.name }} – {{ store.name if store else 'ABC MoneyLoan' }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="shop-body">
+    <header class="shop-topbar">
+        <a href="/shop" class="shop-logo"><img src="/static/media/logo.png?v=2" class="brand-logo" onerror="this.onerror=null;this.src='/static/media/logo.svg?v=2'" alt="ABC MoneyLoan"></a>
+        <a href="/shop" class="shop-cart-link">Shop all →</a>
+    </header>
+
+    <div class="offer-hero">
+        <div class="offer-badge">{{ c.discount_pct|round|int }}% OFF</div>
+        <h1>{{ c.name }}</h1>
+        {% if c.blurb %}<p>{{ c.blurb }}</p>{% endif %}
+        <div class="offer-hero-sub">Limited-time offer at {{ store.name if store else 'ABC MoneyLoan' }}{% if store and store.address %} · {{ store.address }}{% endif %}</div>
+    </div>
+
+    <main class="container">
+        {% if items %}
+        <div class="prod-grid">
+            {% for it in items %}
+            <div class="prod-card">
+                <div class="prod-img">
+                    {% if it.photo %}<img src="/uploads/{{ it.photo }}" alt="{{ it.description }}">{% else %}<div class="prod-noimg">📦</div>{% endif %}
+                    <span class="offer-tag">{{ c.discount_pct|round|int }}% off</span>
+                </div>
+                <div class="prod-info">
+                    <div class="prod-name">{{ it.description or 'Item' }}</div>
+                    <div class="prod-cat">{{ it.category or '' }}</div>
+                    <div class="prod-price">
+                        {% if it.retail_price %}
+                        <span class="ci-old">${{ "%.2f"|format(it.retail_price) }}</span>
+                        <span class="ci-new">${{ "%.2f"|format(it.offer_price) }}</span>
+                        {% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="shop-empty">These items just sold out. Check back soon or visit us in store!</div>
+        {% endif %}
+    </main>
+
+    <footer class="shop-footer">Offer prices shown are for in-store purchase. Availability may change — ask our staff about any item.</footer>
+</body>
+</html>

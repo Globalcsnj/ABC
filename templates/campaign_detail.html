@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} – Campaign{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ c.name }}</h1>
+    <div class="header-actions">
+        {% if c.status == 'active' %}
+        <a href="/offer/{{ c.id }}" target="_blank" class="btn btn-primary">View public page ↗</a>
+        <form method="POST" action="/campaigns/{{ c.id }}/status"><input type="hidden" name="status" value="ended">
+            <button class="btn btn-outline">End campaign</button></form>
+        {% else %}
+        <form method="POST" action="/campaigns/{{ c.id }}/status"><input type="hidden" name="status" value="active">
+            <button class="btn btn-primary">Re-activate</button></form>
+        {% endif %}
+        <button class="btn btn-danger" onclick="deleteCampaign()">Delete</button>
+    </div>
+</div>
+
+<div class="stat-row dash-stats">
+    <div class="stat-card"><div class="stat-num">{{ total_items }}</div><div class="stat-label">Items</div></div>
+    <div class="stat-card"><div class="stat-num">{{ c.discount_pct|round|int }}%</div><div class="stat-label">Discount</div></div>
+    <div class="stat-card stat-found"><div class="stat-num">{{ with_img }}</div><div class="stat-label">With image</div></div>
+    <div class="stat-card stat-missing"><div class="stat-num">{{ total_items - with_img }}</div><div class="stat-label">Need image</div></div>
+</div>
+
+{% if c.blurb %}<p class="card-subtitle mt">{{ c.blurb }}</p>{% endif %}
+
+<div class="card mt">
+    <h2>Items in this campaign</h2>
+    <p class="card-subtitle">Each item shows its regular price and the offer price after the discount.
+    Use <strong>Find image</strong> to pull licensed reference photos — you approve one before it appears publicly.</p>
+    {% if items %}
+    <div class="campaign-grid">
+        {% for it in items %}
+        <div class="campaign-item" id="ci-{{ it.item_number }}" data-q="{{ it.description or it.category }}">
+            <div class="ci-img" id="img-{{ it.item_number }}">
+                {% if it.photo %}<img src="/uploads/{{ it.photo }}?v={{ range(1,9999)|random }}" alt="">{% else %}<div class="ci-noimg">📦</div>{% endif %}
+            </div>
+            <div class="ci-body">
+                <div class="ci-desc">{{ it.description or 'Item' }}</div>
+                <div class="ci-meta"><code>{{ it.item_number }}</code> · {{ it.category or '—' }}</div>
+                <div class="ci-price">
+                    {% if it.retail_price %}
+                    <span class="ci-old">${{ "%.2f"|format(it.retail_price) }}</span>
+                    <span class="ci-new">${{ "%.2f"|format(it.offer_price) }}</span>
+                    {% else %}<span class="ask-price">No price set</span>{% endif %}
+                </div>
+                <div class="ci-actions">
+                    <button class="btn btn-sm btn-outline" onclick="findImages('{{ it.item_number }}')">🔍 Find image</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeItem('{{ it.item_number }}')">Remove</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No items in this campaign. Items over the age threshold may not have had an Inventory Age value.</div>
+    {% endif %}
+</div>
+
+<!-- Image picker modal -->
+<div class="img-modal hidden" id="imgModal">
+    <div class="img-modal-box">
+        <div class="img-modal-head">
+            <strong id="imgModalTitle">Choose an image</strong>
+            <button class="img-modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="img-modal-note">Openly-licensed images (Openverse). Pick the closest match — it downloads to the store and shows on the offer page.</div>
+        <div class="img-results" id="imgResults"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CID = {{ c.id }};
+let modalItem = null;
+
+async function findImages(itemNumber){
+    modalItem = itemNumber;
+    const q = document.getElementById('ci-'+itemNumber).dataset.q || '';
+    document.getElementById('imgModalTitle').textContent = 'Images for: ' + q;
+    document.getElementById('imgResults').innerHTML = '<div class="empty-state">⏳ Searching…</div>';
+    document.getElementById('imgModal').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/images/suggest?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (data.error && !(data.results||[]).length){
+            document.getElementById('imgResults').innerHTML =
+                `<div class="empty-state">${data.error}<br><small>You can still upload a photo from the item edit page.</small></div>`;
+            return;
+        }
+        if (!data.results.length){
+            document.getElementById('imgResults').innerHTML = '<div class="empty-state">No matches. Try editing the item description.</div>';
+            return;
+        }
+        document.getElementById('imgResults').innerHTML = data.results.map(r=>`
+            <div class="img-choice" onclick="approve('${r.url.replace(/'/g,"%27")}', this)">
+                <img src="${r.thumb}" loading="lazy" alt="">
+                <div class="img-choice-meta">${r.license || 'CC'}${r.creator ? ' · ' + r.creator : ''}</div>
+            </div>`).join('');
+    } catch(e){
+        document.getElementById('imgResults').innerHTML = '<div class="empty-state">Search failed. Check the store PC connection.</div>';
+    }
+}
+
+async function approve(url, el){
+    el.classList.add('picking');
+    const body = new FormData();
+    body.append('item_number', modalItem);
+    body.append('url', url);
+    const res = await fetch('/api/images/approve', {method:'POST', body});
+    const data = await res.json();
+    if (data.ok){
+        document.getElementById('img-'+modalItem).innerHTML =
+            `<img src="/uploads/${data.photo}?v=${Date.now()}" alt="">`;
+        closeModal();
+    } else {
+        el.classList.remove('picking');
+        alert(data.error || 'Could not save that image.');
+    }
+}
+
+function closeModal(){ document.getElementById('imgModal').classList.add('hidden'); }
+document.getElementById('imgModal').addEventListener('click', e=>{ if(e.target.id==='imgModal') closeModal(); });
+
+async function removeItem(itemNumber){
+    if(!confirm('Remove this item from the campaign?')) return;
+    const body = new FormData(); body.append('item_number', itemNumber);
+    const res = await fetch(`/campaigns/${CID}/remove-item`, {method:'POST', body});
+    if(res.ok){ const el=document.getElementById('ci-'+itemNumber); if(el) el.remove(); }
+}
+
+function deleteCampaign(){
+    const code = prompt('Enter override code to delete this campaign:');
+    if(!code) return;
+    const f = document.createElement('form');
+    f.method='POST'; f.action=`/campaigns/${CID}/delete`;
+    f.innerHTML = `<input type="hidden" name="override" value="${code}">`;
+    document.body.appendChild(f); f.submit();
+}
+</script>
+{% endblock %}
