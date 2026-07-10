@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" fill="#0B1421"/>
+  <rect x="30" y="30" width="40" height="40" rx="9" fill="url(#g)"/>
+  <text x="50" y="63" font-family="Georgia, serif" font-size="30" font-weight="700" fill="#1a1205" text-anchor="middle">A</text>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E8C06A"/><stop offset="1" stop-color="#B07E22"/></linearGradient></defs>
+</svg>
+</template>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Public Sans', system-ui, sans-serif; color: #0E1A2B; background: #F5F2EC; -webkit-font-smoothing: antialiased; }
+  ::selection { background: #C08A2D; color: #fff; }
+  @keyframes kb { 0% { transform: scale(1.08) translate(0,0); } 100% { transform: scale(1.22) translate(-2%,-3%); } }
+  @keyframes sheen { 0% { transform: translateX(-120%); } 60%,100% { transform: translateX(220%); } }
+  @keyframes pulsering { 0% { transform: scale(1); opacity: .75; } 100% { transform: scale(2.6); opacity: 0; } }
+  @keyframes hue { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(24deg); } }
+  @keyframes floatin { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: translateY(0); } }
+  @keyframes sceneKb { 0% { transform: scale(1.02); } 100% { transform: scale(1.12); } }
+  @keyframes floaty { 0% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-16px) rotate(1.5deg); } 100% { transform: translateY(0) rotate(-1deg); } }
+  @keyframes twinkle { 0%,100% { opacity: .15; transform: scale(.5) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+  @keyframes chipshine { 0% { transform: translateX(-160%) skewX(-16deg); } 55%,100% { transform: translateX(320%) skewX(-16deg); } }
+  input, select, button, textarea { font-family: inherit; }
+  @media (max-width: 880px) { [data-chips] { display: none !important; } }
+</style>
+<script src="./image-slot.js"></script>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column; background:#F5F2EC;">
+
+  <!-- ============ HEADER ============ -->
+  <header style="position:sticky; top:0; z-index:50; background:#ffffff; border-bottom:1px solid #e6e0d3; box-shadow:0 1px 12px rgba(14,26,43,.06);">
+    <div style="max-width:1240px; margin:0 auto; padding:0 22px; height:70px; display:flex; align-items:center; gap:20px;">
+      <button onClick="{{ goHome }}" style="display:flex; align-items:center; gap:11px; background:none; border:none; cursor:pointer; padding:0;">
+        <img src="logo-cut.png" alt="ABC MoneyLoan — America's Pawnshop" style="height:40px; width:auto; display:block;" />
+      </button>
+
+      <form onSubmit="{{ onSearchSubmit }}" style="flex:1; max-width:440px; margin:0 auto; display:flex; align-items:center; gap:8px; background:#f4f1ea; border:1px solid #e0d9cb; border-radius:10px; padding:0 12px; height:42px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8a97a6" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input value="{{ search }}" onInput="{{ onSearchInput }}" placeholder="Search gold, diamonds, games, cameras…" style="flex:1; background:none; border:none; outline:none; color:#0E1A2B; font-size:14px;" />
+      </form>
+
+      <nav style="display:flex; align-items:center; gap:6px;">
+        <button onClick="{{ goShop }}" style="background:none; border:none; cursor:pointer; color:#31414f; font-size:14px; font-weight:600; padding:8px 12px; border-radius:8px;" style-hover="background:rgba(14,26,43,0.06); color:#0E1A2B;">Shop</button>
+        <button onClick="{{ goVisit }}" style="background:none; border:none; cursor:pointer; color:#31414f; font-size:14px; font-weight:600; padding:8px 12px; border-radius:8px;" style-hover="background:rgba(14,26,43,0.06); color:#0E1A2B;">Visit Us</button>
+        <button onClick="{{ goCart }}" style="position:relative; display:flex; align-items:center; gap:8px; background:linear-gradient(145deg,#E8C06A,#B07E22); border:none; cursor:pointer; color:#1a1205; font-size:14px; font-weight:700; padding:9px 15px; border-radius:9px; margin-left:6px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1a1205" stroke-width="2.2"><path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M6 6L5 3H2"/></svg>
+          Cart
+          <sc-if value="{{ cartHasItems }}" hint-placeholder-val="{{ true }}"><span style="position:absolute; top:-7px; right:-7px; min-width:20px; height:20px; padding:0 5px; border-radius:10px; background:#1F9D5B; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; border:2px solid #ffffff;">{{ cartCount }}</span></sc-if>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main style="flex:1;">
+
+  <!-- ============ LANDING ============ -->
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+  <div style="animation:floatin .4s ease;">
+
+    <!-- HERO — animated story -->
+    <section style="position:relative; overflow:hidden; background:#09101A; min-height:calc(100vh - 70px); display:flex; align-items:center;">
+
+      <!-- SCENE PHOTOS (crossfade) -->
+      <sc-for list="{{ heroScenes }}" as="sc" hint-placeholder-count="3">
+        <div style="{{ sc.sceneStyle }}">
+          <div style="position:absolute; inset:0; overflow:hidden;">
+            <div style="position:absolute; inset:-6%; animation:sceneKb 18s ease-in-out infinite alternate; filter:brightness(1.18) saturate(1.15) contrast(1.02);">
+              <div style="position:absolute; inset:0; background:{{ sc.fallback }};"></div>
+              <image-slot id="{{ sc.slotId }}" shape="rect" fit="cover" src="hero-bg.png" placeholder="{{ sc.placeholder }}" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+            </div>
+          </div>
+          <div style="position:absolute; inset:0; background:linear-gradient(90deg,rgba(9,16,26,0.82) 0%,rgba(9,16,26,0.34) 48%,rgba(9,16,26,0.05) 100%);"></div>
+          <div style="position:absolute; inset:0; background:linear-gradient(0deg,rgba(9,16,26,0.4),transparent 42%);"></div>
+        </div>
+      </sc-for>
+
+      <!-- SPARKLE + SHINE LAYER -->
+      <div style="position:absolute; inset:0; z-index:3; pointer-events:none; overflow:hidden;">
+        <div style="position:absolute; top:0; bottom:0; left:0; width:44%; background:linear-gradient(105deg,transparent,rgba(232,192,106,0.14),transparent); animation:sheen 6.5s ease-in-out infinite;"></div>
+        <span style="position:absolute; top:20%; left:52%; width:9px; height:9px; background:#F4D98B; box-shadow:0 0 10px 2px rgba(244,217,139,.8); animation:twinkle 2.4s ease-in-out infinite;"></span>
+        <span style="position:absolute; top:64%; left:48%; width:6px; height:6px; background:#fff; box-shadow:0 0 8px 2px rgba(255,255,255,.7); animation:twinkle 3.1s ease-in-out infinite .6s;"></span>
+        <span style="position:absolute; top:34%; left:74%; width:11px; height:11px; background:#F4D98B; box-shadow:0 0 12px 3px rgba(244,217,139,.8); animation:twinkle 2.8s ease-in-out infinite 1.1s;"></span>
+        <span style="position:absolute; top:78%; left:80%; width:7px; height:7px; background:#F4D98B; box-shadow:0 0 9px 2px rgba(244,217,139,.7); animation:twinkle 2.2s ease-in-out infinite .3s;"></span>
+        <span style="position:absolute; top:14%; left:88%; width:8px; height:8px; background:#fff; box-shadow:0 0 9px 2px rgba(255,255,255,.7); animation:twinkle 3.4s ease-in-out infinite 1.6s;"></span>
+        <span style="position:absolute; top:50%; left:64%; width:6px; height:6px; background:#F4D98B; box-shadow:0 0 8px 2px rgba(244,217,139,.7); animation:twinkle 2.6s ease-in-out infinite .9s;"></span>
+      </div>
+
+      <!-- FLYING MERCHANDISE CHIPS (clickable categories) -->
+      <button onClick="{{ heroNav.diamond }}" title="Shop diamond rings" data-chips style="position:absolute; top:19%; left:56%; z-index:4; background:none; border:none; cursor:pointer; padding:0; animation:floaty 6.5s ease-in-out infinite;">
+        <span style="position:relative; display:block; width:74px; height:74px; border-radius:19px; overflow:hidden; background:linear-gradient(150deg,#33507a,#141f30); border:1px solid rgba(232,192,106,0.55); box-shadow:0 14px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,0.06);">
+          <img src="https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=300&q=80" alt="Diamond ring" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+          <span style="position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);"></span>
+          <span style="position:absolute; top:0; bottom:0; left:0; width:42%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.6),transparent); animation:chipshine 5s ease-in-out infinite;"></span>
+        </span>
+        <span style="display:block; margin-top:8px; text-align:center; font-size:10.5px; font-weight:800; letter-spacing:.8px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7);">DIAMONDS</span>
+      </button>
+
+      <button onClick="{{ heroNav.gold }}" title="Shop gold" data-chips style="position:absolute; top:44%; left:70%; z-index:4; background:none; border:none; cursor:pointer; padding:0; animation:floaty 7.2s ease-in-out infinite; animation-delay:-1.6s;">
+        <span style="position:relative; display:block; width:78px; height:78px; border-radius:20px; overflow:hidden; background:linear-gradient(150deg,#E8C06A,#9c6f1e); border:1px solid rgba(255,240,200,0.6); box-shadow:0 16px 34px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,0.14);">
+          <img src="https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=300&q=80" alt="Gold chain" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+          <span style="position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.18);"></span>
+          <span style="position:absolute; top:0; bottom:0; left:0; width:42%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.8),transparent); animation:chipshine 4.4s ease-in-out infinite .4s;"></span>
+        </span>
+        <span style="display:block; margin-top:8px; text-align:center; font-size:10.5px; font-weight:800; letter-spacing:.8px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7);">FINE GOLD</span>
+      </button>
+
+      <button onClick="{{ heroNav.games }}" title="Shop games &amp; consoles" data-chips style="position:absolute; top:69%; left:54%; z-index:4; background:none; border:none; cursor:pointer; padding:0; animation:floaty 6.8s ease-in-out infinite; animation-delay:-3.2s;">
+        <span style="position:relative; display:block; width:74px; height:74px; border-radius:19px; overflow:hidden; background:linear-gradient(150deg,#3d5a86,#182640); border:1px solid rgba(232,192,106,0.5); box-shadow:0 14px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,0.06);">
+          <img src="https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&w=300&q=80" alt="Controller" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+          <span style="position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);"></span>
+          <span style="position:absolute; top:0; bottom:0; left:0; width:42%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.6),transparent); animation:chipshine 5.3s ease-in-out infinite .8s;"></span>
+        </span>
+        <span style="display:block; margin-top:8px; text-align:center; font-size:10.5px; font-weight:800; letter-spacing:.8px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7);">GAMES</span>
+      </button>
+
+      <button onClick="{{ heroNav.watch }}" title="Shop watches" data-chips style="position:absolute; top:25%; left:83%; z-index:4; background:none; border:none; cursor:pointer; padding:0; animation:floaty 7.6s ease-in-out infinite; animation-delay:-0.9s;">
+        <span style="position:relative; display:block; width:66px; height:66px; border-radius:17px; overflow:hidden; background:linear-gradient(150deg,#4a4152,#211a2c); border:1px solid rgba(232,192,106,0.5); box-shadow:0 12px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,0.06);">
+          <img src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=300&q=80" alt="Wristwatch" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+          <span style="position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);"></span>
+          <span style="position:absolute; top:0; bottom:0; left:0; width:42%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.55),transparent); animation:chipshine 4.8s ease-in-out infinite .2s;"></span>
+        </span>
+        <span style="display:block; margin-top:8px; text-align:center; font-size:10px; font-weight:800; letter-spacing:.8px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7);">WATCHES</span>
+      </button>
+
+      <button onClick="{{ heroNav.camera }}" title="Shop cameras &amp; laptops" data-chips style="position:absolute; top:60%; left:86%; z-index:4; background:none; border:none; cursor:pointer; padding:0; animation:floaty 6.2s ease-in-out infinite; animation-delay:-2.4s;">
+        <span style="position:relative; display:block; width:68px; height:68px; border-radius:17px; overflow:hidden; background:linear-gradient(150deg,#2f5148,#0f211c); border:1px solid rgba(232,192,106,0.5); box-shadow:0 12px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,0.06);">
+          <img src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=300&q=80" alt="Camera" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+          <span style="position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);"></span>
+          <span style="position:absolute; top:0; bottom:0; left:0; width:42%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.55),transparent); animation:chipshine 5.6s ease-in-out infinite 1s;"></span>
+        </span>
+        <span style="display:block; margin-top:8px; text-align:center; font-size:10px; font-weight:800; letter-spacing:.8px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.7);">CAMERAS</span>
+      </button>
+
+      <!-- LIVE badge -->
+      <div style="position:absolute; top:22px; left:22px; z-index:6; display:flex; align-items:center; gap:8px; background:rgba(9,16,26,0.6); border:1px solid rgba(255,255,255,0.16); border-radius:20px; padding:6px 13px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 0 0 rgba(255,77,77,.7); animation:pulsering 1.6s ease-out infinite;"></span>
+        <span style="color:#fff; font-size:11px; font-weight:700; letter-spacing:1.5px;">LIVE · REAL FLOOR INVENTORY</span>
+      </div>
+
+      <!-- NARRATIVE -->
+      <div style="position:relative; z-index:5; max-width:1240px; margin:0 auto; padding:70px 22px; width:100%; pointer-events:none;">
+        <div style="max-width:560px;">
+          <div style="position:relative; min-height:250px;">
+            <sc-for list="{{ heroScenes }}" as="sc" hint-placeholder-count="3">
+              <div style="{{ sc.blockStyle }}">
+                <span style="display:inline-block; color:#E8C06A; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; margin-bottom:16px;">{{ sc.eyebrow }}</span>
+                <h1 data-hero-title style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:clamp(38px,6vw,62px); line-height:1.02; color:#fff; margin:0 0 16px; letter-spacing:-0.5px; text-wrap:balance;">{{ sc.title }}</h1>
+                <p style="font-size:clamp(15px,1.6vw,18px); line-height:1.55; color:#d7dfea; margin:0; max-width:470px;">{{ sc.sub }}</p>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:26px; pointer-events:auto;">
+            <button onClick="{{ goShop }}" style="display:flex; align-items:center; gap:9px; background:linear-gradient(145deg,#E8C06A,#B07E22); border:none; cursor:pointer; color:#1a1205; font-size:16px; font-weight:700; padding:15px 26px; border-radius:11px; box-shadow:0 8px 26px rgba(192,138,45,.4);">Browse the Shop
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1205" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+            <button onClick="{{ goVisit }}" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.22); cursor:pointer; color:#fff; font-size:16px; font-weight:600; padding:15px 24px; border-radius:11px;">Visit Us in Trenton</button>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:26px; pointer-events:auto;">
+            <sc-for list="{{ heroScenes }}" as="sc" hint-placeholder-count="3">
+              <button onClick="{{ sc.onDot }}" title="{{ sc.eyebrow }}" style="{{ sc.dotStyle }}"></button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRUST STRIP -->
+    <section style="background:#0E1A2B; border-top:1px solid rgba(192,138,45,0.3);">
+      <div style="max-width:1240px; margin:0 auto; padding:22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px;">
+        <sc-for list="{{ trustItems }}" as="t" hint-placeholder-count="4">
+          <div style="display:flex; align-items:center; gap:13px;">
+            <span style="flex-shrink:0; width:40px; height:40px; border-radius:10px; background:rgba(232,192,106,0.14); display:flex; align-items:center; justify-content:center; color:#E8C06A; font-size:19px;">{{ t.icon }}</span>
+            <div><div style="color:#fff; font-weight:700; font-size:14px;">{{ t.title }}</div><div style="color:#8ea0b5; font-size:12.5px; margin-top:2px;">{{ t.sub }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- SHOP BY CATEGORY -->
+    <section style="max-width:1240px; margin:0 auto; padding:64px 22px 20px;">
+      <div style="display:flex; align-items:end; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:26px;">
+        <div>
+          <span style="color:#B07E22; font-size:12px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase;">The Floor</span>
+          <h2 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:38px; margin:6px 0 0; color:#0E1A2B;">Shop by category</h2>
+        </div>
+        <button onClick="{{ goShop }}" style="background:none; border:none; cursor:pointer; color:#B07E22; font-weight:700; font-size:14px; display:flex; align-items:center; gap:6px;">View everything <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B07E22" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;">
+        <sc-for list="{{ categoryTiles }}" as="c" hint-placeholder-count="6">
+          <button onClick="{{ c.select }}" style="position:relative; overflow:hidden; text-align:left; cursor:pointer; border:1px solid #e3ddd0; border-radius:16px; padding:0; height:180px; display:flex; flex-direction:column; justify-content:flex-end; background:#0E1A2B;" style-hover="border-color:#C08A2D; transform:translateY(-3px); box-shadow:0 14px 34px rgba(14,26,43,.14);">
+            {{ c.photoEl }}
+            <span style="position:absolute; inset:0; background:linear-gradient(180deg,rgba(11,20,33,0.05) 30%,rgba(11,20,33,0.82));"></span>
+            <div style="position:relative; padding:16px;">
+              <div style="color:#fff; font-family:'Cormorant Garamond',serif; font-weight:700; font-size:23px; line-height:1.05; text-shadow:0 2px 10px rgba(0,0,0,.4);">{{ c.title }}</div>
+              <div style="color:#e8c06a; font-size:12.5px; font-weight:600; margin-top:4px; text-shadow:0 1px 6px rgba(0,0,0,.5);">{{ c.sub }}</div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- JUST IN -->
+    <section style="max-width:1240px; margin:0 auto; padding:44px 22px 20px;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+        <h2 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:32px; margin:0; color:#0E1A2B;">Just in on the floor</h2>
+        <span style="background:#1F9D5B; color:#fff; font-size:11px; font-weight:800; letter-spacing:1px; padding:4px 9px; border-radius:6px;">NEW</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:20px;">
+        <sc-for list="{{ featured }}" as="p" hint-placeholder-count="4">
+          <dc-import name="ProductCard" item="{{ p }}" hint-size="100%,360px"></dc-import>
+        </sc-for>
+      </div>
+    </section>
+
+    </section>
+
+    <!-- VISIT US -->
+    <section id="visit" style="max-width:1240px; margin:0 auto; padding:56px 22px 72px;">
+      <div style="background:#0E1A2B; border-radius:22px; overflow:hidden; display:grid; grid-template-columns:1.05fr 1fr;">
+        <div style="padding:48px;">
+          <span style="color:#E8C06A; font-size:12px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase;">Family-run since 1998</span>
+          <h2 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:40px; color:#fff; margin:10px 0 18px;">Come see it in person</h2>
+          <p style="color:#c3cedb; font-size:16px; line-height:1.6; margin:0 0 26px; max-width:420px;">Reserve online and we'll hold it at the counter. Our staff can walk you through condition, purity, and value — no pressure, no surprises.</p>
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; gap:13px; align-items:flex-start;">
+              <span style="color:#E8C06A; margin-top:2px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8C06A" stroke-width="2"><path d="M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <div><div style="color:#fff; font-weight:700; font-size:16px;">146 E. State Street</div><div style="color:#9fb0c4; font-size:14px;">Trenton, NJ 08608</div><a href="https://www.google.com/maps/dir/?api=1&destination=146+E+State+St,+Trenton,+NJ+08608" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; color:#E8C06A; font-size:13px; font-weight:700; text-decoration:none;" style-hover="text-decoration:underline;">Get directions <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8C06A" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+            </div>
+            <div style="display:flex; gap:13px; align-items:flex-start;">
+              <span style="color:#E8C06A; margin-top:2px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8C06A" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+              <div><div style="color:#fff; font-weight:700; font-size:16px;">Mon–Sat · 9 AM – 6 PM</div><div style="color:#9fb0c4; font-size:14px;">Online holds honored until 4 PM same day</div></div>
+            </div>
+          </div>
+          <button onClick="{{ goShop }}" style="margin-top:30px; background:linear-gradient(145deg,#E8C06A,#B07E22); border:none; cursor:pointer; color:#1a1205; font-size:15px; font-weight:700; padding:14px 24px; border-radius:11px;">Start browsing</button>
+        </div>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=146+E+State+St,+Trenton,+NJ+08608" target="_blank" rel="noopener" title="Open directions in Google Maps" style="position:relative; background:linear-gradient(140deg,#1c3350,#0a1220); min-height:340px; display:flex; align-items:center; justify-content:center; text-decoration:none; cursor:pointer;" style-hover="filter:brightness(1.08);">
+          <div style="position:absolute; inset:0; opacity:.5; background-image:linear-gradient(rgba(232,192,106,0.12) 1px,transparent 1px),linear-gradient(90deg,rgba(232,192,106,0.12) 1px,transparent 1px); background-size:40px 40px;"></div>
+          <div style="position:relative; text-align:center;">
+            <span style="display:inline-flex; width:56px; height:56px; border-radius:50%; background:#E8C06A; align-items:center; justify-content:center; box-shadow:0 0 0 10px rgba(232,192,106,0.2);"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a1205" stroke-width="2.2"><path d="M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+            <div style="color:#fff; font-weight:700; margin-top:14px;">Downtown Trenton</div>
+            <div style="color:#9fb0c4; font-size:13px;">Steps from the State House</div>
+            <span style="display:inline-flex; align-items:center; gap:7px; margin-top:16px; background:#fff; color:#0E1A2B; font-size:13px; font-weight:800; padding:9px 15px; border-radius:9px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0E1A2B" stroke-width="2.2"><path d="M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Get directions on Google Maps</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+  </div>
+  </sc-if>
+
+  <!-- ============ SHOP ============ -->
+  <sc-if value="{{ isShop }}" hint-placeholder-val="{{ true }}">
+  <div style="max-width:1240px; margin:0 auto; padding:30px 22px 70px; animation:floatin .35s ease;">
+    <div style="margin-bottom:22px;">
+      <h1 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:34px; margin:0; color:#0E1A2B;">{{ shopHeading }}</h1>
+      <p style="color:#6b7a8c; margin:6px 0 0; font-size:14.5px;">{{ shopCount }} one-of-a-kind pieces on the floor · reserve online, pay in store</p>
+    </div>
+    <div style="display:grid; grid-template-columns:238px 1fr; gap:28px; align-items:start;">
+      <!-- SIDEBAR -->
+      <aside style="position:sticky; top:88px; display:flex; flex-direction:column; gap:22px;">
+        <div style="background:#fff; border:1px solid #e6e0d3; border-radius:14px; padding:16px;">
+          <div style="font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:#0E1A2B; margin-bottom:10px;">Categories</div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <sc-for list="{{ sidebarCats }}" as="c" hint-placeholder-count="8">
+              <button onClick="{{ c.select }}" style="display:flex; justify-content:space-between; align-items:center; text-align:left; cursor:pointer; border:none; background:{{ c.bg }}; color:{{ c.color }}; font-size:14px; font-weight:{{ c.weight }}; padding:8px 10px; border-radius:8px;">
+                <span>{{ c.name }}</span><span style="font-size:12px; color:#9aa7b5;">{{ c.count }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #e6e0d3; border-radius:14px; padding:16px;">
+          <div style="font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:#0E1A2B; margin-bottom:12px;">Max price</div>
+          <input type="range" min="0" max="1300" step="10" value="{{ maxPrice }}" onInput="{{ onMaxPrice }}" style="width:100%; accent-color:#C08A2D;" />
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:13px; color:#6b7a8c;"><span>$0</span><span style="font-weight:800; color:#0E1A2B;">{{ maxPriceLabel }}</span></div>
+        </div>
+      </aside>
+
+      <!-- GRID -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px;">
+          <div style="color:#6b7a8c; font-size:14px;">Showing <b style="color:#0E1A2B;">{{ shopCount }}</b> items</div>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#6b7a8c;">Sort
+            <select value="{{ sort }}" onChange="{{ onSort }}" style="border:1px solid #d9d2c4; background:#fff; border-radius:9px; padding:8px 12px; font-size:14px; font-weight:600; color:#0E1A2B; cursor:pointer;">
+              <option value="featured">Featured</option>
+              <option value="price-asc">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
+        </div>
+        <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:20px;">
+            <sc-for list="{{ shopItems }}" as="p" hint-placeholder-count="9">
+              <dc-import name="ProductCard" item="{{ p }}" hint-size="100%,360px"></dc-import>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align:center; padding:70px 20px; background:#fff; border:1px dashed #d9d2c4; border-radius:16px;">
+            <div style="font-size:34px;">🔍</div>
+            <div style="font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:700; margin:10px 0 4px;">Nothing matches that yet</div>
+            <p style="color:#6b7a8c; margin:0 0 18px;">Our floor changes daily — try clearing filters or come visit us.</p>
+            <button onClick="{{ clearFilters }}" style="background:#0E1A2B; color:#fff; border:none; cursor:pointer; font-weight:700; padding:11px 20px; border-radius:10px;">Clear filters</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ PRODUCT DETAIL ============ -->
+  <sc-if value="{{ isProduct }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1160px; margin:0 auto; padding:24px 22px 70px; animation:floatin .35s ease;">
+    <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#6b7a8c; margin-bottom:20px;">
+      <button onClick="{{ goShop }}" style="background:none; border:none; cursor:pointer; color:#B07E22; font-weight:700; padding:0;">Shop</button>
+      <span>/</span><span>{{ current.cat }}</span><span>/</span><span style="color:#0E1A2B; font-weight:600;">{{ current.title }}</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start;">
+      <!-- IMAGE -->
+      <div style="position:sticky; top:88px;">
+        <sc-if value="{{ current.hasImage }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative; overflow:hidden; border-radius:20px; aspect-ratio:1/1; background:#0e1a2b;">
+            {{ current.imgEl }}
+          </div>
+        </sc-if>
+        <sc-if value="{{ current.jewelryNoImg }}" hint-placeholder-val="{{ true }}">
+          <div style="position:relative; overflow:hidden; border-radius:20px; aspect-ratio:1/1; background:radial-gradient(120% 120% at 30% 25%,#fbf1d6,#e6c988 55%,#b98f3c);">
+            <div style="position:absolute; top:0; bottom:0; width:36%; background:linear-gradient(105deg,transparent,rgba(255,255,255,0.6),transparent); animation:sheen 6s ease-in-out infinite;"></div>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+              <span style="font-family:'Cormorant Garamond',serif; font-size:88px; font-weight:700; color:rgba(90,60,10,0.32); letter-spacing:2px;">{{ current.mono }}</span>
+              <span style="margin-top:6px; text-transform:uppercase; letter-spacing:3px; font-size:12px; font-weight:700; color:rgba(90,60,10,0.55);">{{ current.cat }}</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ current.elecNoImg }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative; overflow:hidden; border-radius:20px; aspect-ratio:1/1; background:radial-gradient(120% 120% at 30% 25%,#33475e,#1b2c3f 60%,#0f1c2b);">
+            <div style="position:absolute; inset:0; opacity:.4; background-image:linear-gradient(rgba(255,255,255,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.06) 1px,transparent 1px); background-size:34px 34px;"></div>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+              <span style="font-family:'Cormorant Garamond',serif; font-size:88px; font-weight:700; color:rgba(255,255,255,0.18); letter-spacing:2px;">{{ current.mono }}</span>
+              <span style="margin-top:6px; text-transform:uppercase; letter-spacing:3px; font-size:12px; font-weight:700; color:rgba(232,192,106,0.8);">{{ current.cat }}</span>
+            </div>
+          </div>
+        </sc-if>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:12px; color:#6b7a8c; font-size:12.5px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7a8c" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 6v12M11 6v12M15 6v12M18 6v12"/></svg>
+          Barcode <b style="color:#0E1A2B; letter-spacing:1px;">{{ current.barcode }}</b> · photographed on our floor
+        </div>
+      </div>
+
+      <!-- INFO -->
+      <div>
+        <sc-if value="{{ current.oneOfKind }}" hint-placeholder-val="{{ true }}">
+          <span style="display:inline-flex; align-items:center; gap:6px; background:#fdf3d8; border:1px solid #e7cf8f; color:#8a6414; font-size:12px; font-weight:800; letter-spacing:.5px; padding:5px 11px; border-radius:20px; margin-bottom:14px;">✦ ONE OF A KIND · ONLY 1 IN STOCK</span>
+        </sc-if>
+        <div style="color:#B07E22; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;">{{ current.cat }}</div>
+        <h1 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:40px; line-height:1.05; margin:6px 0 16px; color:#0E1A2B;">{{ current.title }}</h1>
+
+        <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:8px;">
+          <sc-if value="{{ current.hasPrice }}" hint-placeholder-val="{{ true }}"><span style="font-size:38px; font-weight:800; color:#A4262C; letter-spacing:-1px;">{{ current.priceLabel }}</span></sc-if>
+          <sc-if value="{{ current.askPrice }}" hint-placeholder-val="{{ false }}"><span style="font-size:28px; font-weight:800; color:#0E1A2B;">Ask in store</span></sc-if>
+          <span style="color:#6b7a8c; font-size:14px;">pre-owned · priced to move</span>
+        </div>
+        <div style="display:inline-flex; align-items:center; gap:8px; background:#e8f6ee; color:#127a45; font-size:13.5px; font-weight:700; padding:7px 13px; border-radius:9px; margin-bottom:22px;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#1F9D5B;"></span> Available now — in store · Condition: {{ current.cond }}
+        </div>
+
+        <!-- AUTH BADGES -->
+        <sc-if value="{{ current.showBadges }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px;">
+            <sc-for list="{{ current.badges }}" as="b" hint-placeholder-count="2">
+              <span style="display:inline-flex; align-items:center; gap:7px; background:linear-gradient(135deg,#fff,#fbf3dc); border:1px solid #e7cf8f; color:#7a5a12; font-size:13px; font-weight:700; padding:8px 13px; border-radius:10px; box-shadow:0 2px 8px rgba(192,138,45,.14);">{{ b.text }}</span>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="display:flex; gap:12px; margin-bottom:26px;">
+          <button onClick="{{ current.add }}" style="flex:1; display:flex; align-items:center; justify-content:center; gap:9px; background:linear-gradient(145deg,#E8C06A,#B07E22); border:none; cursor:pointer; color:#1a1205; font-size:16px; font-weight:800; padding:16px; border-radius:12px; box-shadow:0 8px 22px rgba(192,138,45,.32);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1205" stroke-width="2.4"><path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M6 6L5 3H2"/></svg>
+            Add to cart
+          </button>
+          <button onClick="{{ goVisit }}" style="background:#fff; border:1.5px solid #0E1A2B; cursor:pointer; color:#0E1A2B; font-size:15px; font-weight:700; padding:16px 20px; border-radius:12px;">Ask a question</button>
+        </div>
+
+        <!-- SPECS -->
+        <div style="background:#fff; border:1px solid #e6e0d3; border-radius:14px; overflow:hidden;">
+          <div style="padding:14px 18px; background:#0E1A2B; color:#fff; font-weight:700; font-size:14px; letter-spacing:.5px; display:flex; align-items:center; gap:9px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8C06A" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+            {{ current.specTitle }}
+          </div>
+          <div>
+            <sc-for list="{{ current.specList }}" as="s" hint-placeholder-count="5">
+              <div style="display:flex; justify-content:space-between; gap:16px; padding:12px 18px; border-top:1px solid #f0ece1;">
+                <span style="color:#6b7a8c; font-size:14px;">{{ s.label }}</span>
+                <span style="color:#0E1A2B; font-weight:700; font-size:14px; text-align:right;">{{ s.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- TRUST ROW -->
+        <div style="display:flex; flex-wrap:wrap; gap:14px; margin-top:20px;">
+          <sc-for list="{{ detailTrust }}" as="t" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; gap:8px; color:#4a5a6b; font-size:12.5px; font-weight:600;">
+              <span style="color:#1F9D5B;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1F9D5B" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg></span>{{ t }}
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- RELATED -->
+    <section style="margin-top:64px;">
+      <h2 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:28px; margin:0 0 20px; color:#0E1A2B;">You might also like</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:20px;">
+        <sc-for list="{{ related }}" as="p" hint-placeholder-count="4">
+          <dc-import name="ProductCard" item="{{ p }}" hint-size="100%,360px"></dc-import>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+  </sc-if>
+
+  <!-- ============ CART ============ -->
+  <sc-if value="{{ isCart }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1040px; margin:0 auto; padding:30px 22px 70px; animation:floatin .35s ease;">
+    <h1 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:36px; margin:0 0 6px; color:#0E1A2B;">Your hold list</h1>
+    <p style="color:#6b7a8c; margin:0 0 26px;">Reserve these items — you'll pay when you pick up in store. No card required now.</p>
+
+    <sc-if value="{{ cartHasItems }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid; grid-template-columns:1fr 360px; gap:28px; align-items:start;">
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <sc-for list="{{ cartItems }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex; gap:16px; background:#fff; border:1px solid #e6e0d3; border-radius:14px; padding:14px;">
+              <div style="flex-shrink:0; width:84px; height:84px; border-radius:11px; overflow:hidden; background:{{ p.thumbBg }}; display:flex; align-items:center; justify-content:center;">
+                <span style="font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:700; color:{{ p.thumbInk }};">{{ p.mono }}</span>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="color:#B07E22; font-size:11.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase;">{{ p.cat }}</div>
+                <div style="font-weight:700; font-size:16px; color:#0E1A2B; margin:2px 0 4px;">{{ p.title }}</div>
+                <div style="font-size:12.5px; color:#6b7a8c;">Condition: {{ p.cond }} · One of a kind</div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between;">
+                <span style="font-weight:800; font-size:17px; color:#A4262C;">{{ p.priceLabel }}</span>
+                <button onClick="{{ p.remove }}" style="background:none; border:none; cursor:pointer; color:#9aa7b5; font-size:13px; font-weight:600; text-decoration:underline;">Remove</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- HOLD FORM -->
+        <div style="position:sticky; top:88px; background:#fff; border:1px solid #e6e0d3; border-radius:16px; padding:22px;">
+          <div style="display:flex; justify-content:space-between; font-size:14px; color:#6b7a8c; margin-bottom:6px;"><span>Items</span><span style="font-weight:700; color:#0E1A2B;">{{ cartCount }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:14px; color:#6b7a8c; margin-bottom:14px;"><span>Est. in-store total</span><span style="font-weight:800; color:#A4262C; font-size:18px;">{{ cartTotalLabel }}</span></div>
+          <div style="height:1px; background:#eee6d6; margin:0 0 16px;"></div>
+          <div style="font-size:12px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#0E1A2B; margin-bottom:12px;">Reserve with your details</div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <input value="{{ holdName }}" onInput="{{ onName }}" placeholder="Full name" style="border:1px solid #d9d2c4; border-radius:10px; padding:12px 13px; font-size:14px; outline:none;" style-focus="border-color:#C08A2D;" />
+            <input value="{{ holdPhone }}" onInput="{{ onPhone }}" placeholder="Phone number" style="border:1px solid #d9d2c4; border-radius:10px; padding:12px 13px; font-size:14px; outline:none;" style-focus="border-color:#C08A2D;" />
+            <input value="{{ holdEmail }}" onInput="{{ onEmail }}" placeholder="Email" style="border:1px solid #d9d2c4; border-radius:10px; padding:12px 13px; font-size:14px; outline:none;" style-focus="border-color:#C08A2D;" />
+          </div>
+          <sc-if value="{{ formError }}" hint-placeholder-val="{{ false }}"><div style="color:#A4262C; font-size:12.5px; font-weight:600; margin-top:9px;">Please add your name and a phone or email so we can hold it.</div></sc-if>
+          <button onClick="{{ submitHold }}" style="width:100%; margin-top:16px; background:linear-gradient(145deg,#E8C06A,#B07E22); border:none; cursor:pointer; color:#1a1205; font-size:16px; font-weight:800; padding:15px; border-radius:12px; box-shadow:0 8px 22px rgba(192,138,45,.3);">Request a Hold</button>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:14px; color:#6b7a8c; font-size:12px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1F9D5B" stroke-width="2.2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+            Held until 4 PM today. We'll text you when it's ready.
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center; padding:70px 20px; background:#fff; border:1px dashed #d9d2c4; border-radius:16px;">
+        <div style="font-size:38px;">🛒</div>
+        <div style="font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700; margin:10px 0 4px;">Your hold list is empty</div>
+        <p style="color:#6b7a8c; margin:0 0 20px;">Find something one-of-a-kind and reserve it before someone else does.</p>
+        <button onClick="{{ goShop }}" style="background:#0E1A2B; color:#fff; border:none; cursor:pointer; font-weight:700; padding:13px 24px; border-radius:11px;">Browse the shop</button>
+      </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ============ CONFIRMATION ============ -->
+  <sc-if value="{{ isConfirm }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:820px; margin:0 auto; padding:40px 22px 80px; animation:floatin .4s ease;">
+    <div style="text-align:center; margin-bottom:32px;">
+      <span style="display:inline-flex; width:66px; height:66px; border-radius:50%; background:#e8f6ee; align-items:center; justify-content:center; box-shadow:0 0 0 10px rgba(31,157,91,0.12);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1F9D5B" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>
+      </span>
+      <h1 style="font-family:'Cormorant Garamond',serif; font-weight:700; font-size:40px; margin:18px 0 6px; color:#0E1A2B;">Your hold is confirmed</h1>
+      <p style="color:#6b7a8c; margin:0; font-size:16px;">Thanks, {{ heldName }} — we're setting it aside at the counter now.</p>
+    </div>
+
+    <!-- COUNTDOWN -->
+    <div style="background:#0E1A2B; border-radius:18px; padding:28px; text-align:center; margin-bottom:24px; position:relative; overflow:hidden;">
+      <div style="position:absolute; inset:0; background:radial-gradient(90% 120% at 50% 0%,rgba(232,192,106,0.18),transparent 60%);"></div>
+      <div style="position:relative;">
+        <div style="color:#E8C06A; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:14px;">Reserved for you — pick up by {{ deadlineLabel }}</div>
+        <div style="display:flex; justify-content:center; gap:14px;">
+          <div style="min-width:78px;"><div style="font-size:44px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums;">{{ cdH }}</div><div style="color:#8ea0b5; font-size:11px; letter-spacing:1.5px; text-transform:uppercase;">Hours</div></div>
+          <div style="font-size:40px; color:#E8C06A; font-weight:300;">:</div>
+          <div style="min-width:78px;"><div style="font-size:44px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums;">{{ cdM }}</div><div style="color:#8ea0b5; font-size:11px; letter-spacing:1.5px; text-transform:uppercase;">Minutes</div></div>
+          <div style="font-size:40px; color:#E8C06A; font-weight:300;">:</div>
+          <div style="min-width:78px;"><div style="font-size:44px; font-weight:800; color:#E8C06A; font-variant-numeric:tabular-nums;">{{ cdS }}</div><div style="color:#8ea0b5; font-size:11px; letter-spacing:1.5px; text-transform:uppercase;">Seconds</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 260px; gap:22px; align-items:start;">
+      <!-- ITEMS + ADDRESS -->
+      <div style="display:flex; flex-direction:column; gap:18px;">
+        <div style="background:#fff; border:1px solid #e6e0d3; border-radius:16px; padding:20px;">
+          <div style="font-size:12px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#0E1A2B; margin-bottom:14px;">On hold · {{ heldCount }} item(s)</div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <sc-for list="{{ heldItems }}" as="p" hint-placeholder-count="2">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="flex-shrink:0; width:48px; height:48px; border-radius:9px; background:{{ p.thumbBg }}; display:flex; align-items:center; justify-content:center;"><span style="font-family:'Cormorant Garamond',serif; font-weight:700; color:{{ p.thumbInk }};">{{ p.mono }}</span></div>
+                <div style="flex:1;"><div style="font-weight:700; font-size:14.5px; color:#0E1A2B;">{{ p.title }}</div><div style="font-size:12px; color:#6b7a8c;">{{ p.cat }}</div></div>
+                <span style="font-weight:800; color:#A4262C;">{{ p.priceLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:16px; padding-top:14px; border-top:1px solid #f0ece1;"><span style="color:#6b7a8c; font-weight:600;">Est. total in store</span><span style="font-weight:800; font-size:18px; color:#A4262C;">{{ heldTotalLabel }}</span></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e6e0d3; border-radius:16px; padding:20px; display:flex; gap:14px; align-items:flex-start;">
+          <span style="color:#B07E22; margin-top:2px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B07E22" stroke-width="2"><path d="M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+          <div>
+            <div style="font-weight:800; color:#0E1A2B; font-size:16px;">ABC MoneyLoan Pawnshop</div>
+            <div style="color:#4a5a6b; font-size:14px; margin-top:2px;">146 E. State Street<br/>Trenton, NJ 08608</div>
+            <div style="color:#6b7a8c; font-size:13px; margin-top:8px;">Mon–Sat · 9 AM – 6 PM · Bring a photo ID for pickup.</div>
+            <a href="https://www.google.com/maps/dir/?api=1&destination=146+E+State+St,+Trenton,+NJ+08608" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; color:#B07E22; font-size:13px; font-weight:700; text-decoration:none;" style-hover="text-decoration:underline;">Get directions <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B07E22" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- QR -->
+      <div style="background:#fff; border:1px solid #e6e0d3; border-radius:16px; padding:20px; text-align:center;">
+        <div style="font-size:12px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#0E1A2B; margin-bottom:12px;">Show at the counter</div>
+        <div style="display:inline-block; padding:12px; background:#fff; border:1px solid #eee6d6; border-radius:12px;">
+          <div style="display:grid; grid-template-columns:repeat(21,1fr); gap:0; width:168px; height:168px;">
+            <sc-for list="{{ qrCells }}" as="on" hint-placeholder-count="441">
+              <span style="width:100%; height:100%; background:{{ on }};"></span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="font-family:'Public Sans'; letter-spacing:2px; font-weight:800; font-size:15px; color:#0E1A2B; margin-top:12px;">{{ holdCode }}</div>
+        <div style="color:#6b7a8c; font-size:12px; margin-top:4px;">Scan to reopen this hold</div>
+        <button onClick="{{ goShop }}" style="width:100%; margin-top:16px; background:#0E1A2B; color:#fff; border:none; cursor:pointer; font-weight:700; padding:12px; border-radius:11px;">Keep browsing</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  </main>
+
+  <!-- LIVE INVENTORY BADGE (only shows when connected to the backend feed) -->
+  <sc-if value="{{ apiLive }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; left:16px; bottom:16px; z-index:60; display:flex; align-items:center; gap:8px; background:#0E1A2B; border:1px solid rgba(31,157,91,0.5); border-radius:22px; padding:8px 14px; box-shadow:0 8px 24px rgba(0,0,0,.28);">
+      <span style="width:9px; height:9px; border-radius:50%; background:#1F9D5B; box-shadow:0 0 0 0 rgba(31,157,91,.7); animation:pulsering 1.8s ease-out infinite;"></span>
+      <span style="color:#fff; font-size:12px; font-weight:700; letter-spacing:.3px;">Live inventory connected</span>
+    </div>
+  </sc-if>
+
+  <!-- ============ FOOTER ============ -->
+  <footer style="background:#0B1421; border-top:1px solid rgba(192,138,45,0.25); margin-top:auto;">
+    <div style="max-width:1240px; margin:0 auto; padding:34px 22px; display:flex; flex-wrap:wrap; gap:24px; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <span style="display:inline-flex; padding:7px 11px; background:#fff; border-radius:9px;"><img src="logo-cut.png" alt="ABC MoneyLoan — America's Pawnshop" style="height:30px; width:auto; display:block;" /></span>
+        <div style="color:#8ea0b5; font-size:12.5px;">146 E. State Street, Trenton, NJ 08608<br/>(609) 777-5500 · Mon–Sat 9 AM–6 PM</div>
+      </div>
+      <div style="color:#6b7a8c; font-size:12.5px; max-width:420px;">Every item is inspected and authenticated in-house. Prices reflect pre-owned condition and are subject to in-store verification. One-of-a-kind inventory — subject to prior sale.</div>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    view: 'landing',
+    search: '',
+    sort: 'featured',
+    maxPrice: 1300,
+    activeFilter: 'all',
+    currentId: 'ring',
+    cart: ['ring', 'ps4game'],
+    holdName: '', holdPhone: '', holdEmail: '',
+    formError: false,
+    held: null,
+    now: Date.now(),
+    heroScene: 0,
+    liveProducts: null,   // filled from the in-house API when connected
+    apiState: 'idle'      // 'idle' | 'loading' | 'live' | 'error'
+  };
+
+  componentDidMount() {
+    this._t = setInterval(() => this.setState({ now: Date.now() }), 1000);
+    this._hero = setInterval(() => {
+      if (this.state.view === 'landing') this.setState(s => ({ heroScene: (s.heroScene + 1) % 3 }));
+    }, 5000);
+    this.loadInventory();
+    if (typeof window !== 'undefined') window.scrollTo(0, 0);
+  }
+  componentWillUnmount() { clearInterval(this._t); clearInterval(this._hero); }
+
+  // ── LIVE INVENTORY CONNECTION ─────────────────────────────────────────
+  // Point this at your in-house catalogue feed (JSON array of items). When
+  // set + reachable (same-origin or CORS-enabled), the whole storefront
+  // renders live inventory; otherwise it falls back to the sample data below.
+  //   Expected item shape (any of the aliased keys work — see mapItem):
+  //   { id|sku, name|title, category|cat, price (number|null|""),
+  //     condition, barcode|sku, quantity, image|photo|imageUrl,
+  //     metal, purity, weight, diamond, stone, quality,          (jewelry)
+  //     manufacturer, model, serial }                            (electronics)
+  // Resolution order (first one set wins), so you can connect without editing code:
+  //   1. ?api=<url> in the page URL   2. window.ABC_API_URL   3. the default below
+  get API_URL() {
+    try {
+      if (typeof window !== 'undefined') {
+        const q = new URLSearchParams(window.location.search).get('api');
+        if (q) return q;
+        if (window.ABC_API_URL) return window.ABC_API_URL;
+      }
+    } catch (e) {}
+    return this.DEFAULT_API_URL;
+  }
+  get DEFAULT_API_URL() { return 'http://localhost:8000/api/products/'; }
+
+  // Base origin the storefront probes for a JSON feed when no explicit URL is given.
+  get API_BASE() {
+    try {
+      if (typeof window !== 'undefined' && /^https?:/.test(window.location.origin)) return window.location.origin;
+    } catch (e) {}
+    return 'http://localhost:8000';
+  }
+
+  // If an explicit override is set (?api= or window.ABC_API_URL) use ONLY that;
+  // otherwise probe these common REST paths and use the first that returns items.
+  get API_CANDIDATES() {
+    try {
+      if (typeof window !== 'undefined') {
+        const q = new URLSearchParams(window.location.search).get('api');
+        if (q) return [q];
+        if (window.ABC_API_URL) return [window.ABC_API_URL];
+      }
+    } catch (e) {}
+    const b = this.API_BASE;
+    return [
+      b + '/api/products/', b + '/api/inventory/', b + '/api/items/',
+      b + '/shop/api/products/', b + '/api/products', b + '/products/?format=json',
+      b + '/shop.json'
+    ];
+  }
+
+  async loadInventory() {
+    const candidates = this.API_CANDIDATES;
+    if (!candidates.length) return;
+    this.setState({ apiState: 'loading' });
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) continue;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('json')) continue; // skip HTML pages like /shop
+        const raw = await res.json();
+        const list = Array.isArray(raw) ? raw : (raw.items || raw.data || raw.results || raw.products || []);
+        const mapped = list.map(r => this.mapItem(r)).filter(p => p.id && p.title);
+        if (!mapped.length) continue;
+        this.setState({ liveProducts: mapped, apiState: 'live', apiUrl: url });
+        console.info('[ABC] live inventory connected →', url, '(' + mapped.length + ' items)');
+        return;
+      } catch (e) { /* CORS / unreachable / not-json → try next */ }
+    }
+    console.warn('[ABC] no inventory feed reachable — using sample data. Point it with ?api=<json-url> or set window.ABC_API_URL.');
+    this.setState({ apiState: 'error' });
+  }
+
+  guessType(cat) {
+    const c = (cat || '').toLowerCase();
+    return /gold|diamond|silver|charm|chain|ring|earring|bracelet|pendant|necklace|jewel/.test(c) ? 'jewelry' : 'electronics';
+  }
+
+  mapItem(r) {
+    const pick = (...ks) => { for (const k of ks) if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k]; return undefined; };
+    const cat = pick('category', 'cat', 'categoryName') || 'Miscellaneous';
+    const type = r.type || this.guessType(cat);
+    const rawPrice = pick('price', 'amount', 'salePrice');
+    const price = (rawPrice === undefined || rawPrice === 'Ask in store') ? null : Number(String(rawPrice).replace(/[^0-9.]/g, '')) || null;
+    const qty = Number(pick('quantity', 'qty', 'stock') ?? 1);
+    const specs = type === 'jewelry'
+      ? { metal: pick('metal', 'metalType') || '—', purity: pick('purity', 'karat', 'metalPurity') || '—',
+          weight: pick('weight', 'totalWeight') || '—', diamond: pick('diamond', 'diamondSize') || '—',
+          stone: pick('stone', 'stoneSize') || '—', quality: pick('quality') || '—' }
+      : { manufacturer: pick('manufacturer', 'maker', 'brand') || '—', model: pick('model') || '—',
+          serial: pick('serial', 'serialNumber') || '—', condition: pick('condition') || 'Good' };
+    return {
+      id: String(pick('id', 'sku', 'barcode', 'itemId') || pick('name', 'title')),
+      title: pick('name', 'title') || 'Item',
+      cat, group: this.groupFor(cat), type,
+      price, cond: pick('condition', 'grade') || 'Good',
+      barcode: String(pick('barcode', 'sku', 'upc') || ''),
+      image: pick('image', 'photo', 'imageUrl', 'thumbnail') || null,
+      oneOfKind: (pick('oneOfKind') ?? (qty <= 1)),
+      diamond: !!(specs.diamond && specs.diamond !== '—') || !!r.diamond,
+      stone: !!(specs.stone && specs.stone !== '—') || !!r.stone,
+      specs
+    };
+  }
+
+  groupFor(cat) {
+    const c = (cat || '').toLowerCase();
+    if (/gold|diamond|silver|charm|chain|ring|earring|bracelet|pendant|necklace/.test(c)) return 'jewelry';
+    if (/playstation|xbox|nintendo|wii|game/.test(c)) return 'gaming';
+    if (/laptop|netbook|camera|computer|tablet/.test(c)) return 'computers';
+    if (/watch/.test(c)) return 'watches';
+    if (/audio|headphone|speaker|radio/.test(c)) return 'audio';
+    return 'other';
+  }
+
+  DATA() {
+    if (this.state.liveProducts && this.state.liveProducts.length) return this.state.liveProducts;
+    return [
+      { id:'cuban', title:'14K Gold Cuban Link Chain', cat:'Gold Cuban Chain', group:'jewelry', type:'jewelry', price:890, cond:'Excellent', barcode:'8842013', image:'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=640&q=80',
+        specs:{ metal:'Yellow Gold', purity:'14K', weight:'24.3 g', diamond:'—', stone:'—', quality:'Solid, stamped' }, diamond:false, stone:false },
+      { id:'ring', title:"Lady's Diamond Fashion Ring", cat:"Lady's Diamond Fashion Ring", group:'jewelry', type:'jewelry', price:1250, cond:'Excellent', barcode:'8843771', image:'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=640&q=80',
+        specs:{ metal:'White Gold', purity:'14K', weight:'4.1 g', diamond:'0.75 ct', stone:'0.20 ct', quality:'VS / near-colorless' }, diamond:true, stone:true },
+      { id:'figaro', title:'10K Gold Figaro Chain — 20"', cat:'Gold Figaro Chain', group:'jewelry', type:'jewelry', price:420, cond:'Very Good', barcode:'8840992', image:'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=640&q=80',
+        specs:{ metal:'Yellow Gold', purity:'10K', weight:'11.8 g', diamond:'—', stone:'—', quality:'Stamped 10K' }, diamond:false, stone:false },
+      { id:'earrings', title:'Diamond Stud Earrings', cat:'Gold Earrings', group:'jewelry', type:'jewelry', price:560, cond:'Excellent', barcode:'8845120', image:'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=640&q=80',
+        specs:{ metal:'White Gold', purity:'14K', weight:'2.3 g', diamond:'0.50 ct', stone:'—', quality:'SI / H' }, diamond:true, stone:false },
+      { id:'charm', title:'Gold Cross Charm Pendant', cat:'Gold Charm', group:'jewelry', type:'jewelry', price:null, cond:'Very Good', barcode:'8841337',
+        specs:{ metal:'Yellow Gold', purity:'10K', weight:'3.6 g', diamond:'—', stone:'—', quality:'Stamped 10K' }, diamond:false, stone:false },
+      { id:'rope', title:'22" Rope Gold Chain', cat:'Gold Chain', group:'jewelry', type:'jewelry', price:640, cond:'Excellent', barcode:'8842890',
+        specs:{ metal:'Yellow Gold', purity:'14K', weight:'15.2 g', diamond:'—', stone:'—', quality:'Solid, stamped' }, diamond:false, stone:false },
+      { id:'netbook', title:'HP Stream 11 Netbook', cat:'Laptop/Netbook', group:'computers', type:'electronics', price:180, cond:'Good', barcode:'7730114', image:'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=640&q=80',
+        specs:{ manufacturer:'HP', model:'Stream 11-ak0', serial:'5CD9•••42Q', condition:'Good — light wear, tested' } },
+      { id:'camera', title:'Canon PowerShot Camera', cat:'Digital Camera', group:'computers', type:'electronics', price:95, cond:'Good', barcode:'7731556', image:'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=640&q=80',
+        specs:{ manufacturer:'Canon', model:'PowerShot SX420', serial:'0421•••88', condition:'Good — tested, works' } },
+      { id:'headphones', title:'Bose QuietComfort 35 II', cat:'Headphones', group:'audio', type:'electronics', price:75, cond:'Very Good', barcode:'7732001', image:'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=640&q=80',
+        specs:{ manufacturer:'Bose', model:'QC35 II', serial:'078•••913', condition:'Very Good — pads clean' } },
+      { id:'watch', title:"Gent's Seiko 5 Automatic", cat:"Gent's Wristwatch", group:'watches', type:'electronics', price:140, cond:'Very Good', barcode:'7733420', image:'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=640&q=80',
+        specs:{ manufacturer:'Seiko', model:'5 SNK809', serial:'SK•••221', condition:'Very Good — runs strong' } },
+      { id:'ps4game', title:'God of War — PlayStation 4', cat:'Sony PlayStation 4 Games', group:'gaming', type:'electronics', price:18, cond:'Good', barcode:'7734112', image:'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&w=640&q=80',
+        specs:{ manufacturer:'Sony', model:'PS4 / CUSA', serial:'Disc — complete', condition:'Good — no scratches' } },
+      { id:'wiigame', title:'Mario Kart Wii', cat:'Nintendo Wii Games', group:'gaming', type:'electronics', price:22, cond:'Good', barcode:'7734990',
+        specs:{ manufacturer:'Nintendo', model:'Wii RVL', serial:'Disc — complete', condition:'Good — complete in case' } },
+      { id:'ps3game', title:'Grand Theft Auto V — PlayStation 3', cat:'Sony PlayStation 3 Games', group:'gaming', type:'electronics', price:14, cond:'Good', barcode:'7735220',
+        specs:{ manufacturer:'Rockstar', model:'PS3 / BLUS', serial:'Disc — complete', condition:'Good — tested' } },
+      { id:'xboxgame', title:'Forza Horizon — Xbox One', cat:'Microsoft XBOX One Games', group:'gaming', type:'electronics', price:19, cond:'Very Good', barcode:'7735880',
+        specs:{ manufacturer:'Microsoft', model:'Xbox One', serial:'Disc — complete', condition:'Very Good' } },
+      { id:'cobra', title:'Cobra 2-Way Radio PX Series', cat:'2 Way Radio/Walkie Talkie', group:'audio', type:'electronics', price:59.99, cond:'Very Good', barcode:'7736410',
+        specs:{ manufacturer:'Cobra', model:'PX655', serial:'CB•••204', condition:'Very Good — pair, tested' } },
+      { id:'motorola', title:'Motorola Talkabout 2-Way Radio', cat:'2 Way Radio/Walkie Talkie', group:'audio', type:'electronics', price:59.99, cond:'Good', barcode:'7736900',
+        specs:{ manufacturer:'Motorola', model:'Talkabout T260', serial:'MT•••771', condition:'Good — pair with chargers' } },
+      { id:'chemglass', title:'Chemglass CLS-1625 UV Lamp', cat:'Miscellaneous Manufactured Good', group:'other', type:'electronics', price:200, cond:'Good', barcode:'7737250',
+        specs:{ manufacturer:'Chemglass', model:'CLS-1625-104', serial:'CG•••118', condition:'Good — lab-tested' } },
+      { id:'icm', title:'ICM Controls SC5011 Timer', cat:'Miscellaneous Manufactured Good', group:'other', type:'electronics', price:30.95, cond:'Very Good', barcode:'7737730',
+        specs:{ manufacturer:'ICM Controls', model:'SC5011', serial:'IC•••309', condition:'Very Good — new-old-stock' } },
+      { id:'phonecase', title:'OtterBox Defender iPhone Case', cat:'Cell Phone Accessory', group:'other', type:'electronics', price:12, cond:'Very Good', barcode:'7738120',
+        specs:{ manufacturer:'OtterBox', model:'Defender', serial:'—', condition:'Very Good — clean' } },
+      { id:'drill', title:'DeWalt 20V Cordless Drill', cat:'Hand Tool', group:'other', type:'electronics', price:68, cond:'Good', barcode:'7738640',
+        specs:{ manufacturer:'DeWalt', model:'DCD771', serial:'DW•••552', condition:'Good — battery holds charge' } },
+      { id:'silvercharm', title:'Sterling Silver Heart Charm', cat:'Silver Charm', group:'jewelry', type:'jewelry', price:35, cond:'Very Good', barcode:'8846200',
+        specs:{ metal:'Sterling Silver', purity:'.925', weight:'4.8 g', diamond:'—', stone:'—', quality:'Stamped .925' }, diamond:false, stone:false }
+    ];
+  }
+
+  money(n) { return '$' + Number(n).toLocaleString('en-US'); }
+  initials(t) {
+    const words = t.replace(/[^A-Za-z0-9 ]/g,' ').split(/\s+/).filter(Boolean);
+    return (words.slice(0,2).map(w=>w[0]).join('') || 'AB').toUpperCase();
+  }
+
+  jewelryThumb() { return 'radial-gradient(120% 120% at 30% 25%,#fbf1d6,#e6c988 55%,#b98f3c)'; }
+  elecThumb()    { return 'radial-gradient(120% 120% at 30% 25%,#33475e,#1b2c3f 60%,#0f1c2b)'; }
+
+  decorate(p) {
+    const jew = p.type === 'jewelry';
+    return {
+      ...p,
+      isJewelry: jew, notJewelry: !jew,
+      image: p.image || null, hasImage: !!p.image, noImage: !p.image,
+      jewelryNoImg: jew && !p.image, elecNoImg: !jew && !p.image,
+      imgEl: p.image ? React.createElement('img', { src: p.image, alt: p.title, style: { position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' } }) : null,
+      mono: this.initials(p.title),
+      hasPrice: p.price != null, askPrice: p.price == null,
+      priceLabel: p.price == null ? 'Ask in store' : this.money(p.price),
+      thumbBg: jew ? this.jewelryThumb() : this.elecThumb(),
+      thumbInk: jew ? 'rgba(90,60,10,0.5)' : 'rgba(255,255,255,0.28)',
+      open: () => this.openProduct(p.id),
+      add: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.addToCart(p.id); },
+      remove: () => this.removeFromCart(p.id)
+    };
+  }
+
+  openProduct(id) { this.setState({ view:'product', currentId:id }); if (typeof window!=='undefined') window.scrollTo(0,0); }
+  goto(view) { this.setState({ view }); if (typeof window!=='undefined') window.scrollTo(0,0); }
+  addToCart(id) { this.setState(s => s.cart.includes(id) ? { view:'cart' } : { cart:[...s.cart, id], view:'cart' }); if (typeof window!=='undefined') window.scrollTo(0,0); }
+  removeFromCart(id) { this.setState(s => ({ cart: s.cart.filter(x=>x!==id) })); }
+  selectFilter(f) { this.setState({ view:'shop', activeFilter:f, search:'' }); if (typeof window!=='undefined') window.scrollTo(0,0); }
+
+  computeDeadline() {
+    const d = new Date();
+    let base = new Date(d); base.setHours(16,0,0,0);
+    if (d.getTime() >= base.getTime()) { base.setDate(base.getDate()+1); base.setHours(16,0,0,0); }
+    while (base.getDay()===0 || base.getDay()===6) { base.setDate(base.getDate()+1); base.setHours(16,0,0,0); }
+    return base;
+  }
+
+  buildQR() {
+    if (this._qr) return this._qr;
+    const N = 21, on = [];
+    const finder = (r,c) => {
+      // r,c is top-left of 7x7 finder
+      return (rr,cc) => {
+        const dr = rr-r, dc = cc-c;
+        if (dr<0||dr>6||dc<0||dc>6) return null;
+        const border = dr===0||dr===6||dc===0||dc===6;
+        const core = dr>=2&&dr<=4&&dc>=2&&dc<=4;
+        return border||core;
+      };
+    };
+    const f1=finder(0,0), f2=finder(0,14), f3=finder(14,0);
+    let seed = 20260702;
+    const rnd = () => { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed>>8)/0x7fffff; };
+    for (let r=0;r<N;r++){
+      const row=[];
+      for (let c=0;c<N;c++){
+        let v = f1(r,c); if(v===null) v=f2(r,c); if(v===null) v=f3(r,c);
+        if (v===null) {
+          // timing + separators area gets some structure, rest random
+          if ((r===6||c===6)) v = (r+c)%2===0;
+          else v = rnd() > 0.52;
+        }
+        row.push(v ? '#0E1A2B' : 'transparent');
+      }
+      on.push(...row);
+    }
+    this._qr = on;
+    return on;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const all = this.DATA();
+    const byId = id => all.find(p => p.id === id);
+
+    // ---- filtering / sorting for shop ----
+    const q = s.search.trim().toLowerCase();
+    let items = all.filter(p => {
+      if (q && !(p.title.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q))) return false;
+      if (s.activeFilter !== 'all') {
+        if (s.activeFilter.startsWith('group:')) { if (p.group !== s.activeFilter.slice(6)) return false; }
+        else if (p.cat !== s.activeFilter) return false;
+      }
+      if (p.price != null && p.price > s.maxPrice) return false;
+      return true;
+    });
+    const rank = { 'featured': null };
+    if (s.sort === 'price-asc') items.sort((a,b)=>(a.price??1e9)-(b.price??1e9));
+    else if (s.sort === 'price-desc') items.sort((a,b)=>(b.price??-1)-(a.price??-1));
+    else if (s.sort === 'name') items.sort((a,b)=>a.title.localeCompare(b.title));
+
+    const shopItems = items.map(p => this.decorate(p));
+
+    // ---- sidebar categories (exact cat counts) ----
+    const counts = {};
+    all.forEach(p => { counts[p.cat] = (counts[p.cat]||0)+1; });
+    const catNames = Object.keys(counts).sort();
+    const mk = (name, filterVal, count) => {
+      const active = s.activeFilter === filterVal;
+      return { name, count, select: () => this.selectFilter(filterVal),
+        bg: active ? '#0E1A2B' : 'transparent', color: active ? '#fff' : '#31414f', weight: active ? '800' : '500' };
+    };
+    const sidebarCats = [ mk('All items','all', all.length), ...catNames.map(c => mk(c, c, counts[c])) ];
+
+    // ---- current product ----
+    const cp = byId(s.currentId) || all[0];
+    const current = this.decorate(cp);
+    if (cp.type === 'jewelry') {
+      current.specTitle = 'Jewelry Specifications';
+      current.specList = [
+        { label:'Metal Type / Color', value: cp.specs.metal },
+        { label:'Metal Purity', value: cp.specs.purity },
+        { label:'Total Jewelry Weight', value: cp.specs.weight },
+        { label:'Total Diamond Size', value: cp.specs.diamond },
+        { label:'Total Stone Size', value: cp.specs.stone },
+        { label:'Quality', value: cp.specs.quality }
+      ];
+      const badges = [];
+      if (cp.diamond) badges.push({ text:'💎 Authentic Diamond — Verified' });
+      if (cp.stone) badges.push({ text:'✨ Authentic Stone — Verified' });
+      current.badges = badges;
+      current.showBadges = badges.length > 0;
+    } else {
+      current.specTitle = 'Product Specifications';
+      current.specList = [
+        { label:'Manufacturer', value: cp.specs.manufacturer },
+        { label:'Model', value: cp.specs.model },
+        { label:'Serial Number', value: cp.specs.serial },
+        { label:'Condition', value: cp.specs.condition }
+      ];
+      current.badges = []; current.showBadges = false;
+    }
+    current.oneOfKind = true;
+    const related = all.filter(p => p.group === cp.group && p.id !== cp.id).slice(0,4).map(p => this.decorate(p));
+    const detailTrust = ['Inspected in-house', 'Photographed as-is', 'No obligation to buy'];
+
+    // ---- cart ----
+    const cartRaw = s.cart.map(byId).filter(Boolean);
+    const cartItems = cartRaw.map(p => this.decorate(p));
+    const cartTotal = cartRaw.reduce((n,p)=> n + (p.price||0), 0);
+
+    // ---- held / confirmation ----
+    let cdH='00', cdM='00', cdS='00', deadlineLabel='4:00 PM', heldItems=[], heldTotalLabel='$0', heldName='', heldCount=0, holdCode='ABC-000000';
+    if (s.held) {
+      heldItems = s.held.items.map(p => this.decorate(p));
+      heldTotalLabel = this.money(s.held.total);
+      heldName = s.held.name || 'friend';
+      heldCount = s.held.items.length;
+      holdCode = s.held.code;
+      const dl = new Date(s.held.deadline);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dld = new Date(dl); dld.setHours(0,0,0,0);
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      deadlineLabel = (dld.getTime()===today.getTime() ? 'today' : days[dl.getDay()]) + ' at 4:00 PM';
+      let rem = Math.max(0, dl.getTime() - s.now);
+      const h = Math.floor(rem/3600000); rem -= h*3600000;
+      const m = Math.floor(rem/60000); rem -= m*60000;
+      const sec = Math.floor(rem/1000);
+      const pad = n => String(n).padStart(2,'0');
+      cdH = pad(h); cdM = pad(m); cdS = pad(sec);
+    }
+
+    // ---- landing content ----
+    const trustItems = [
+      { icon:'✓', title:'Verified & authenticated', sub:'Every diamond and stone tested in-house' },
+      { icon:'✦', title:'One of a kind', sub:'Single-quantity finds — first to hold wins' },
+      { icon:'$', title:'Priced to move', sub:'Real value vs. retail on pre-owned goods' },
+      { icon:'♥', title:'Family-run in Trenton', sub:'Talk to real staff, no pressure' }
+    ];
+    const catPhotos = {
+      gold:'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=640&q=80',
+      diamond:'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=640&q=80',
+      gaming:'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&w=640&q=80',
+      computers:'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=640&q=80',
+      watches:'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=640&q=80',
+      audio:'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=640&q=80'
+    };
+    const catImg = (u) => React.createElement('img', { src:u, alt:'', loading:'lazy', style:{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' } });
+    const categoryTiles = [
+      { title:'Fine Gold', sub:'Chains · Cuban · Figaro', filter:'group:jewelry', photoEl:catImg(catPhotos.gold) },
+      { title:'Diamonds', sub:'Rings · Earrings', filter:'Lady\'s Diamond Fashion Ring', photoEl:catImg(catPhotos.diamond) },
+      { title:'Gaming', sub:'PS4 · Wii · Xbox', filter:'group:gaming', photoEl:catImg(catPhotos.gaming) },
+      { title:'Laptops & Cameras', sub:'Netbooks · Digital', filter:'group:computers', photoEl:catImg(catPhotos.computers) },
+      { title:'Watches', sub:'Automatic · Gent\'s', filter:'group:watches', photoEl:catImg(catPhotos.watches) },
+      { title:'Audio', sub:'Headphones & more', filter:'group:audio', photoEl:catImg(catPhotos.audio) }
+    ].map(t => ({ ...t, select: () => this.selectFilter(t.filter) }));
+    // ---- other services (from abcmoneyloan.com) ----
+    const services = [
+      { title:'Western Union', desc:'Send or receive money anywhere in the world, instantly. We\'re an authorized Western Union agent.',
+        icon:'M12 2v20M2 12h20', tag:'Authorized agent' },
+      { title:'Check Cashing', desc:'Get your cash on the spot — no bank wait, no check too large. Personal and business checks.',
+        icon:'M3 7h18v10H3zM7 12h6M16 12h1', tag:'Cash on the spot' },
+      { title:'Money Orders', desc:'Reliable money orders at the lowest prices available in town.',
+        icon:'M4 6h16v12H4zM8 12h8M8 9h4', tag:'Lowest prices' },
+      { title:'Bill Payment Center', desc:'Pay your utilities and everyday bills in one quick visit at the counter.',
+        icon:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6', tag:'One-stop counter' },
+      { title:'We Buy Gift Cards', desc:'Turn unused gift cards into cash. Bring them in and walk out paid.',
+        icon:'M3 6h18v12H3zM3 10h18M7 15h4', tag:'Cash today' }
+    ];
+    // ---- hero story scenes ----
+    const heroDefs = [
+      { slotId:'hero-gift', fallback:'radial-gradient(130% 110% at 68% 30%,#4a3618,#1c1206 62%,#0d0803)',
+        placeholder:'Add a photo — picking out a gold chain or ring as a gift',
+        eyebrow:'For the people you love', title:'Real gold for real moments.',
+        sub:'Hand-pick a gift that lasts — every diamond and gram of gold verified, authenticated, and priced to move.' },
+      { slotId:'hero-family', fallback:'radial-gradient(130% 110% at 58% 40%,#1d3552,#0a1524 62%,#060d16)',
+        placeholder:'Add a photo — dad & kid playing PlayStation, mom watching',
+        eyebrow:'Family night, sorted', title:'More play. Less pay.',
+        sub:'Consoles, controllers and stacks of games the whole family loves — all tested, all ready to take home today.' },
+      { slotId:'hero-store', fallback:'radial-gradient(130% 110% at 50% 30%,#26402f,#0e1a14 62%,#070f0b)',
+        placeholder:'Add a photo — your storefront & happy customers',
+        eyebrow:'146 E. State St · Downtown Trenton', title:'Come see us shine.',
+        sub:'500+ one-of-a-kind finds on the floor right now. Reserve online, then pick it up in store — no card needed today.' }
+    ];
+    const heroScenes = heroDefs.map((d, i) => {
+      const active = s.heroScene === i;
+      return {
+        ...d, active,
+        sceneStyle: { position:'absolute', inset:0, opacity: active ? 1 : 0, zIndex: active ? 2 : 1, transition:'opacity 1.1s ease' },
+        blockStyle: { position:'absolute', top:0, left:0, width:'100%', opacity: active ? 1 : 0,
+          transform: active ? 'translateY(0)' : 'translateY(14px)', transition:'opacity .8s ease, transform .8s ease', pointerEvents:'none' },
+        dotStyle: { width: active ? '30px' : '9px', height:'9px', borderRadius:'6px', border:'none', cursor:'pointer',
+          background: active ? '#E8C06A' : 'rgba(255,255,255,0.35)', transition:'all .4s ease', padding:0 },
+        onDot: () => this.setState({ heroScene: i })
+      };
+    });
+    const heroNav = {
+      diamond: () => this.selectFilter("Lady's Diamond Fashion Ring"),
+      gold: () => this.selectFilter('group:jewelry'),
+      games: () => this.selectFilter('group:gaming'),
+      watch: () => this.selectFilter('group:watches'),
+      camera: () => this.selectFilter('group:computers')
+    };
+    const featured = ['ring','cuban','netbook','watch'].map(byId).map(p => this.decorate(p));
+
+    const shopHeadingMap = { all:'The Floor — Everything In Stock' };
+    let shopHeading = 'The Floor';
+    if (s.activeFilter === 'all') shopHeading = 'The Floor — everything in stock';
+    else if (s.activeFilter.startsWith('group:')) shopHeading = { jewelry:'Fine Gold & Diamonds', gaming:'Games & Consoles', computers:'Laptops & Cameras', watches:'Watches', audio:'Audio' }[s.activeFilter.slice(6)] || 'The Floor';
+    else shopHeading = s.activeFilter;
+
+    return {
+      // views
+      isLanding: s.view==='landing', isShop: s.view==='shop', isProduct: s.view==='product',
+      isCart: s.view==='cart', isConfirm: s.view==='confirm',
+      goHome: () => this.goto('landing'), goShop: () => this.setState({view:'shop', activeFilter:'all', search:''}, ()=>{ if(typeof window!=='undefined') window.scrollTo(0,0); }),
+      goVisit: () => this.goto('landing'), goCart: () => this.goto('cart'),
+      // header/search
+      search: s.search,
+      onSearchInput: e => this.setState({ search:e.target.value }),
+      onSearchSubmit: e => { e.preventDefault(); this.setState({ view:'shop', activeFilter:'all' }); },
+      cartCount: s.cart.length, cartHasItems: s.cart.length>0, cartEmpty: s.cart.length===0,
+      // landing
+      trustItems, categoryTiles, heroScenes, heroNav, featured, services,
+      apiLive: s.apiState === 'live', apiUrlLabel: s.apiUrl || '',
+      phone:'609-777-5500', phoneHref:'tel:+16097775500',
+      // shop
+      shopItems, sidebarCats, shopCount: shopItems.length,
+      hasResults: shopItems.length>0, noResults: shopItems.length===0,
+      shopHeading,
+      sort: s.sort, onSort: e => this.setState({ sort:e.target.value }),
+      maxPrice: s.maxPrice, maxPriceLabel: s.maxPrice>=1300 ? 'No limit' : this.money(s.maxPrice),
+      onMaxPrice: e => this.setState({ maxPrice: Number(e.target.value) }),
+      clearFilters: () => this.setState({ search:'', maxPrice:1300, activeFilter:'all', sort:'featured' }),
+      // product
+      current, related, detailTrust,
+      // cart
+      cartItems, cartTotalLabel: this.money(cartTotal),
+      holdName: s.holdName, holdPhone: s.holdPhone, holdEmail: s.holdEmail, formError: s.formError,
+      onName: e => this.setState({ holdName:e.target.value }),
+      onPhone: e => this.setState({ holdPhone:e.target.value }),
+      onEmail: e => this.setState({ holdEmail:e.target.value }),
+      submitHold: () => {
+        const st = this.state;
+        if (!st.holdName.trim() || (!st.holdPhone.trim() && !st.holdEmail.trim())) { this.setState({ formError:true }); return; }
+        const raw = st.cart.map(byId).filter(Boolean);
+        const total = raw.reduce((n,p)=>n+(p.price||0),0);
+        const code = 'ABC-' + Math.floor(100000 + Math.random()*900000);
+        this.setState({ view:'confirm', formError:false, cart:[],
+          held: { items: raw, total, name: st.holdName.trim(), deadline: this.computeDeadline().getTime(), code } });
+        if (typeof window!=='undefined') window.scrollTo(0,0);
+      },
+      // confirmation
+      cdH, cdM, cdS, deadlineLabel, heldItems, heldTotalLabel, heldName, heldCount, holdCode,
+      qrCells: this.buildQR()
+    };
+  }
+}
+</script>
+</body>
+</html>
