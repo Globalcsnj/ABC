@@ -30,6 +30,62 @@
     <div class="stat-card stat-missing"><div class="stat-num">{{ "{:,}".format(unpriced) }}</div><div class="stat-label">Needs Price</div></div>
 </div>
 
+<!-- ── Explore workbench (widgets + charts first) ─────────────────────── -->
+<div class="page-header mt" id="workbench">
+    <h1>Explore &amp; Filter</h1>
+    <button class="btn btn-outline" onclick="downloadCsv()">⬇ Download filtered</button>
+</div>
+<p class="card-subtitle">Live-filtered view — totals and charts below update as you filter.</p>
+
+<div class="card">
+    <div class="explore-filters">
+        <input type="text" id="fq" placeholder="Search…" class="search-input" style="min-width:160px">
+        <select id="fCategory"><option value="">All categories</option>{% for c in wb_categories %}<option>{{ c }}</option>{% endfor %}</select>
+        <select id="fGroup"><option value="">All groups</option><option>Jewelry</option><option>Manufactured</option></select>
+        <select id="fMetal"><option value="">All metals</option>{% for m in wb_metals %}<option>{{ m }}</option>{% endfor %}</select>
+        <select id="fPurity"><option value="">All purities</option>{% for p in wb_purities %}<option>{{ p }}</option>{% endfor %}</select>
+        <select id="fStatus">
+            <option value="">Any status</option>
+            {% for s in wb_statuses %}<option value="st:{{ s }}">{{ s }}</option>{% endfor %}
+            <option value="unpriced">Unpriced</option>
+            <option value="sold">Sold</option>
+            <option value="instock">In stock (unsold)</option>
+        </select>
+        <select id="fStage">
+            <option value="">Any stage</option>
+            <option>Inventory</option><option>Scrap</option><option>Refined</option>
+            <option>Polish</option><option>Sold</option>
+        </select>
+        {% if wb_session_id %}
+        <select id="fMatch">
+            <option value="">Count: all</option>
+            <option>Found</option><option>Missing</option>
+        </select>
+        {% endif %}
+    </div>
+    <div class="explore-ranges">
+        <span class="range-group">Price $ <input type="number" id="priceMin" placeholder="min"> – <input type="number" id="priceMax" placeholder="max"></span>
+        <span class="range-group">Jewelry wt <input type="number" step="0.01" id="wtMin" placeholder="min"> – <input type="number" step="0.01" id="wtMax" placeholder="max"></span>
+        <span class="range-group">Diamond <input type="number" step="0.01" id="diaMin" placeholder="min"> – <input type="number" step="0.01" id="diaMax" placeholder="max"></span>
+        <button class="btn btn-sm btn-outline" onclick="resetFilters()">Reset</button>
+    </div>
+</div>
+
+<div class="stat-row dash-stats mt" id="kpis"></div>
+
+<div class="card-grid mt" id="charts"></div>
+
+<div class="card mt" id="items">
+    <div class="card-header">
+        <h2>Matching Items (<span id="resCount">0</span>)</h2>
+        <div class="dl-dropdown">
+            <button type="button" class="btn btn-sm btn-outline">🛠 Columns ▾</button>
+            <div class="dl-menu" id="colMenu"></div>
+        </div>
+    </div>
+    <div style="overflow-x:auto"><table class="table" id="resTable"><thead id="resHead"></thead><tbody id="resBody"></tbody></table></div>
+</div>
+
 <div class="card mt" id="aging">
     <h2>Inventory Aging</h2>
     <p class="card-subtitle">How long in-stock items have been in inventory (from the Inventory Age column). Older stock may need discounting.</p>
@@ -125,75 +181,19 @@
     </table>
 </div>
 
-<!-- ── Explore workbench (merged) ─────────────────────────────────────── -->
-<div class="page-header mt" id="workbench">
-    <h1>Explore &amp; Filter</h1>
-    <button class="btn btn-outline" onclick="downloadCsv()">⬇ Download filtered</button>
-</div>
-<p class="card-subtitle">Live-filtered view — totals and charts below update as you filter.</p>
-
-<div class="card">
-    <div class="explore-filters">
-        <input type="text" id="fq" placeholder="Search…" class="search-input" style="min-width:160px">
-        <select id="fCategory"><option value="">All categories</option>{% for c in wb_categories %}<option>{{ c }}</option>{% endfor %}</select>
-        <select id="fGroup"><option value="">All groups</option><option>Jewelry</option><option>Manufactured</option></select>
-        <select id="fMetal"><option value="">All metals</option>{% for m in wb_metals %}<option>{{ m }}</option>{% endfor %}</select>
-        <select id="fPurity"><option value="">All purities</option>{% for p in wb_purities %}<option>{{ p }}</option>{% endfor %}</select>
-        <select id="fStatus">
-            <option value="">Any status</option>
-            {% for s in wb_statuses %}<option value="st:{{ s }}">{{ s }}</option>{% endfor %}
-            <option value="unpriced">Unpriced</option>
-            <option value="sold">Sold</option>
-            <option value="instock">In stock (unsold)</option>
-        </select>
-        <select id="fStage">
-            <option value="">Any stage</option>
-            <option>Inventory</option><option>Scrap</option><option>Refined</option>
-            <option>Polish</option><option>Sold</option>
-        </select>
-        {% if wb_session_id %}
-        <select id="fMatch">
-            <option value="">Count: all</option>
-            <option>Found</option><option>Missing</option>
-        </select>
-        {% endif %}
-    </div>
-    <div class="explore-ranges">
-        <span class="range-group">Price $ <input type="number" id="priceMin" placeholder="min"> – <input type="number" id="priceMax" placeholder="max"></span>
-        <span class="range-group">Jewelry wt <input type="number" step="0.01" id="wtMin" placeholder="min"> – <input type="number" step="0.01" id="wtMax" placeholder="max"></span>
-        <span class="range-group">Diamond <input type="number" step="0.01" id="diaMin" placeholder="min"> – <input type="number" step="0.01" id="diaMax" placeholder="max"></span>
-        <button class="btn btn-sm btn-outline" onclick="resetFilters()">Reset</button>
-    </div>
-</div>
-
-<div class="stat-row dash-stats mt" id="kpis"></div>
-
-<div class="card-grid mt" id="charts"></div>
-
-<div class="card mt" id="items">
-    <div class="card-header">
-        <h2>Matching Items (<span id="resCount">0</span>)</h2>
-        <div class="dl-dropdown">
-            <button type="button" class="btn btn-sm btn-outline">🛠 Columns ▾</button>
-            <div class="dl-menu" id="colMenu"></div>
-        </div>
-    </div>
-    <div style="overflow-x:auto"><table class="table" id="resTable"><thead id="resHead"></thead><tbody id="resBody"></tbody></table></div>
-</div>
-
 </div><!-- /.analysis-main -->
 
 <aside class="analysis-rail">
     <div class="rail-title">On this page</div>
     <nav class="rail-nav">
         <a href="#overview">📈 Overview</a>
+        <a href="#workbench">🔎 Explore &amp; Filter</a>
+        <a href="#charts">📊 Charts &amp; Widgets</a>
+        <a href="#items">📋 Matching Items</a>
         <a href="#aging">⏳ Inventory Aging</a>
         <a href="#offers">🏷️ Aged Stock (90+)</a>
         <a href="#breakdown">🗂️ Type &amp; List</a>
         <a href="#categories">💰 Value by Category</a>
-        <a href="#workbench">🔎 Explore &amp; Filter</a>
-        <a href="#charts">📊 Charts</a>
-        <a href="#items">📋 Matching Items</a>
     </nav>
 </aside>
 </div><!-- /.analysis-layout -->
