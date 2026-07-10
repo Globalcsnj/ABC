@@ -42,8 +42,13 @@
         </div>
         <div class="form-group">
             <label>Product Photo</label>
-            {% if item.photo %}<div><img src="/uploads/{{ item.photo }}" class="edit-photo"></div>{% endif %}
+            <div id="itemImg">{% if item.photo %}<div><img src="/uploads/{{ item.photo }}" class="edit-photo"></div>{% endif %}</div>
+            <div class="photo-actions">
+                <button type="button" class="btn btn-sm btn-outline" onclick="findImages()">🔍 Find image online</button>
+                <span class="card-subtitle">or upload your own:</span>
+            </div>
             <input type="file" name="photo" accept="image/*" class="photo-input">
+            <p class="card-subtitle">Find image online pulls openly-licensed photos — you pick one and it's saved to this product for the shop. Uploading your own always wins if you also choose a file.</p>
         </div>
         <button type="submit" class="btn btn-primary">Save</button>
     </form>
@@ -51,10 +56,70 @@
     <button class="btn btn-danger" onclick="deleteItem()">🗑 Delete this item (override)</button>
     <p class="card-subtitle">Use for junk rows or items that shouldn't exist. Requires the override code.</p>
 </div>
+
+<!-- Image picker modal -->
+<div class="img-modal hidden" id="imgModal">
+    <div class="img-modal-box">
+        <div class="img-modal-head">
+            <strong id="imgModalTitle">Choose an image</strong>
+            <button class="img-modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="img-modal-note">Openly-licensed images (Openverse). Pick the closest match — it saves to this product and shows in the shop.</div>
+        <div class="img-results" id="imgResults"></div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const ITEM_NUMBER = {{ item.item_number|tojson }};
+const IMG_QUERY = {{ (item.description or item.category or item.item_number)|tojson }};
+
+async function findImages(){
+    document.getElementById('imgModalTitle').textContent = 'Images for: ' + IMG_QUERY;
+    document.getElementById('imgResults').innerHTML = '<div class="empty-state">⏳ Searching…</div>';
+    document.getElementById('imgModal').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/images/suggest?q=' + encodeURIComponent(IMG_QUERY));
+        const data = await res.json();
+        if ((data.error) && !(data.results||[]).length){
+            document.getElementById('imgResults').innerHTML =
+                `<div class="empty-state">${data.error}<br><small>You can still upload a photo above.</small></div>`;
+            return;
+        }
+        if (!data.results.length){
+            document.getElementById('imgResults').innerHTML = '<div class="empty-state">No matches. Try editing the description.</div>';
+            return;
+        }
+        document.getElementById('imgResults').innerHTML = data.results.map(r=>`
+            <div class="img-choice" onclick="approve('${r.url.replace(/'/g,"%27")}', this)">
+                <img src="${r.thumb}" loading="lazy" alt="">
+                <div class="img-choice-meta">${r.license || 'CC'}${r.creator ? ' · ' + r.creator : ''}</div>
+            </div>`).join('');
+    } catch(e){
+        document.getElementById('imgResults').innerHTML = '<div class="empty-state">Search failed. Check the store PC connection.</div>';
+    }
+}
+
+async function approve(url, el){
+    el.classList.add('picking');
+    const body = new FormData();
+    body.append('item_number', ITEM_NUMBER);
+    body.append('url', url);
+    const res = await fetch('/api/images/approve', {method:'POST', body});
+    const data = await res.json();
+    if (data.ok){
+        document.getElementById('itemImg').innerHTML =
+            `<div><img src="/uploads/${data.photo}?v=${Date.now()}" class="edit-photo"></div>`;
+        closeModal();
+    } else {
+        el.classList.remove('picking');
+        alert(data.error || 'Could not save that image.');
+    }
+}
+function closeModal(){ document.getElementById('imgModal').classList.add('hidden'); }
+document.getElementById('imgModal').addEventListener('click', e=>{ if(e.target.id==='imgModal') closeModal(); });
+
 async function deleteItem() {
     if (!confirm('Delete {{ item.item_number }} permanently from inventory?')) return;
     const code = prompt('Enter override code:');

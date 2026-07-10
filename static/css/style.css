@@ -877,6 +877,8 @@ html { scroll-behavior: smooth; }
 .seller-bar { position: absolute; inset: 0; background: #dbeafe; border-radius: 5px; z-index: 0; }
 .seller-name { position: relative; z-index: 1; font-weight: 600; font-size: 13px; }
 
+.photo-actions { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+
 /* Campaigns */
 .campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .campaign-form .cf-row .form-group { flex: 1; min-width: 140px; }
