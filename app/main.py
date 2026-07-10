@@ -665,14 +665,21 @@ async def shop_page(
         products = await cur.fetchall()
     async with db.execute("""
         SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category, COUNT(*) as cnt
-        FROM items WHERE source = 'retail' AND COALESCE(for_sale,1) = 1
+        FROM items WHERE source = 'retail' AND COALESCE(for_sale,1) = 1 AND COALESCE(sold,0)=0
         GROUP BY category ORDER BY cnt DESC
     """) as cur:
         categories = [dict(r) for r in await cur.fetchall()]
+    # Total in-store count + store info for the hero
+    total_in_store = sum(c["cnt"] for c in categories)
+    async with db.execute("SELECT name, address FROM stores ORDER BY id LIMIT 1") as cur:
+        store = await cur.fetchone()
+    # Only show the hero/category tiles on the landing view (no search/filter)
+    landing = not (q or category or max_price)
     return templates.TemplateResponse("shop.html", {
         "request": request, "products": products, "categories": categories,
         "q": q, "category": category, "sort": sort, "max_price": max_price,
-        "count": len(products),
+        "count": len(products), "store": store, "total_in_store": total_in_store,
+        "landing": landing,
     })
 
 

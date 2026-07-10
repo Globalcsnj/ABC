@@ -3,20 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ABC MoneyLoan Pawnshop – Shop</title>
+    <title>{{ store.name if store else 'ABC MoneyLoan Pawnshop' }} – Shop</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="shop-body">
     <header class="shop-topbar">
         <a href="/shop" class="shop-logo"><img src="/static/media/logo.png?v=2" class="brand-logo" onerror="this.onerror=null;this.src='/static/media/logo.svg?v=2'" alt="ABC MoneyLoan"></a>
         <form method="GET" action="/shop" class="shop-topsearch">
-            <input type="text" name="q" value="{{ q }}" placeholder="Search jewelry, electronics, tools…">
-            <button type="submit">🔍</button>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search gold, diamonds, games, cameras…">
+            <button type="submit" aria-label="Search">🔍</button>
         </form>
-        <a href="/shop/cart" class="shop-cart-link">🛒 <span id="cartCount" class="cart-badge">0</span></a>
+        <nav class="shop-topnav">
+            <a href="/shop">Shop</a>
+            <a href="/welcome">Visit Us</a>
+            <a href="/shop/cart" class="shop-cart-link">🛒 <span id="cartCount" class="cart-badge">0</span></a>
+        </nav>
     </header>
 
-    <div class="shop-layout">
+    {% if landing %}
+    <!-- Premium hero -->
+    <section class="hero2">
+        <div class="hero2-overlay"></div>
+        <div class="hero2-inner">
+            <span class="hero2-badge"><span class="hero2-dot"></span>LIVE · REAL FLOOR INVENTORY</span>
+            <h1>Quality pre-owned treasures,<br>priced to move.</h1>
+            <p>Jewelry, electronics, tools and more — every item inspected in-house and ready to take home today.</p>
+            <div class="hero2-actions">
+                <a href="#browse" class="btn2 btn2-gold">Browse the Store →</a>
+                <a href="/welcome" class="btn2 btn2-ghost">Visit Us in Trenton</a>
+            </div>
+            <div class="hero2-stat">{{ "{:,}".format(total_in_store) }} items on the floor right now</div>
+        </div>
+    </section>
+
+    {% if categories %}
+    <section class="cat-tiles-wrap">
+        <h2 class="section-title">Shop by Category</h2>
+        <div class="cat-tiles">
+            {% for c in categories[:8] %}
+            <a href="/shop?category={{ c.category|urlencode }}" class="cat-tile">
+                <div class="cat-tile-ico">
+                    {%- set n = c.category|lower -%}
+                    {%- if 'diamond' in n or 'ring' in n or 'gold' in n or 'jewel' in n or 'chain' in n or 'bracelet' in n or 'necklace' in n or 'earring' in n -%}💎
+                    {%- elif 'watch' in n -%}⌚
+                    {%- elif 'game' in n or 'xbox' in n or 'playstation' in n or 'ps' in n or 'nintendo' in n or 'switch' in n -%}🎮
+                    {%- elif 'camera' in n -%}📷
+                    {%- elif 'laptop' in n or 'netbook' in n or 'desktop' in n or 'tablet' in n or 'computer' in n -%}💻
+                    {%- elif 'tv' in n or 'television' in n or 'monitor' in n -%}📺
+                    {%- elif 'guitar' in n or 'instrument' in n or 'speaker' in n or 'audio' in n -%}🎸
+                    {%- elif 'tool' in n or 'drill' in n or 'nailer' in n or 'saw' in n -%}🔧
+                    {%- elif 'dvd' in n or 'blu' in n or 'movie' in n -%}🎬
+                    {%- else -%}🛍️{%- endif -%}
+                </div>
+                <div class="cat-tile-name">{{ c.category }}</div>
+                <div class="cat-tile-count">{{ c.cnt }} items</div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    <div class="shop-layout" id="browse">
         <aside class="shop-sidebar">
             <div class="sidebar-block">
                 <div class="sidebar-title">Categories</div>
@@ -44,7 +92,7 @@
                 <div class="shop-count">
                     {% if q %}Results for "<strong>{{ q }}</strong>" — {{ count }} items
                     {% elif category %}<strong>{{ category }}</strong> — {{ count }} items
-                    {% else %}{{ count }} items in store{% endif %}
+                    {% else %}All items — {{ count }} in store{% endif %}
                 </div>
                 <form method="GET" action="/shop" class="shop-sortform">
                     {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
@@ -65,17 +113,19 @@
                 <div class="prod-card">
                     <a href="/shop/item/{{ p.item_number }}" class="prod-img">
                         {% if p.photo %}
-                        <img src="/uploads/{{ p.photo }}" alt="{{ p.description }}">
+                        <img src="/uploads/{{ p.photo }}" alt="{{ p.description }}" loading="lazy">
                         {% else %}<div class="prod-noimg">📦</div>{% endif %}
+                        <span class="prod-tag">One of a kind</span>
                     </a>
                     <div class="prod-info">
-                        <a href="/shop/item/{{ p.item_number }}" class="prod-name">{{ p.description or 'Item' }}</a>
                         <div class="prod-cat">{{ p.category or '' }}</div>
-                        <div class="prod-price">
-                            {% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                        <a href="/shop/item/{{ p.item_number }}" class="prod-name">{{ p.description or 'Item' }}</a>
+                        <div class="prod-bottom">
+                            <div class="prod-price">
+                                {% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                            </div>
+                            <button class="btn2 btn2-add" onclick="addToCart('{{ p.item_number }}')">Add</button>
                         </div>
-                        <button class="btn btn-primary btn-sm prod-add"
-                                onclick="addToCart('{{ p.item_number }}')">Add to cart</button>
                     </div>
                 </div>
                 {% endfor %}
@@ -86,7 +136,13 @@
         </main>
     </div>
 
-    <footer class="shop-footer">Ask our staff about any item. Prices and availability may change.</footer>
+    <footer class="shop-footer2">
+        <div class="footer2-brand">
+            <img src="/static/media/logo.png?v=2" class="brand-logo" onerror="this.onerror=null;this.src='/static/media/logo.svg?v=2'" alt="ABC MoneyLoan">
+            {% if store and store.address %}<div class="footer2-addr">{{ store.address }}</div>{% endif %}
+        </div>
+        <div class="footer2-note">Every item is inspected and authenticated in-house. Prices reflect pre-owned condition and are subject to in-store verification. One-of-a-kind inventory — subject to prior sale.</div>
+    </footer>
     <script src="/static/js/shop.js"></script>
 </body>
 </html>
