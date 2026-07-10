@@ -45,7 +45,7 @@ AUTH_TOKEN = "abc-authed-ok"        # opaque cookie value set on login
 # Paths the public (customers) can reach without logging in
 PUBLIC_PREFIXES = ("/shop", "/welcome", "/hold", "/qr", "/barcode", "/static",
                    "/uploads", "/login", "/api/shop", "/favicon", "/offer",
-                   "/storefront", "/api/products")
+                   "/storefront", "/api/products", "/.image-slots")
 
 
 def get_lan_ip():
@@ -718,6 +718,14 @@ async def shop_cart_page(request: Request):
 
 
 STOREFRONT_HTML = os.path.join(BASE_DIR, "storefront", "ABC-MoneyLoan-Storefront.html")
+
+
+@app.get("/.image-slots.state.json")
+async def image_slots_sidecar():
+    """The storefront's <image-slot> components fetch this sidecar on load.
+    Served empty (slots are read-only once the design is exported), so they
+    fall back to their placeholders instead of the fetch bouncing to /login."""
+    return JSONResponse({})
 
 
 @app.get("/storefront")
