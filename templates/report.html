@@ -143,7 +143,7 @@
     </table>
 </div>
 
-{% set findings = scans|selectattr("match_status", "equalto", "unknown")|list %}
+{% set findings = scans|selectattr("match_status", "in", ["unknown", "extra"])|list %}
 {% if findings %}
 <div class="card mt" id="findingsCard">
     <div class="card-header">
@@ -153,14 +153,16 @@
             <button class="btn btn-sm btn-danger" onclick="deleteAllFindings({{ findings|length }})">🗑 Delete All ({{ findings|length }})</button>
         </div>
     </div>
-    <p class="card-subtitle">Items found in the store but NOT on the list. Investigate these.</p>
+    <p class="card-subtitle">Items found in the store but NOT on the list, plus extra units scanned beyond
+    the catalog count for a barcode. Investigate these.</p>
     <table class="table">
         <thead>
-            <tr><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th><th></th></tr>
+            <tr><th>Type</th><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th><th></th></tr>
         </thead>
         <tbody>
             {% for f in findings %}
             <tr class="row-unknown" id="finding-{{ f.id }}">
+                <td>{% if f.match_status == 'extra' %}<span class="badge badge-extra">➕ Extra unit{% if f.description %} — {{ f.description }}{% endif %}</span>{% else %}<span class="badge badge-unknown">Not on list</span>{% endif %}</td>
                 <td><code>{{ f.barcode }}</code></td>
                 <td><code>{{ f.full_ref }}</code></td>
                 <td>{{ f.location_id or '' }}{% if f.sublocation_id %} › {{ f.sublocation_id }}{% endif %}</td>

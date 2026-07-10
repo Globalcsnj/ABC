@@ -313,7 +313,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
 
     async with db.execute("""
         SELECT location_id, sublocation_id, COUNT(*) as total,
-               SUM(CASE WHEN match_status='found' THEN 1 ELSE 0 END) as found,
+               SUM(CASE WHEN match_status IN ('found','extra') THEN 1 ELSE 0 END) as found,
                SUM(CASE WHEN match_status='unknown' THEN 1 ELSE 0 END) as unknown
         FROM audit_scans WHERE session_id = ?
         GROUP BY location_id, sublocation_id
@@ -339,7 +339,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
         group_summary[g]["retail"] += (m["retail_price"] or 0)
     group_summary = sorted(group_summary.items(), key=lambda kv: kv[1]["count"], reverse=True)
 
-    found_count = sum(1 for s in scans if s["match_status"] == "found")
+    found_count = sum(1 for s in scans if s["match_status"] in ("found", "extra"))
     unknown_count = sum(1 for s in scans if s["match_status"] == "unknown")
 
     # Found-by-group metrics (count, cost, retail) — mirrors Missing by Group
@@ -347,7 +347,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     found_cost = found_retail = 0.0
     found_items = []
     for s in scans:
-        if s["match_status"] != "found":
+        if s["match_status"] not in ("found", "extra"):
             continue
         g = big_group(s, overrides)
         d = dict(s)
@@ -365,7 +365,7 @@ async def report_page(request: Request, session_id: int, db=Depends(get_db)):
     # Breakdown of FOUND items by their Bravo status (Inventory / Layaway / Redeemed / …)
     status_summary = {}
     for s in scans:
-        if s["match_status"] != "found":
+        if s["match_status"] not in ("found", "extra"):
             continue
         st = (s["item_status"] or "Unspecified").strip() or "Unspecified"
         status_summary[st] = status_summary.get(st, 0) + 1
@@ -491,10 +491,10 @@ async def report_found_csv(session_id: int, db=Depends(get_db)):
 
 @app.get("/report/{session_id}/findings.csv")
 async def report_findings_csv(session_id: int, db=Depends(get_db)):
-    scans = await _scans_for(session_id, db, "unknown")
+    scans = await _scans_for(session_id, db, "unknown") + await _scans_for(session_id, db, "extra")
 
     def write(w):
-        w.writerow(["FINDINGS (scanned, not on list)", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        w.writerow(["FINDINGS (scanned, not on list / extra units)", datetime.now().strftime("%Y-%m-%d %H:%M")])
         w.writerow(["Barcode", "Reference", "Location", "Sublocation", "Scanned At"])
         for s in scans:
             w.writerow([s["barcode"], s["full_ref"], s["location_id"],
@@ -1414,7 +1414,7 @@ async def delete_all_findings(session_id: int, override: str = Form(...), db=Dep
     if override.strip() != OVERRIDE_CODE:
         return JSONResponse({"error": "Invalid override code"}, status_code=403)
     async with db.execute(
-        "DELETE FROM audit_scans WHERE session_id=? AND match_status='unknown'", (session_id,)
+        "DELETE FROM audit_scans WHERE session_id=? AND match_status IN ('unknown','extra')", (session_id,)
     ) as cur:
         deleted = cur.rowcount
     await db.commit()
@@ -1447,6 +1447,7 @@ async def process_scan(
     code: str = Form(...),
     current_location: str = Form(default=""),
     current_sublocation: str = Form(default=""),
+    force_extra: str = Form(default=""),
     db=Depends(get_db)
 ):
     code = code.strip().upper()
@@ -1500,6 +1501,17 @@ async def process_scan(
     """, (code, session_id)) as cur:
         item = await cur.fetchone()
 
+    extra_unit = False
+    if item is None and force_extra:
+        # User confirmed: record an extra physical unit beyond the catalog count
+        async with db.execute(
+            "SELECT * FROM items WHERE barcode = ? ORDER BY item_number LIMIT 1", (code,)
+        ) as cur:
+            template = await cur.fetchone()
+        if template:
+            item = template
+            extra_unit = True
+
     if item is None:
         # No unclaimed unit — is this barcode known at all?
         async with db.execute(
@@ -1518,9 +1530,10 @@ async def process_scan(
                 where = existing["sublocation_id"] or existing["location_id"] or ""
             unit_note = f"all {total_units} units" if total_units > 1 else "already"
             return JSONResponse({
-                "type": "duplicate",
+                "type": "review",
                 "barcode": code,
-                "message": f"🔁 {unit_note} scanned in this count{(' (at ' + where + ')') if where else ''} — skipped",
+                "total_units": total_units,
+                "message": f"🔁 {unit_note} scanned in this count{(' (at ' + where + ')') if where else ''}",
             })
         # Unknown barcode: block repeat unknown scans of the same code
         async with db.execute(
@@ -1538,7 +1551,18 @@ async def process_scan(
 
     full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
 
-    if item:
+    if item and extra_unit:
+        # Extra physical unit beyond the catalog count — record as a finding
+        # tied to this barcode, without claiming any catalog item number.
+        match_status = "extra"
+        description = item["description"]
+        category = item["category"]
+        item_status = item["item_status"]
+        cost = item["cost"]
+        item_date = item["item_date"]
+        item_number = None
+        msg = f"➕ EXTRA UNIT recorded — {code} | {description}"
+    elif item:
         match_status = "found"
         description = item["description"]
         category = item["category"]

@@ -149,12 +149,13 @@ scanInput.addEventListener('input', () => {
     submitTimer = setTimeout(submitScan, 90);
 });
 
-async function processScan(code) {
+async function processScan(code, forceExtra) {
     const body = new FormData();
     body.append('session_id', SESSION_ID);
     body.append('code', code);
     body.append('current_location', currentLocation);
     body.append('current_sublocation', currentSublocation);
+    if (forceExtra) body.append('force_extra', '1');
 
     let data;
     try {
@@ -186,12 +187,22 @@ async function processScan(code) {
         await loadScans();
         hideItemCard();
     } else if (data.type === 'item') {
-        if (data.match_status === 'found') foundCount++;
+        if (data.match_status === 'found' || data.match_status === 'extra') foundCount++;
         else unknownCount++;
         updateCounters();
         showItemCard(data);
         prependScanRow(data);
         updateSummary();
+    } else if (data.type === 'review') {
+        // All catalog units of this barcode are already scanned. Ask whether
+        // this is a duplicate scan (skip) or another physical unit in hand.
+        const units = data.total_units > 1 ? `All ${data.total_units} units of ${data.barcode}` : `${data.barcode}`;
+        const addIt = confirm(`${units} already scanned in this count.\n\nDo you have ANOTHER physical unit of this item in hand?\n\nOK = add it as an extra unit\nCancel = skip (duplicate scan)`);
+        if (addIt) {
+            await processScan(code, true);
+        } else {
+            showFeedback(`🔁 ${data.barcode} skipped (duplicate)`, 'duplicate');
+        }
     } else if (data.type === 'error') {
         showFeedback(data.message, 'error');
     }
@@ -219,7 +230,10 @@ function showItemCard(data) {
 
     document.getElementById('cardRef').textContent = data.full_ref;
     document.getElementById('cardNumber').textContent = data.item_number ? 'Bravo: ' + data.item_number : 'Barcode: ' + data.barcode;
-    document.getElementById('cardBadge').textContent = data.match_status === 'found' ? '✅ FOUND' : '⚠️ NOT IN BRAVO';
+    document.getElementById('cardBadge').textContent =
+        data.match_status === 'found' ? '✅ FOUND'
+        : data.match_status === 'extra' ? '➕ EXTRA UNIT'
+        : '⚠️ NOT IN BRAVO';
     document.getElementById('cardBadge').className = 'item-card-badge badge-' + data.match_status;
     document.getElementById('cardDesc').textContent = data.description || '—';
     document.getElementById('cardCat').textContent = data.category || '—';
@@ -304,7 +318,7 @@ async function loadScans() {
     `).join('');
 
     totalBadge.textContent = `Total: ${scans.length}`;
-    foundCount = scans.filter(s => s.match_status === 'found').length;
+    foundCount = scans.filter(s => s.match_status === 'found' || s.match_status === 'extra').length;
     unknownCount = scans.filter(s => s.match_status === 'unknown').length;
     updateCounters();
 }
@@ -319,7 +333,7 @@ async function updateSummary() {
     scans.forEach(s => {
         const key = (s.location_id || '?') + (s.sublocation_id ? ' › ' + s.sublocation_id : '');
         if (!groups[key]) groups[key] = { found: 0, unknown: 0 };
-        if (s.match_status === 'found') groups[key].found++;
+        if (s.match_status === 'found' || s.match_status === 'extra') groups[key].found++;
         else groups[key].unknown++;
     });
 

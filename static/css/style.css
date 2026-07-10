@@ -159,6 +159,8 @@ body {
 .feedback-item { color: var(--success); }
 .feedback-error { color: var(--danger); }
 .feedback-duplicate { color: #b45309; }
+.feedback-extra { color: #2563eb; }
+.feedback-review { color: #b45309; }
 .loc-photo { width: 54px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--gray-200); }
 .no-photo { color: var(--gray-400); }
 .edit-barcode { max-width: 2.2in; height: auto; border: 1px solid var(--gray-200); border-radius: 4px; padding: 6px; background: white; }
@@ -319,12 +321,14 @@ body {
 .item-card.hidden { display: none; }
 .item-card-found { border-color: #10b981; background: #f0fdf4; }
 .item-card-unknown { border-color: #f59e0b; background: #fffbeb; }
+.item-card-extra { border-color: #3b82f6; background: #eff6ff; }
 .item-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
 .item-card-ref { font-size: 18px; font-weight: 800; font-family: monospace; color: var(--gray-800); }
 .item-card-number { font-size: 13px; color: var(--gray-400); margin-top: 2px; }
 .item-card-badge { font-size: 14px; font-weight: 700; padding: 5px 14px; border-radius: 20px; }
 .badge-found { background: #d1fae5; color: #065f46; }
 .badge-unknown { background: #fef3c7; color: #92400e; }
+.badge-extra { background: #dbeafe; color: #1e40af; }
 .item-card-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
 .item-field { display: flex; flex-direction: column; }
 .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-400); }
@@ -348,11 +352,13 @@ body {
 .scan-del:hover { background: #fee2e2; color: var(--danger); }
 .scan-row-found { background: #f0fdf4; }
 .scan-row-unknown { background: #fffbeb; }
+.scan-row-extra { background: #eff6ff; }
 .scan-row.new-scan { animation: flashIn .6s ease; }
 @keyframes flashIn { 0%{opacity:0;transform:translateY(-6px)} 100%{opacity:1;transform:translateY(0)} }
 .scan-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .dot-found { background: #10b981; }
 .dot-unknown { background: #f59e0b; }
+.dot-extra { background: #3b82f6; }
 .scan-ref { font-family: monospace; font-weight: 700; color: var(--primary); font-size: 12px; }
 .scan-desc { color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scan-cat { color: var(--gray-600); font-size: 12px; }
