@@ -858,6 +858,9 @@ a.cat-row:hover { border-color: var(--primary); background: #f0f7ff; }
 }
 .rail-nav a:hover { background: var(--gray-100); color: var(--primary); }
 .rail-nav a.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
+.rail-nav-right a { text-align: right; }
+.topic-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 12px; }
+.topic-head h2 { margin: 0; color: var(--primary); }
 html { scroll-behavior: smooth; }
 .analysis-main [id] { scroll-margin-top: 16px; }
 @media (max-width: 1024px) { .analysis-rail { display: none; } }

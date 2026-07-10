@@ -73,21 +73,85 @@
 
 <div class="stat-row dash-stats mt" id="kpis"></div>
 
-<div class="card-grid mt" id="charts"></div>
-
+<!-- Matching items: stays hidden until a search/filter is applied -->
 <div class="card mt" id="items">
     <div class="card-header">
-        <h2>Matching Items (<span id="resCount">0</span>)</h2>
-        <div class="dl-dropdown">
+        <h2>Matching Items <span id="resCountWrap" style="display:none">(<span id="resCount">0</span>)</span></h2>
+        <div class="dl-dropdown" id="colWrap" style="display:none">
             <button type="button" class="btn btn-sm btn-outline">🛠 Columns ▾</button>
             <div class="dl-menu" id="colMenu"></div>
         </div>
     </div>
-    <div style="overflow-x:auto"><table class="table" id="resTable"><thead id="resHead"></thead><tbody id="resBody"></tbody></table></div>
+    <div id="itemsHint" class="empty-state">Apply a search or filter above to list the matching items here.</div>
+    <div id="itemsTableWrap" style="overflow-x:auto; display:none">
+        <table class="table" id="resTable"><thead id="resHead"></thead><tbody id="resBody"></tbody></table>
+    </div>
 </div>
 
-<div class="card mt" id="aging">
-    <h2>Inventory Aging</h2>
+<!-- ── Research topics: general → specific ──────────────────────────── -->
+<div class="topic-head mt" id="by-category"><h2>💰 By Category</h2></div>
+<div class="card-grid" id="chart-category"></div>
+<div class="card mt">
+    <h3>Value by Category (detail)</h3>
+    <div style="overflow-x:auto">
+    <table class="table">
+        <thead><tr>
+            <th>Category</th><th>Items</th><th>% of Items</th>
+            <th>Retail Value</th><th>% of Value</th><th>Cost Value</th><th>Margin</th>
+        </tr></thead>
+        <tbody>
+            {% for c in by_cat %}
+            <tr>
+                <td>{{ c.category }}</td>
+                <td>{{ c.cnt }}</td>
+                <td>{% if in_stock %}{{ (c.cnt / in_stock * 100)|round(1) }}%{% else %}—{% endif %}</td>
+                <td>${{ "%.0f"|format(c.retail) }}</td>
+                <td>{% if retail_value %}{{ (c.retail / retail_value * 100)|round(1) }}%{% else %}—{% endif %}</td>
+                <td>${{ "%.0f"|format(c.cost) }}</td>
+                <td class="found-text">${{ "%.0f"|format(c.retail - c.cost) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<div class="topic-head mt" id="by-type"><h2>💍 By Type — Jewelry &amp; Manufactured</h2></div>
+<div class="card-grid" id="chart-type"></div>
+
+<div class="topic-head mt" id="by-price"><h2>🏷️ By Price</h2></div>
+<div class="card-grid" id="chart-price"></div>
+
+<div class="topic-head mt" id="by-store"><h2>🏬 By List / Store</h2></div>
+<div class="card-grid">
+    <div class="card">
+        <h3>By List</h3>
+        <table class="table">
+            <thead><tr><th>List</th><th>Items</th><th>Retail Value</th></tr></thead>
+            <tbody>
+                {% for s in by_source %}
+                <tr><td>{{ s.s|capitalize }}</td><td>{{ s.cnt }}</td><td>${{ "%.0f"|format(s.retail) }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card">
+        <h3>By Product Type</h3>
+        <table class="table">
+            <thead><tr><th>Type</th><th>Items</th><th>% of Items</th></tr></thead>
+            <tbody>
+                {% for t in by_type %}
+                <tr><td>{{ t.t|capitalize }}</td><td>{{ t.cnt }}</td>
+                    <td>{% if in_stock %}{{ (t.cnt / in_stock * 100)|round(1) }}%{% endif %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="topic-head mt" id="aged"><h2>⏳ Aged Stock &amp; Aging</h2></div>
+<div class="card">
+    <h3>Inventory Aging</h3>
     <p class="card-subtitle">How long in-stock items have been in inventory (from the Inventory Age column). Older stock may need discounting.</p>
     {% for label, cnt in aging.items() %}
     <div class="hbar-row">
@@ -97,10 +161,9 @@
     </div>
     {% endfor %}
 </div>
-
-<div class="card mt" id="offers">
+<div class="card mt">
     <div class="card-header">
-        <h2>🏷️ Aged Stock — 90+ Days (Offer Candidates)</h2>
+        <h3>90+ Days (Offer Candidates)</h3>
         {% if aged_count %}<a href="/analysis/aged.csv" class="btn btn-sm btn-outline">⬇ Download list</a>{% endif %}
     </div>
     <p class="card-subtitle">In-stock items that have sat 90+ days — the best candidates for markdowns and campaigns.</p>
@@ -132,68 +195,19 @@
     {% endif %}
 </div>
 
-<div class="card-grid mt" id="breakdown">
-    <div class="card">
-        <h2>By Product Type</h2>
-        <table class="table">
-            <thead><tr><th>Type</th><th>Items</th><th>% of Items</th></tr></thead>
-            <tbody>
-                {% for t in by_type %}
-                <tr><td>{{ t.t|capitalize }}</td><td>{{ t.cnt }}</td>
-                    <td>{% if in_stock %}{{ (t.cnt / in_stock * 100)|round(1) }}%{% endif %}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <div class="card">
-        <h2>By List</h2>
-        <table class="table">
-            <thead><tr><th>List</th><th>Items</th><th>Retail Value</th></tr></thead>
-            <tbody>
-                {% for s in by_source %}
-                <tr><td>{{ s.s|capitalize }}</td><td>{{ s.cnt }}</td><td>${{ "%.0f"|format(s.retail) }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="card mt" id="categories">
-    <h2>Value by Category (detail)</h2>
-    <table class="table">
-        <thead><tr>
-            <th>Category</th><th>Items</th><th>% of Items</th>
-            <th>Retail Value</th><th>% of Value</th><th>Cost Value</th><th>Margin</th>
-        </tr></thead>
-        <tbody>
-            {% for c in by_cat %}
-            <tr>
-                <td>{{ c.category }}</td>
-                <td>{{ c.cnt }}</td>
-                <td>{% if in_stock %}{{ (c.cnt / in_stock * 100)|round(1) }}%{% else %}—{% endif %}</td>
-                <td>${{ "%.0f"|format(c.retail) }}</td>
-                <td>{% if retail_value %}{{ (c.retail / retail_value * 100)|round(1) }}%{% else %}—{% endif %}</td>
-                <td>${{ "%.0f"|format(c.cost) }}</td>
-                <td class="found-text">${{ "%.0f"|format(c.retail - c.cost) }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
 </div><!-- /.analysis-main -->
 
 <aside class="analysis-rail">
     <div class="rail-title">On this page</div>
-    <nav class="rail-nav">
+    <nav class="rail-nav rail-nav-right">
         <a href="#overview">📈 Overview</a>
         <a href="#workbench">🔎 Explore &amp; Filter</a>
-        <a href="#charts">📊 Charts &amp; Widgets</a>
         <a href="#items">📋 Matching Items</a>
-        <a href="#aging">⏳ Inventory Aging</a>
-        <a href="#offers">🏷️ Aged Stock (90+)</a>
-        <a href="#breakdown">🗂️ Type &amp; List</a>
-        <a href="#categories">💰 Value by Category</a>
+        <a href="#by-category">💰 By Category</a>
+        <a href="#by-type">💍 By Type</a>
+        <a href="#by-price">🏷️ By Price</a>
+        <a href="#by-store">🏬 By List / Store</a>
+        <a href="#aged">⏳ Aged Stock (90+)</a>
     </nav>
 </aside>
 </div><!-- /.analysis-layout -->
@@ -270,32 +284,59 @@ function barChart(el, data, fmt){
 const fmtMoney = v=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:0});
 const fmtCount = v=>v;
 
-// Build only the charts that have meaningful data for THIS dataset, so a
-// manufactured-goods list doesn't show empty Metal/Purity boxes and a jewelry
-// list doesn't waste space on manufacturer. Core charts always show; the rest
-// appear only when they have at least two distinct buckets.
-function renderCharts(rows){
-    const cands = [
-        {title:'By Category — Retail Value', data:sumBy(rows,r=>r.category,r=>r.retail_price), fmt:fmtMoney, core:true},
-        {title:'By Status — Count',          data:sumBy(rows,r=>(r.sold?'Sold':(r.item_status||'—')),r=>1), fmt:fmtCount, core:true},
-    ];
-    if (SESSION_CTX) {
-        cands.push({title:'Count Result — Found vs Missing', data:sumBy(rows,r=>r.count_result,r=>1), fmt:fmtCount, core:true});
-    }
-    // Manufactured-goods lenses
-    cands.push({title:'By Category — Count',   data:sumBy(rows,r=>r.category,r=>1), fmt:fmtCount});
-    cands.push({title:'By Manufacturer — Count', data:sumBy(rows,r=>r.manufacturer,r=>1), fmt:fmtCount});
-    cands.push({title:'By Vendor — Count',     data:sumBy(rows,r=>r.vendor,r=>1), fmt:fmtCount});
-    // Jewelry lenses
-    cands.push({title:'By Metal — Jewelry Weight', data:sumBy(rows,r=>r.metal_type,r=>num(r.total_jewelry_weight)), fmt:v=>v.toFixed(1)});
-    cands.push({title:'By Purity — Count',     data:sumBy(rows,r=>r.metal_purity,r=>1), fmt:fmtCount});
-    // Stage (only interesting once items move beyond plain Inventory)
-    cands.push({title:'By Stage — Count',      data:sumBy(rows,r=>(r.stage||'Inventory'),r=>1), fmt:fmtCount});
+// Group items into price bands so "By Price" reads as a distribution.
+const PRICE_BANDS = [
+    ['Under $25', 0, 25], ['$25–50', 25, 50], ['$50–100', 50, 100],
+    ['$100–250', 100, 250], ['$250–500', 250, 500], ['$500–1,000', 500, 1000],
+    ['$1,000+', 1000, Infinity],
+];
+function priceBands(rows){
+    const counts = PRICE_BANDS.map(()=>0);
+    let unpriced = 0;
+    rows.forEach(r=>{
+        const p = r.retail_price;
+        if (p==null){ unpriced++; return; }
+        for (let i=0;i<PRICE_BANDS.length;i++){
+            if (p >= PRICE_BANDS[i][1] && p < PRICE_BANDS[i][2]){ counts[i]++; break; }
+        }
+    });
+    const data = PRICE_BANDS.map((b,i)=>[b[0], counts[i]]).filter(([k,v])=>v>0);
+    if (unpriced) data.push(['No price', unpriced]);
+    return data;   // keep band order (do NOT sort by value)
+}
 
-    const shown = cands.filter(c => c.core || c.data.length >= 2);
-    const host = document.getElementById('charts');
-    host.innerHTML = shown.map((c,i)=>`<div class="card"><h2>${c.title}</h2><div id="chart_${i}"></div></div>`).join('');
-    shown.forEach((c,i)=>barChart(document.getElementById('chart_'+i), c.data, c.fmt));
+// Render a set of candidate charts into a host grid. Core charts always show;
+// the rest appear only when they have at least two distinct buckets — so a
+// manufactured list won't show empty Metal/Purity boxes and vice-versa.
+function renderInto(hostId, cands){
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const shown = cands.filter(c => c.core || (c.data && c.data.length >= 2));
+    if (!shown.length){ host.innerHTML = '<div class="card"><div class="empty-state">No data for this view.</div></div>'; return; }
+    host.innerHTML = shown.map((c,i)=>`<div class="card"><h3>${c.title}</h3><div id="${hostId}_${i}"></div></div>`).join('');
+    shown.forEach((c,i)=>barChart(document.getElementById(`${hostId}_${i}`), c.data, c.fmt || fmtCount));
+}
+
+function renderCharts(rows){
+    // By Category
+    renderInto('chart-category', [
+        {title:'Retail Value by Category', data:sumBy(rows,r=>r.category,r=>r.retail_price), fmt:fmtMoney, core:true},
+        {title:'Item Count by Category',   data:sumBy(rows,r=>r.category,r=>1), fmt:fmtCount, core:true},
+    ]);
+    // By Type — Jewelry vs Manufactured, then the finer type lenses
+    renderInto('chart-type', [
+        {title:'Jewelry vs Manufactured',  data:sumBy(rows,r=>r.group,r=>1), fmt:fmtCount, core:true},
+        {title:'By Metal — Jewelry Weight',data:sumBy(rows,r=>r.metal_type,r=>num(r.total_jewelry_weight)), fmt:v=>v.toFixed(1)},
+        {title:'By Purity — Count',        data:sumBy(rows,r=>r.metal_purity,r=>1)},
+        {title:'By Manufacturer — Count',  data:sumBy(rows,r=>r.manufacturer,r=>1)},
+        {title:'By Vendor — Count',        data:sumBy(rows,r=>r.vendor,r=>1)},
+        {title:'By Stage — Count',         data:sumBy(rows,r=>(r.stage||'Inventory'),r=>1)},
+    ]);
+    // By Price
+    renderInto('chart-price', [
+        {title:'Items by Price Band',      data:priceBands(rows), fmt:fmtCount, core:true},
+        {title:'Retail Value by Category (price context)', data:sumBy(rows,r=>r.category,r=>r.retail_price), fmt:fmtMoney},
+    ]);
 }
 
 function render(){
@@ -318,7 +359,21 @@ function render(){
     document.getElementById('kpis').innerHTML = kpis
         .map(([l,v])=>`<div class="stat-card"><div class="stat-num">${v}</div><div class="stat-label">${l}</div></div>`).join('');
 
+    // Charts summarize everything currently in scope (filtered or not)
     renderCharts(rows);
+    window._filtered=rows;
+
+    // The full item list stays hidden until the user searches or filters.
+    const filtered = isFiltered();
+    const hint = document.getElementById('itemsHint');
+    const wrap = document.getElementById('itemsTableWrap');
+    document.getElementById('resCountWrap').style.display = filtered ? '' : 'none';
+    document.getElementById('colWrap').style.display = filtered ? '' : 'none';
+    if (!filtered){
+        hint.style.display = ''; wrap.style.display = 'none';
+        return;
+    }
+    hint.style.display = 'none'; wrap.style.display = '';
 
     const cols=COLS.filter(c=>selCols.includes(c.k));
     document.getElementById('resHead').innerHTML='<tr>'+cols.map(c=>`<th>${c.l}</th>`).join('')+'</tr>';
@@ -326,7 +381,13 @@ function render(){
     document.getElementById('resBody').innerHTML = rows.slice(0,600).map(r=>'<tr>'+cols.map(c=>{
         let v=r[c.k]; if(c.money) v=money(v); else v=(v!=null&&v!=='')?v:'—'; return `<td>${v}</td>`;
     }).join('')+'</tr>').join('') || `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
-    window._filtered=rows;
+}
+
+// True when any search box, dropdown, or range input has a value.
+function isFiltered(){
+    const ids = ['fq','fCategory','fGroup','fMetal','fPurity','fStatus','fStage','fMatch',
+                 'priceMin','priceMax','wtMin','wtMax','diaMin','diaMax'];
+    return ids.some(id => (val(id)||'').trim() !== '');
 }
 
 function buildColMenu(){
