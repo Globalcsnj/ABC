@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Depends, Form, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import aiosqlite
@@ -44,7 +44,8 @@ AUTH_COOKIE = "abc_auth"
 AUTH_TOKEN = "abc-authed-ok"        # opaque cookie value set on login
 # Paths the public (customers) can reach without logging in
 PUBLIC_PREFIXES = ("/shop", "/welcome", "/hold", "/qr", "/barcode", "/static",
-                   "/uploads", "/login", "/api/shop", "/favicon", "/offer")
+                   "/uploads", "/login", "/api/shop", "/favicon", "/offer",
+                   "/storefront", "/api/products")
 
 
 def get_lan_ip():
@@ -714,6 +715,70 @@ async def shop_item_page(request: Request, item_number: str, db=Depends(get_db))
 @app.get("/shop/cart", response_class=HTMLResponse)
 async def shop_cart_page(request: Request):
     return templates.TemplateResponse("shop_cart.html", {"request": request})
+
+
+STOREFRONT_HTML = os.path.join(BASE_DIR, "storefront", "ABC-MoneyLoan-Storefront.html")
+
+
+@app.get("/storefront")
+async def storefront_page():
+    """Serve the standalone storefront from the same origin as the API so the
+    JSON feed connects with zero CORS. The HTML probes /api/products/ itself."""
+    if not os.path.exists(STOREFRONT_HTML):
+        raise HTTPException(404, "Storefront file not found")
+    return FileResponse(STOREFRONT_HTML, media_type="text/html")
+
+
+def _clean(v):
+    """Return a trimmed string or None (so blank Bravo cells map to null)."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+@app.get("/api/products/")
+@app.get("/api/products")
+async def products_api(db=Depends(get_db)):
+    """Live product feed for the storefront. Same items as the customer shop:
+    retail, flagged for sale, not sold, not layaway."""
+    async with db.execute("""
+        SELECT item_number, barcode, description, category, item_status, product_type,
+               retail_price, condition, quantity, photo,
+               metal_type, metal_purity, total_jewelry_weight, total_diamond,
+               total_stone_size, quality, manufacturer, model, serial_number
+        FROM items
+        WHERE source='retail' AND COALESCE(for_sale,1)=1 AND COALESCE(sold,0)=0
+          AND UPPER(COALESCE(item_status,'')) NOT LIKE '%LAYAWAY%'
+        ORDER BY description
+    """) as cur:
+        rows = await cur.fetchall()
+
+    products = []
+    for r in rows:
+        qty_raw = re.sub(r"[^0-9]", "", str(r["quantity"] or ""))
+        products.append({
+            "id": r["item_number"],
+            "name": _clean(r["description"]) or r["item_number"],
+            "category": _clean(r["category"]) or "Uncategorized",
+            "price": r["retail_price"] if r["retail_price"] is not None else "",
+            "condition": _clean(r["condition"]),
+            "barcode": _clean(r["barcode"]),
+            "quantity": int(qty_raw) if qty_raw else 1,
+            "image": f"/uploads/{r['photo']}" if r["photo"] else None,
+            # Jewelry specs (blank for manufactured goods)
+            "metal": _clean(r["metal_type"]),
+            "purity": _clean(r["metal_purity"]),
+            "weight": _clean(r["total_jewelry_weight"]),
+            "diamond": _clean(r["total_diamond"]),
+            "stone": _clean(r["total_stone_size"]),
+            "quality": _clean(r["quality"]),
+            # Electronics specs (blank for jewelry)
+            "manufacturer": _clean(r["manufacturer"]),
+            "model": _clean(r["model"]),
+            "serial": _clean(r["serial_number"]),
+        })
+    return JSONResponse(products)
 
 
 @app.get("/api/shop/items")
