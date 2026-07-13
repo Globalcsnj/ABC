@@ -1950,7 +1950,17 @@ async def process_scan(
         "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? ORDER BY item_number",
         (code, code, code)
     ) as cur:
-        matches = await cur.fetchall()
+        matches_all = await cur.fetchall()
+    # Count only unsold units — the expected population excludes sold items.
+    matches = [r for r in matches_all if not (r["sold"] if "sold" in r.keys() else 0)]
+    # Known but every matching unit is already sold → flag, don't count as found.
+    if not matches and matches_all:
+        return JSONResponse({
+            "type": "duplicate",
+            "barcode": code,
+            "message": f"⚠️ {code} is marked SOLD in Bravo — not counted. "
+                       f"Un-sell it on the item page if it's still on the floor.",
+        })
 
     def _qty(row):
         raw = re.sub(r"[^0-9]", "", str(row["quantity"] or ""))
@@ -2197,6 +2207,11 @@ async def import_items(
             # Recover full digits from Excel scientific notation / quoting.
             upc = expand_code(upc)
             barcode = expand_code(barcode)
+            # A row with no item number (e.g. a UPC-only bulk line) still needs a
+            # stable primary key so re-imports merge instead of inserting NULL-PK
+            # duplicates. Fall back to the barcode, then the UPC.
+            if not item_number:
+                item_number = barcode or upc or ""
             description = find_column(row, "Description", "Item Description", "Desc")
             category = find_column(row, "Category", "Cat")
             item_type = find_column(row, "Type")
@@ -2231,7 +2246,7 @@ async def import_items(
             inventory_age = find_column(row, "Inventory Age", "Age", "Days in Inventory")
             date_to_inventory = find_column(row, "Date to Inventory", "Date In", "Received")
 
-            if not item_number and not barcode:
+            if not item_number and not barcode and not upc:
                 skipped += 1
                 continue
 
