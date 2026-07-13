@@ -2290,6 +2290,8 @@ async def import_items(
                         upc = str(v).strip()
                         break
             # Recover full digits from Excel scientific notation / quoting.
+            # (Alphanumeric item numbers like AB1007081 pass through unchanged.)
+            item_number = expand_code(item_number)
             upc = expand_code(upc)
             barcode = expand_code(barcode)
             # A row with no item number (e.g. a UPC-only bulk line) still needs a
