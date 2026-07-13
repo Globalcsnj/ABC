@@ -1354,7 +1354,7 @@ async def load_workbench_data(db, session_id: int = 0):
     """Items + filter option lists for the analysis workbench. When a count
     session is given, each item is tagged Found/Missing for that count."""
     async with db.execute("""
-        SELECT item_number, barcode, description, category, item_status, source, product_type,
+        SELECT item_number, barcode, upc, description, category, item_status, source, product_type,
                cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
                manufacturer, model, vendor, item_date, date_to_inventory, sold_at,
@@ -1508,13 +1508,13 @@ async def record_sale(code: str = Form(...), db=Depends(get_db)):
     # may cover several identical units — scan once per unit sold).
     async with db.execute(
         "SELECT item_number, description, retail_price FROM items "
-        "WHERE (item_number = ? OR barcode = ?) AND COALESCE(sold,0)=0 "
-        "ORDER BY item_number LIMIT 1", (c, c)
+        "WHERE (item_number = ? OR barcode = ? OR upc = ?) AND COALESCE(sold,0)=0 "
+        "ORDER BY item_number LIMIT 1", (c, c, c)
     ) as cur:
         item = await cur.fetchone()
     if not item:
         async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE item_number = ? OR barcode = ?", (c, c)
+            "SELECT COUNT(*) FROM items WHERE item_number = ? OR barcode = ? OR upc = ?", (c, c, c)
         ) as cur:
             known = (await cur.fetchone())[0]
         if known:
@@ -1559,8 +1559,8 @@ async def mark_sold_from_list(
     for code in tokens:
         # Sell ONE unsold unit per listed code (list a barcode twice to sell 2 units)
         async with db.execute(
-            "SELECT item_number FROM items WHERE (item_number = ? OR barcode = ?) "
-            "AND COALESCE(sold,0)=0 ORDER BY item_number LIMIT 1", (code, code)
+            "SELECT item_number FROM items WHERE (item_number = ? OR barcode = ? OR upc = ?) "
+            "AND COALESCE(sold,0)=0 ORDER BY item_number LIMIT 1", (code, code, code)
         ) as cur:
             row = await cur.fetchone()
         if not row:
@@ -1920,21 +1920,24 @@ async def process_scan(
     # Multiple units of the same product can share a barcode (distinct item
     # numbers). Each scan claims the next unclaimed unit; once every unit is
     # accounted for, further scans are duplicates.
+    # Match the scanned code against the Bravo barcode, the UPC, or the item
+    # number — items bulk-loaded into Bravo may carry only a UPC.
     async with db.execute("""
         SELECT * FROM items
-        WHERE barcode = ? AND item_number NOT IN (
+        WHERE (barcode = ? OR upc = ? OR item_number = ?) AND item_number NOT IN (
             SELECT item_number FROM audit_scans
             WHERE session_id = ? AND match_status = 'found' AND item_number IS NOT NULL
         )
         ORDER BY item_number LIMIT 1
-    """, (code, session_id)) as cur:
+    """, (code, code, code, session_id)) as cur:
         item = await cur.fetchone()
 
     extra_unit = False
     if item is None and force_extra:
         # User confirmed: record an extra physical unit beyond the catalog count
         async with db.execute(
-            "SELECT * FROM items WHERE barcode = ? ORDER BY item_number LIMIT 1", (code,)
+            "SELECT * FROM items WHERE (barcode = ? OR upc = ? OR item_number = ?) ORDER BY item_number LIMIT 1",
+            (code, code, code)
         ) as cur:
             template = await cur.fetchone()
         if template:
@@ -1942,9 +1945,10 @@ async def process_scan(
             extra_unit = True
 
     if item is None:
-        # No unclaimed unit — is this barcode known at all?
+        # No unclaimed unit — is this code known at all (barcode/UPC/item #)?
         async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE barcode = ?", (code,)
+            "SELECT COUNT(*) FROM items WHERE barcode = ? OR upc = ? OR item_number = ?",
+            (code, code, code)
         ) as cur:
             total_units = (await cur.fetchone())[0]
         if total_units:
@@ -1999,9 +2003,10 @@ async def process_scan(
         cost = item["cost"]
         item_date = item["item_date"]
         item_number = item["item_number"]
-        # Show which unit this scan claimed when the barcode has multiples
+        # Show which unit this scan claimed when the code has multiple units
         async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE barcode = ?", (code,)
+            "SELECT COUNT(*) FROM items WHERE barcode = ? OR upc = ? OR item_number = ?",
+            (code, code, code)
         ) as cur:
             total_units = (await cur.fetchone())[0]
         unit_suffix = ""
@@ -2154,7 +2159,10 @@ async def import_items(
 
         for row in reader:
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
-            barcode = find_column(row, "Barcode", "Barcode Number", "UPC", "SKU")
+            barcode = find_column(row, "Barcode", "Barcode Number", "SKU")
+            # UPC is a distinct code (bulk-uploaded items may carry a UPC and no
+            # Bravo barcode). Kept separate so scanning can match either.
+            upc = find_column(row, "UPC", "UPC Code", "UPCCode", "UPC Number", "GTIN", "EAN")
             description = find_column(row, "Description", "Item Description", "Desc")
             category = find_column(row, "Category", "Cat")
             item_type = find_column(row, "Type")
@@ -2241,15 +2249,16 @@ async def import_items(
             stone_auth_in = authentic_stone if stone_auth_raw else None
             await db.execute("""
                 INSERT INTO items
-                  (item_number, barcode, description, category, item_type, item_status,
+                  (item_number, barcode, upc, description, category, item_type, item_status,
                    cost, retail_price, item_date, source, product_type, total_diamond, metal_type,
                    metal_color, total_stone_size, condition, diamond_authentic,
                    serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                    metal_weight, quality, authentic_stone, quantity, vendor,
                    inventory_age, date_to_inventory, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=COALESCE(NULLIF(excluded.barcode,''), items.barcode),
+                   upc=COALESCE(NULLIF(excluded.upc,''), items.upc),
                    description=COALESCE(NULLIF(excluded.description,''), items.description),
                    category=COALESCE(NULLIF(excluded.category,''), items.category),
                    item_type=COALESCE(NULLIF(excluded.item_type,''), items.item_type),
@@ -2279,7 +2288,7 @@ async def import_items(
                    date_to_inventory=COALESCE(NULLIF(excluded.date_to_inventory,''), items.date_to_inventory),
                    missing=0
             """, (
-                item_number_u, barcode_u, description, category, item_type, item_status,
+                item_number_u, barcode_u, (upc.upper() if upc else None), description, category, item_type, item_status,
                 cost_in, retail_val, item_date, source, ptype, total_diamond, metal_type,
                 metal_color, total_stone_size, condition, dia_auth_in,
                 serial_number, manufacturer, model, metal_purity, total_jewelry_weight,

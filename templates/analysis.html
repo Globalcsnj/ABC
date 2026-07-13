@@ -235,7 +235,7 @@ function num(v){ if(v==null) return null; const m=String(v).replace(',','').matc
 function money(v){ return v!=null? '$'+Number(v).toFixed(2):'—'; }
 
 const COLS = [
-    {k:'item_number',l:'Item #'},{k:'barcode',l:'Barcode'},{k:'description',l:'Description'},
+    {k:'item_number',l:'Item #'},{k:'barcode',l:'Barcode'},{k:'upc',l:'UPC'},{k:'description',l:'Description'},
     {k:'category',l:'Category'},{k:'group',l:'Group'},{k:'item_status',l:'Status'},
     {k:'metal_type',l:'Metal'},{k:'metal_purity',l:'Purity'},
     {k:'total_jewelry_weight',l:'Jewelry Wt'},{k:'metal_weight',l:'Metal Wt'},

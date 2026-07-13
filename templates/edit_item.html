@@ -8,6 +8,7 @@
 
 <div class="card" style="max-width:560px">
     <p class="card-subtitle">{{ item.description }} · {{ item.category }}</p>
+    <p class="card-subtitle">Barcode: <code>{{ item.barcode or '—' }}</code>{% if item.upc %} · UPC: <code>{{ item.upc }}</code>{% endif %}</p>
     <form method="POST" action="/api/items/{{ item.item_number }}/edit" enctype="multipart/form-data">
         <div class="form-group">
             <label>Sale Price (shown to customers)</label>

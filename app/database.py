@@ -196,6 +196,7 @@ async def init_db():
             "sold_at": "TIMESTAMP",
             "missing": "INTEGER DEFAULT 0",         # in DB but not in latest upload
             "product_type": "TEXT DEFAULT ''",       # jewelry / manufactured / general
+            "upc": "TEXT DEFAULT ''",                # UPC/GTIN (separate from Bravo barcode)
             # Jewelry detail fields
             "total_diamond": "TEXT DEFAULT ''",
             "metal_type": "TEXT DEFAULT ''",
@@ -225,6 +226,7 @@ async def init_db():
 
         # Indexes on migrated columns (created after the columns exist)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_items_sold ON items(sold)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_items_upc ON items(upc)")
 
         # Migration: drop the UNIQUE constraint on items.barcode (multiple units
         # of the same product legitimately share one barcode). SQLite can't drop
