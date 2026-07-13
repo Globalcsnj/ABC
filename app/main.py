@@ -38,6 +38,9 @@ BACKUP_DIR = os.path.join(BASE_DIR, "data", "backups")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+# Bump when deploying so /diagnostics confirms the store PC pulled the update
+APP_VERSION = "2026-07-13 · UPC + bulk-qty + leading-zero match"
+
 # ── Admin authentication ────────────────────────────────────────────────────
 ADMIN_PASSWORD = "GCS2026"          # staff login for the admin app
 AUTH_COOKIE = "abc_auth"
@@ -748,6 +751,67 @@ async def shop_cart_page(request: Request):
 
 
 STOREFRONT_HTML = os.path.join(BASE_DIR, "storefront", "ABC-MoneyLoan-Storefront.html")
+
+
+@app.get("/diagnostics", response_class=HTMLResponse)
+async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
+    """Confirm the running build + look up any code exactly as scanning does."""
+    async def scalar(sql, params=()):
+        async with db.execute(sql, params) as cur:
+            row = await cur.fetchone()
+            return row[0] if row and row[0] is not None else 0
+    total = await scalar("SELECT COUNT(*) FROM items")
+    with_upc = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(upc,'')!=''")
+
+    result = ""
+    c = code.strip().upper()
+    if c:
+        cz = c.lstrip("0") or c
+        async with db.execute(
+            "SELECT item_number, barcode, upc, COALESCE(sold,0) sold, quantity, description "
+            "FROM items WHERE barcode=? OR upc=? OR item_number=? "
+            "OR ltrim(barcode,'0')=? OR ltrim(upc,'0')=? OR ltrim(item_number,'0')=? LIMIT 25",
+            (c, c, c, cz, cz, cz)
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+        if rows:
+            body = "".join(
+                f"<tr><td>{r['item_number']}</td><td>{r['barcode'] or '—'}</td>"
+                f"<td><b>{r['upc'] or '—'}</b></td><td>{r['quantity'] or '1'}</td>"
+                f"<td>{'SOLD' if r['sold'] else 'in stock'}</td><td>{r['description'] or ''}</td></tr>"
+                for r in rows)
+            result = (f"<p style='color:#166534'><b>✓ FOUND {len(rows)} match(es)</b> — this code "
+                      f"would scan successfully.</p><table class='table'><thead><tr><th>Item #</th>"
+                      f"<th>Barcode</th><th>UPC</th><th>Qty</th><th>Status</th><th>Description</th>"
+                      f"</tr></thead><tbody>{body}</tbody></table>")
+        else:
+            result = (f"<p style='color:#991b1b'><b>✗ NOT FOUND</b> — no item has "
+                      f"<code>{c}</code> as its barcode, UPC, or item number. If it's in your "
+                      f"file, either the app wasn't updated before you uploaded, or the UPC column "
+                      f"didn't import (check the number below).</p>")
+
+    html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>Diagnostics</title><link rel='stylesheet' href='/static/css/style.css'></head>
+    <body><main class='container'>
+    <div class='page-header'><h1>Diagnostics</h1><a href='/' class='btn btn-outline'>← Home</a></div>
+    <div class='card'>
+      <p><b>App version:</b> <code>{APP_VERSION}</code></p>
+      <p><b>Items in database:</b> {total:,} &nbsp;·&nbsp; <b>with a UPC:</b> {with_upc:,}
+      {"<span style='color:#991b1b'> ← 0 means the UPC column has not imported yet</span>" if with_upc == 0 and total else ""}</p>
+    </div>
+    <div class='card mt'>
+      <h2>Look up a code (barcode / UPC / item #)</h2>
+      <p class='card-subtitle'>Type or scan a code — this checks it exactly the way the count screen does.</p>
+      <form method='GET' action='/diagnostics'>
+        <input type='text' name='code' value='{c}' placeholder='e.g. 643620045336' autofocus
+               style='padding:10px;min-width:280px;font-size:16px' autocomplete='off'>
+        <button class='btn btn-primary' type='submit'>Look up</button>
+      </form>
+      <div class='mt'>{result}</div>
+    </div>
+    </main></body></html>"""
+    return HTMLResponse(html)
 
 
 @app.get("/.image-slots.state.json")
@@ -1946,9 +2010,15 @@ async def process_scan(
     #   • one bulk row carrying a Quantity of N (N identical physical units).
     # Capacity = sum of Quantity across all matching rows; each scan claims the
     # next unit until capacity is reached, then we prompt to review.
+    # Match on barcode / UPC / item number. Also match ignoring leading zeros
+    # so a 13-digit EAN scan (leading 0) finds a 12-digit UPC in the file and
+    # vice-versa.
+    code_z = code.lstrip("0") or code
     async with db.execute(
-        "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? ORDER BY item_number",
-        (code, code, code)
+        "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? "
+        "OR ltrim(barcode,'0') = ? OR ltrim(upc,'0') = ? OR ltrim(item_number,'0') = ? "
+        "ORDER BY item_number",
+        (code, code, code, code_z, code_z, code_z)
     ) as cur:
         matches_all = await cur.fetchall()
     # Count only unsold units — the expected population excludes sold items.
