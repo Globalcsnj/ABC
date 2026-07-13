@@ -763,6 +763,20 @@ async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
     total = await scalar("SELECT COUNT(*) FROM items")
     with_upc = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(upc,'')!=''")
 
+    # Sample of stored UPCs — reveals at a glance if Excel mangled them
+    # (e.g. shows 6.44E+11 or a rounded 644000000000 instead of the real code).
+    async with db.execute(
+        "SELECT item_number, upc FROM items WHERE COALESCE(upc,'')!='' ORDER BY imported_at DESC LIMIT 8"
+    ) as cur:
+        sample = [dict(r) for r in await cur.fetchall()]
+    sample_html = "".join(f"<tr><td>{s['item_number']}</td><td><code>{s['upc']}</code></td></tr>" for s in sample)
+    sample_block = (f"<div class='card mt'><h2>Recently-imported UPCs (sample)</h2>"
+                    f"<p class='card-subtitle'>These should look like full 11–13 digit numbers. "
+                    f"If you see <code>E+</code> or suspiciously round endings, Excel corrupted them "
+                    f"on save — reformat that column as Number/Text and re-upload.</p>"
+                    f"<table class='table'><thead><tr><th>Item #</th><th>Stored UPC</th></tr></thead>"
+                    f"<tbody>{sample_html}</tbody></table></div>") if sample else ""
+
     result = ""
     c = code.strip().upper()
     if c:
@@ -810,6 +824,7 @@ async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
       </form>
       <div class='mt'>{result}</div>
     </div>
+    {sample_block}
     </main></body></html>"""
     return HTMLResponse(html)
 
