@@ -143,6 +143,29 @@ def classify_scan(code: str):
     return "item"
 
 
+def expand_code(v) -> str:
+    """Normalize a scanned/imported code. Excel often mangles long numeric
+    codes (UPC/barcode) into scientific notation like '1.94252192559E+11' or
+    wraps them as ="123". Recover the full integer string when possible."""
+    if v is None:
+        return ""
+    s = str(v).strip().lstrip("=").strip().strip('"').strip("'").strip()
+    if not s:
+        return ""
+    # Scientific notation → full integer digits (only when it round-trips
+    # without losing precision, i.e. Excel exported the full mantissa).
+    if re.fullmatch(r"[0-9]*\.?[0-9]+[eE][+-]?[0-9]+", s):
+        try:
+            from decimal import Decimal
+            s = format(Decimal(s), "f").split(".")[0]
+        except Exception:
+            pass
+    # Trailing ".0" from float-formatted integers
+    if re.fullmatch(r"[0-9]+\.0+", s):
+        s = s.split(".")[0]
+    return s
+
+
 def clean_money(val: str) -> float:
     try:
         return float(str(val).replace("$", "").replace(",", "").strip())
@@ -2171,9 +2194,9 @@ async def import_items(
                     if k and any(t in str(k).lower() for t in ("upc", "gtin", "ean")) and str(v).strip():
                         upc = str(v).strip()
                         break
-            # Excel sometimes exports codes as ="123..." or with stray quotes.
-            if upc:
-                upc = upc.lstrip("=").strip().strip('"').strip("'")
+            # Recover full digits from Excel scientific notation / quoting.
+            upc = expand_code(upc)
+            barcode = expand_code(barcode)
             description = find_column(row, "Description", "Item Description", "Desc")
             category = find_column(row, "Category", "Cat")
             item_type = find_column(row, "Type")
