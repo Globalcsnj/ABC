@@ -2003,6 +2003,7 @@ async def process_scan(
     current_location: str = Form(default=""),
     current_sublocation: str = Form(default=""),
     force_extra: str = Form(default=""),
+    units: str = Form(default=""),
     db=Depends(get_db)
 ):
     code = code.strip().upper()
@@ -2110,6 +2111,50 @@ async def process_scan(
             if n < acc:
                 return r
         return None
+
+    units_n = int(units) if str(units).strip().isdigit() else 0
+
+    # First scan of a multi-unit product → ask how many units they're counting,
+    # so bulk items aren't silently double-counted (and duplicate scans can't
+    # slip through). Single-unit items skip this and record straight away.
+    if matches and capacity > 1 and scanned_so_far == 0 and units_n == 0 and not force_extra:
+        return JSONResponse({
+            "type": "quantity",
+            "barcode": code,
+            "description": matches[0]["description"] or code,
+            "capacity": capacity,
+        })
+
+    # Record N units at once (from the "how many?" prompt).
+    if matches and units_n > 0:
+        full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
+        found_ct = extra_ct = 0
+        for i in range(units_n):
+            pos = scanned_so_far + i
+            row = _attributed_row(pos)
+            if row is not None:
+                ms, itn = "found", row["item_number"]
+                found_ct += 1
+            else:  # beyond catalog quantity → extra units on hand
+                row, ms, itn = matches[0], "extra", None
+                extra_ct += 1
+            await db.execute("""
+                INSERT INTO audit_scans
+                  (session_id, location_id, sublocation_id, barcode, item_number,
+                   full_ref, match_status, description, category, item_status, cost, item_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, current_location or None, current_sublocation or None, code, itn,
+                  full_ref, ms, row["description"], row["category"], row["item_status"],
+                  row["cost"], row["item_date"]))
+        await db.commit()
+        desc = matches[0]["description"] or code
+        msg = f"✅ Counted {units_n} × {desc}"
+        if extra_ct:
+            msg += f" — {extra_ct} beyond catalog of {capacity}"
+        return JSONResponse({
+            "type": "bulk", "barcode": code, "counted": units_n,
+            "found": found_ct, "extra": extra_ct, "message": msg,
+        })
 
     item = None
     extra_unit = False

@@ -154,13 +154,14 @@ scanInput.addEventListener('input', () => {
     submitTimer = setTimeout(submitScan, 90);
 });
 
-async function processScan(code, forceExtra) {
+async function processScan(code, forceExtra, units) {
     const body = new FormData();
     body.append('session_id', SESSION_ID);
     body.append('code', code);
     body.append('current_location', currentLocation);
     body.append('current_sublocation', currentSublocation);
     if (forceExtra) body.append('force_extra', '1');
+    if (units) body.append('units', units);
 
     let data;
     try {
@@ -201,6 +202,21 @@ async function processScan(code, forceExtra) {
         updateCounters();
         showItemCard(data);
         prependScanRow(data);
+        updateSummary();
+    } else if (data.type === 'quantity') {
+        // Multi-unit item: ask how many are physically here, then record them all.
+        const ans = prompt(
+            `📦 ${data.description}\n\nThis item can have multiple units (catalog shows ${data.capacity}).\n` +
+            `How many are you counting at this location?`, data.capacity);
+        if (ans === null) { showFeedback('Skipped', 'duplicate'); return; }
+        const n = parseInt(ans, 10);
+        if (!n || n < 1) { showFeedback('⚠️ Enter a whole number', 'error'); return; }
+        await processScan(code, false, n);
+    } else if (data.type === 'bulk') {
+        foundCount += (data.found || 0) + (data.extra || 0);
+        updateCounters();
+        showFeedback(data.message, 'found');
+        await loadScans();
         updateSummary();
     } else if (data.type === 'review') {
         // All catalog units of this barcode are already scanned. Ask whether
