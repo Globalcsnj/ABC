@@ -2163,6 +2163,16 @@ async def import_items(
             # UPC is a distinct code (bulk-uploaded items may carry a UPC and no
             # Bravo barcode). Kept separate so scanning can match either.
             upc = find_column(row, "UPC", "UPC Code", "UPCCode", "UPC Number", "GTIN", "EAN")
+            if not upc:
+                # Fallback: any header that contains "upc"/"gtin"/"ean"
+                # (e.g. "UPC #", "Item UPC", "Product UPC Code").
+                for k, v in row.items():
+                    if k and any(t in str(k).lower() for t in ("upc", "gtin", "ean")) and str(v).strip():
+                        upc = str(v).strip()
+                        break
+            # Excel sometimes exports codes as ="123..." or with stray quotes.
+            if upc:
+                upc = upc.lstrip("=").strip().strip('"').strip("'")
             description = find_column(row, "Description", "Item Description", "Desc")
             category = find_column(row, "Category", "Cat")
             item_type = find_column(row, "Type")
