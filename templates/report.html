@@ -422,7 +422,7 @@ function renderFound() {
         const list = groups[key];
         const cost = list.reduce((s,m)=>s+(m.cost||0),0);
         const retail = list.reduce((s,m)=>s+(m.retail_price||0),0);
-        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toFixed(2)} · Retail $${retail.toFixed(2)}</td></tr>`;
+        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} · Retail $${retail.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
         html += list.map(rowHtml).join('');
     });
     body.innerHTML = html;
@@ -518,7 +518,7 @@ async function reopenCount() {
 let MISSING = [];
 let currentGroup = '';
 
-function money(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
+function money(v) { return v != null ? '$' + Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
 
 // All columns available from the uploaded data. key = field on each item.
 const ALL_COLUMNS = [
@@ -607,7 +607,7 @@ function renderMissing() {
         const list = groups[key];
         const cost = list.reduce((s,m)=>s+(m.cost||0),0);
         const retail = list.reduce((s,m)=>s+(m.retail_price||0),0);
-        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toFixed(2)} · Retail $${retail.toFixed(2)}</td></tr>`;
+        html += `<tr class="group-header"><td colspan="${ncols}"><strong>${key}</strong> — ${list.length} item(s) · Cost $${cost.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} · Retail $${retail.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`;
         html += list.map(rowHtml).join('');
     });
     body.innerHTML = html;

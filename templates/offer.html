@@ -33,8 +33,8 @@
                     <div class="prod-cat">{{ it.category or '' }}</div>
                     <div class="prod-price">
                         {% if it.retail_price %}
-                        <span class="ci-old">${{ "%.2f"|format(it.retail_price) }}</span>
-                        <span class="ci-new">${{ "%.2f"|format(it.offer_price) }}</span>
+                        <span class="ci-old">{{ it.retail_price|usd }}</span>
+                        <span class="ci-new">{{ it.offer_price|usd }}</span>
                         {% else %}<span class="ask-price">Ask in store</span>{% endif %}
                     </div>
                 </div>

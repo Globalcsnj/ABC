@@ -93,6 +93,18 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
+def _to_num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+# Money filters: comma thousands separators, with ($1,250.00) or without ($1,250) cents
+templates.env.filters["usd"] = lambda v: "${:,.2f}".format(_to_num(v))
+templates.env.filters["usd0"] = lambda v: "${:,.0f}".format(_to_num(v))
+
+
 # ── Auth & backup routes ────────────────────────────────────────────────────
 
 @app.get("/login", response_class=HTMLResponse)

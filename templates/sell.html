@@ -26,7 +26,7 @@
                 <td>{{ s.item_number }}</td>
                 <td>{{ s.description or '—' }}</td>
                 <td>{{ s.category or '—' }}</td>
-                <td>{% if s.retail_price %}${{ "%.2f"|format(s.retail_price) }}{% else %}—{% endif %}</td>
+                <td>{% if s.retail_price %}{{ s.retail_price|usd }}{% else %}—{% endif %}</td>
                 <td>{{ s.sold_at[11:19] if s.sold_at else '' }}</td>
             </tr>
             {% endfor %}

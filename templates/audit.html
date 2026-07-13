@@ -263,7 +263,7 @@ function showItemCard(data) {
     document.getElementById('cardDesc').textContent = data.description || '—';
     document.getElementById('cardCat').textContent = data.category || '—';
     document.getElementById('cardStatus').textContent = data.item_status || '—';
-    document.getElementById('cardCost').textContent = data.cost != null ? '$' + parseFloat(data.cost).toFixed(2) : '—';
+    document.getElementById('cardCost').textContent = data.cost != null ? '$' + parseFloat(data.cost).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
     document.getElementById('cardDate').textContent = data.item_date || '—';
     document.getElementById('cardLoc').textContent = [currentLocation, currentSublocation].filter(Boolean).join(' › ') || '—';
     document.getElementById('cardTime').textContent = new Date().toLocaleTimeString();
@@ -308,7 +308,7 @@ function prependScanRow(data) {
         <span class="scan-ref">${data.full_ref}</span>
         <span class="scan-desc">${data.description || 'Not in Bravo'}</span>
         <span class="scan-cat">${data.category || ''}</span>
-        <span class="scan-cost">${data.cost != null ? '$' + parseFloat(data.cost).toFixed(2) : ''}</span>
+        <span class="scan-cost">${data.cost != null ? '$' + parseFloat(data.cost).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}</span>
         <span class="scan-time">${new Date().toLocaleTimeString()}</span>
         <button class="scan-del" title="Remove (override)" onclick="deleteScan(${data.scan_id}, this)">✕</button>
     `;
@@ -336,7 +336,7 @@ async function loadScans() {
             <span class="scan-ref">${s.full_ref}</span>
             <span class="scan-desc">${s.description || 'Not in Bravo'}</span>
             <span class="scan-cat">${s.category || ''}</span>
-            <span class="scan-cost">${s.cost != null ? '$' + parseFloat(s.cost).toFixed(2) : ''}</span>
+            <span class="scan-cost">${s.cost != null ? '$' + parseFloat(s.cost).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}</span>
             <span class="scan-time">${s.scanned_at.substring(11, 19)}</span>
             <button class="scan-del" title="Remove (override)" onclick="deleteScan(${s.id}, this)">✕</button>
         </div>

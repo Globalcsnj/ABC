@@ -61,7 +61,7 @@ async function renderCart() {
     const box = document.getElementById('cartItems');
     box.innerHTML = items.map(p => {
         const qty = cart[p.item_number] || 1;
-        const price = p.retail_price != null ? '$' + Number(p.retail_price).toFixed(2) : 'Ask in store';
+        const price = p.retail_price != null ? '$' + Number(p.retail_price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : 'Ask in store';
         const img = p.photo ? `<img src="/uploads/${p.photo}">` : '<div class="prod-noimg">📦</div>';
         return `<div class="cart-row">
             <div class="cart-thumb">${img}</div>

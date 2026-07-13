@@ -103,8 +103,8 @@
                 <td>{{ item.category or '—' }}</td>
                 <td>{{ item.product_type or '—' }}</td>
                 <td>{{ item.item_status or '—' }}</td>
-                <td>{% if item.cost %}${{ "%.2f"|format(item.cost) }}{% else %}—{% endif %}</td>
-                <td>{% if item.retail_price %}<strong>${{ "%.2f"|format(item.retail_price) }}</strong>{% else %}—{% endif %}</td>
+                <td>{% if item.cost %}{{ item.cost|usd }}{% else %}—{% endif %}</td>
+                <td>{% if item.retail_price %}<strong>{{ item.retail_price|usd }}</strong>{% else %}—{% endif %}</td>
                 <td>{% if item.for_sale != 0 %}✓{% else %}—{% endif %}</td>
                 <td class="col-action"><a href="/inventory/{{ item.item_number }}/edit" class="btn btn-sm btn-outline">Edit</a></td>
             </tr>

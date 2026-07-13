@@ -41,8 +41,8 @@
                 <div class="ci-meta"><code>{{ it.item_number }}</code> · {{ it.category or '—' }}</div>
                 <div class="ci-price">
                     {% if it.retail_price %}
-                    <span class="ci-old">${{ "%.2f"|format(it.retail_price) }}</span>
-                    <span class="ci-new">${{ "%.2f"|format(it.offer_price) }}</span>
+                    <span class="ci-old">{{ it.retail_price|usd }}</span>
+                    <span class="ci-new">{{ it.offer_price|usd }}</span>
                     {% else %}<span class="ask-price">No price set</span>{% endif %}
                 </div>
                 <div class="ci-actions">

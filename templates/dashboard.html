@@ -57,8 +57,8 @@
                 <td>{{ b.category }}</td>
                 <td class="found-text"><strong>{{ b.sold_cnt }}</strong></td>
                 <td>{{ b.sold_90 }}</td>
-                <td>{% if b.avg_price %}${{ "%.0f"|format(b.avg_price) }}{% else %}—{% endif %}</td>
-                <td>${{ "%.0f"|format(b.revenue) }}</td>
+                <td>{% if b.avg_price %}{{ b.avg_price|usd0 }}{% else %}—{% endif %}</td>
+                <td>{{ b.revenue|usd0 }}</td>
                 <td>{{ b.in_stock }}</td>
                 <td>
                     {% if b.sold_cnt >= 2 and b.in_stock == 0 %}
@@ -102,7 +102,7 @@
         <div class="hbar-row">
             <div class="hbar-label">{{ c.category }}</div>
             <div class="hbar-track"><div class="hbar-fill" style="width: {{ (c.cnt / max_cat * 100)|round|int }}%"></div></div>
-            <div class="hbar-num">{{ c.cnt }}{% if c.value %} · ${{ "%.0f"|format(c.value) }}{% endif %}</div>
+            <div class="hbar-num">{{ c.cnt }}{% if c.value %} · {{ c.value|usd0 }}{% endif %}</div>
         </div>
         {% endfor %}
         {% else %}<div class="empty-state">No sales yet</div>{% endif %}

@@ -63,7 +63,7 @@
                 <td>{{ m.description or '—' }}</td>
                 <td>{{ m.category or '—' }}</td>
                 <td>{{ m.source|capitalize }}</td>
-                <td>{% if m.cost %}${{ "%.2f"|format(m.cost) }}{% else %}—{% endif %}</td>
+                <td>{% if m.cost %}{{ m.cost|usd }}{% else %}—{% endif %}</td>
                 <td class="action-cell">
                     <form method="POST" action="/api/items/{{ m.item_number }}/sold" style="display:inline">
                         <button class="btn btn-sm btn-primary">Sold ✓</button>
@@ -110,8 +110,8 @@
                 <td>{{ r.item_number }}</td>
                 <td>{{ r.description or '—' }}</td>
                 <td>{{ r.category or '—' }}</td>
-                <td>{% if r.cost %}${{ "%.2f"|format(r.cost) }}{% else %}—{% endif %}</td>
-                <td>{% if r.retail_price %}${{ "%.2f"|format(r.retail_price) }}{% else %}—{% endif %}</td>
+                <td>{% if r.cost %}{{ r.cost|usd }}{% else %}—{% endif %}</td>
+                <td>{% if r.retail_price %}{{ r.retail_price|usd }}{% else %}—{% endif %}</td>
                 <td>
                     {% if r.status == 'sold' %}<span class="status-dot dot-found">✅ Sold</span>
                     {% elif r.status == 'kept' %}<span class="status-dot">↩ Still here</span>

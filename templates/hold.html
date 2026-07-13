@@ -39,7 +39,7 @@
                         <div class="hold-item-info">
                             <div class="hold-item-name">{{ p.description or 'Item' }}</div>
                             <div class="hold-item-cat">{{ p.category or '' }}{% if p.qty > 1 %} · Qty {{ p.qty }}{% endif %}</div>
-                            <div class="hold-item-price">{% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}Ask in store{% endif %}</div>
+                            <div class="hold-item-price">{% if p.retail_price %}{{ p.retail_price|usd }}{% else %}Ask in store{% endif %}</div>
                         </div>
                     </div>
                     {% endfor %}

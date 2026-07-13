@@ -28,7 +28,7 @@
                 <div class="pdp-cat">{{ p.category or '' }}</div>
                 <h1 class="pdp-title">{{ p.description or 'Item' }}</h1>
                 <div class="pdp-price">
-                    {% if p.retail_price %}${{ "%.2f"|format(p.retail_price) }}{% else %}<span class="ask-price">Ask in store for price</span>{% endif %}
+                    {% if p.retail_price %}{{ p.retail_price|usd }}{% else %}<span class="ask-price">Ask in store for price</span>{% endif %}
                 </div>
                 <div class="pdp-avail">✓ Available in store</div>
 
@@ -83,7 +83,7 @@
                 <div class="prod-info">
                     <a href="/shop/item/{{ r.item_number }}" class="prod-name">{{ r.description or 'Item' }}</a>
                     <div class="prod-price">
-                        {% if r.retail_price %}${{ "%.2f"|format(r.retail_price) }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
+                        {% if r.retail_price %}{{ r.retail_price|usd }}{% else %}<span class="ask-price">Ask in store</span>{% endif %}
                     </div>
                 </div>
             </div>
