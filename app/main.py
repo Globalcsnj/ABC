@@ -1917,58 +1917,72 @@ async def process_scan(
     if not current_location:
         return JSONResponse({"type": "error", "message": "⚠️ Scan a location first (e.g. 001)"}, status_code=400)
 
-    # Multiple units of the same product can share a barcode (distinct item
-    # numbers). Each scan claims the next unclaimed unit; once every unit is
-    # accounted for, further scans are duplicates.
     # Match the scanned code against the Bravo barcode, the UPC, or the item
-    # number — items bulk-loaded into Bravo may carry only a UPC.
-    async with db.execute("""
-        SELECT * FROM items
-        WHERE (barcode = ? OR upc = ? OR item_number = ?) AND item_number NOT IN (
-            SELECT item_number FROM audit_scans
-            WHERE session_id = ? AND match_status = 'found' AND item_number IS NOT NULL
-        )
-        ORDER BY item_number LIMIT 1
-    """, (code, code, code, session_id)) as cur:
-        item = await cur.fetchone()
+    # number. Handle both "multiple unit" shapes at once:
+    #   • several item rows sharing one barcode/UPC (each row = 1 unit), and
+    #   • one bulk row carrying a Quantity of N (N identical physical units).
+    # Capacity = sum of Quantity across all matching rows; each scan claims the
+    # next unit until capacity is reached, then we prompt to review.
+    async with db.execute(
+        "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? ORDER BY item_number",
+        (code, code, code)
+    ) as cur:
+        matches = await cur.fetchall()
 
+    def _qty(row):
+        raw = re.sub(r"[^0-9]", "", str(row["quantity"] or ""))
+        return max(1, int(raw)) if raw else 1
+
+    capacity = sum(_qty(r) for r in matches)
+    match_numbers = [r["item_number"] for r in matches]
+
+    # Units of this product already counted (found) in this session
+    scanned_so_far = 0
+    if match_numbers:
+        ph = ",".join("?" for _ in match_numbers)
+        async with db.execute(
+            f"SELECT COUNT(*) FROM audit_scans WHERE session_id=? AND match_status='found' "
+            f"AND item_number IN ({ph})",
+            [session_id] + match_numbers
+        ) as cur:
+            scanned_so_far = (await cur.fetchone())[0]
+
+    # Which catalog row this scan is attributed to — fill each row's quantity
+    # before moving on to the next matching row.
+    def _attributed_row(n):
+        acc = 0
+        for r in matches:
+            acc += _qty(r)
+            if n < acc:
+                return r
+        return None
+
+    item = None
     extra_unit = False
-    if item is None and force_extra:
-        # User confirmed: record an extra physical unit beyond the catalog count
-        async with db.execute(
-            "SELECT * FROM items WHERE (barcode = ? OR upc = ? OR item_number = ?) ORDER BY item_number LIMIT 1",
-            (code, code, code)
-        ) as cur:
-            template = await cur.fetchone()
-        if template:
-            item = template
+    if matches:
+        if scanned_so_far < capacity:
+            item = _attributed_row(scanned_so_far)
+        elif force_extra:
+            item = matches[0]
             extra_unit = True
-
-    if item is None:
-        # No unclaimed unit — is this code known at all (barcode/UPC/item #)?
-        async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE barcode = ? OR upc = ? OR item_number = ?",
-            (code, code, code)
-        ) as cur:
-            total_units = (await cur.fetchone())[0]
-        if total_units:
+        else:
+            # Every counted unit is accounted for → prompt to review / add extra
             async with db.execute(
-                "SELECT location_id, sublocation_id FROM audit_scans "
-                "WHERE session_id = ? AND barcode = ? ORDER BY id DESC LIMIT 1",
-                (session_id, code)
+                f"SELECT location_id, sublocation_id FROM audit_scans "
+                f"WHERE session_id = ? AND item_number IN ({ph}) ORDER BY id DESC LIMIT 1",
+                [session_id] + match_numbers
             ) as cur:
                 existing = await cur.fetchone()
-            where = ""
-            if existing:
-                where = existing["sublocation_id"] or existing["location_id"] or ""
-            unit_note = f"all {total_units} units" if total_units > 1 else "already"
+            where = (existing["sublocation_id"] or existing["location_id"] or "") if existing else ""
+            unit_note = f"all {capacity} units" if capacity > 1 else "already"
             return JSONResponse({
                 "type": "review",
                 "barcode": code,
-                "total_units": total_units,
+                "total_units": capacity,
                 "message": f"🔁 {unit_note} scanned in this count{(' (at ' + where + ')') if where else ''}",
             })
-        # Unknown barcode: block repeat unknown scans of the same code
+    else:
+        # Unknown code (not in Bravo): block repeat unknown scans of the same code
         async with db.execute(
             "SELECT location_id, sublocation_id FROM audit_scans WHERE session_id = ? AND barcode = ?",
             (session_id, code)
@@ -1984,9 +1998,9 @@ async def process_scan(
 
     full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
 
-    if item and extra_unit:
-        # Extra physical unit beyond the catalog count — record as a finding
-        # tied to this barcode, without claiming any catalog item number.
+    if item is not None and extra_unit:
+        # Extra physical unit beyond the catalog quantity — record as a finding
+        # tied to this code, without claiming a catalog unit.
         match_status = "extra"
         description = item["description"]
         category = item["category"]
@@ -1995,7 +2009,7 @@ async def process_scan(
         item_date = item["item_date"]
         item_number = None
         msg = f"➕ EXTRA UNIT recorded — {code} | {description}"
-    elif item:
+    elif item is not None:
         match_status = "found"
         description = item["description"]
         category = item["category"]
@@ -2003,20 +2017,7 @@ async def process_scan(
         cost = item["cost"]
         item_date = item["item_date"]
         item_number = item["item_number"]
-        # Show which unit this scan claimed when the code has multiple units
-        async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE barcode = ? OR upc = ? OR item_number = ?",
-            (code, code, code)
-        ) as cur:
-            total_units = (await cur.fetchone())[0]
-        unit_suffix = ""
-        if total_units > 1:
-            async with db.execute(
-                "SELECT COUNT(*) FROM audit_scans WHERE session_id = ? AND barcode = ? AND match_status = 'found'",
-                (session_id, code)
-            ) as cur:
-                scanned_so_far = (await cur.fetchone())[0]
-            unit_suffix = f" (unit {scanned_so_far + 1} of {total_units})"
+        unit_suffix = f" (unit {scanned_so_far + 1} of {capacity})" if capacity > 1 else ""
         msg = f"✅ FOUND — {item['item_number']} | {description}{unit_suffix}"
     else:
         match_status = "unknown"
