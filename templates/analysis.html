@@ -420,9 +420,16 @@ function render(){
     const cols=COLS.filter(c=>selCols.includes(c.k));
     document.getElementById('resHead').innerHTML='<tr>'+cols.map(c=>`<th>${c.l}</th>`).join('')+'</tr>';
     document.getElementById('resCount').textContent=cnt;
-    document.getElementById('resBody').innerHTML = rows.slice(0,600).map(r=>'<tr>'+cols.map(c=>{
+    // Show up to 5000 rows so you can see the whole list; cap only guards the browser.
+    const CAP=5000;
+    const shownRows=rows.slice(0,CAP);
+    document.getElementById('resBody').innerHTML = shownRows.map(r=>'<tr>'+cols.map(c=>{
         let v=r[c.k]; if(c.money) v=money(v); else v=(v!=null&&v!=='')?v:'—'; return `<td>${v}</td>`;
     }).join('')+'</tr>').join('') || `<tr><td colspan="${cols.length}" class="empty-state">No items match.</td></tr>`;
+    if(cnt>CAP){
+        document.getElementById('resBody').insertAdjacentHTML('beforeend',
+            `<tr><td colspan="${cols.length}" class="empty-state">Showing first ${CAP.toLocaleString()} of ${cnt.toLocaleString()} — narrow the filter or download the CSV for the rest.</td></tr>`);
+    }
 }
 
 // True when any search box, dropdown, or range input has a value.

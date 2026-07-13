@@ -71,6 +71,9 @@ body {
 
 /* Layout */
 .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+/* The Inventory Analysis page is data-dense — let it use the full screen so
+   the Matching Items table can show every column. */
+main.container:has(.analysis-layout) { max-width: min(1800px, 97vw); }
 .mt { margin-top: 20px; }
 .page-header {
     display: flex;
