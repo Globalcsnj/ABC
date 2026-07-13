@@ -813,6 +813,18 @@ async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
       <p><b>App version:</b> <code>{APP_VERSION}</code></p>
       <p><b>Items in database:</b> {total:,} &nbsp;·&nbsp; <b>with a UPC:</b> {with_upc:,}
       {"<span style='color:#991b1b'> ← 0 means the UPC column has not imported yet</span>" if with_upc == 0 and total else ""}</p>
+      <button class='btn btn-outline' onclick='repairCodes(this)'>🔧 Repair scientific-notation codes</button>
+      <span id='repairMsg' class='card-subtitle'></span>
+      <script>
+      async function repairCodes(btn){{
+        btn.disabled=true; document.getElementById('repairMsg').textContent=' working…';
+        const r=await fetch('/api/diagnostics/repair-codes',{{method:'POST'}});
+        const j=await r.json();
+        document.getElementById('repairMsg').textContent =
+          ` fixed ${{j.fixed}} of ${{j.scanned}} scientific-notation codes.`;
+        btn.disabled=false;
+      }}
+      </script>
     </div>
     <div class='card mt'>
       <h2>Look up a code (barcode / UPC / item #)</h2>
@@ -827,6 +839,30 @@ async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
     {sample_block}
     </main></body></html>"""
     return HTMLResponse(html)
+
+
+@app.post("/api/diagnostics/repair-codes")
+async def repair_codes(db=Depends(get_db)):
+    """Normalize UPC/barcode values already stored as scientific notation
+    (e.g. '8.10059432376E+11' → '810059432376') so scans match, without
+    re-uploading. Cannot recover values Excel already rounded (e.g. 8.1E+11)."""
+    async with db.execute(
+        "SELECT item_number, upc, barcode FROM items "
+        "WHERE upc LIKE '%E+%' OR upc LIKE '%e+%' OR barcode LIKE '%E+%' OR barcode LIKE '%e+%'"
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    fixed = 0
+    for r in rows:
+        new_upc = expand_code(r["upc"]) if r["upc"] else r["upc"]
+        new_bc = expand_code(r["barcode"]) if r["barcode"] else r["barcode"]
+        if new_upc != r["upc"] or new_bc != r["barcode"]:
+            await db.execute(
+                "UPDATE items SET upc=?, barcode=? WHERE item_number=?",
+                (new_upc, new_bc, r["item_number"])
+            )
+            fixed += 1
+    await db.commit()
+    return JSONResponse({"ok": True, "scanned": len(rows), "fixed": fixed})
 
 
 @app.get("/.image-slots.state.json")
