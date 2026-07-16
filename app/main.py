@@ -12,6 +12,7 @@ except ImportError:
 import asyncio
 import csv
 import io
+import traceback
 import json
 import os
 import re
@@ -76,6 +77,34 @@ def make_daily_backup():
 
 
 app = FastAPI(lifespan=lifespan, title="ABC Pawnshop Inventory")
+
+ERROR_LOG = os.path.join(BASE_DIR, "data", "errors.log")
+_last_error = {"when": "", "path": "", "detail": ""}
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception):
+    """Turn a server crash into a readable message instead of the browser's
+    'Connection error'. Logs the full traceback to data/errors.log and remembers
+    the last one for the Diagnostics page."""
+    tb = traceback.format_exc()
+    _last_error["when"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _last_error["path"] = request.url.path
+    _last_error["detail"] = f"{type(exc).__name__}: {exc}"
+    try:
+        with open(ERROR_LOG, "a", encoding="utf-8") as f:
+            f.write(f"\n===== {_last_error['when']} {request.url.path} =====\n{tb}\n")
+    except Exception:
+        pass
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {"type": "error",
+             "message": f"⚠️ Server error: {type(exc).__name__}: {exc} — retry; if it repeats, see Diagnostics."},
+            status_code=200)
+    return HTMLResponse(
+        f"<h2>Server error</h2><p>{type(exc).__name__}: {exc}</p>"
+        f"<p>Details logged to data/errors.log · see <a href='/diagnostics'>Diagnostics</a>.</p>",
+        status_code=500)
 
 
 @app.middleware("http")
@@ -833,6 +862,7 @@ async def diagnostics(request: Request, code: str = "", db=Depends(get_db)):
       <p><b>App version:</b> <code>{APP_VERSION}</code></p>
       <p><b>Items in database:</b> {total:,} &nbsp;·&nbsp; <b>with a UPC:</b> {with_upc:,}
       {"<span style='color:#991b1b'> ← 0 means the UPC column has not imported yet</span>" if with_upc == 0 and total else ""}</p>
+      {"<p style='color:#991b1b'><b>Last server error:</b> " + _last_error['when'] + " · " + _last_error['path'] + " — <code>" + _last_error['detail'] + "</code></p>" if _last_error['detail'] else "<p class='card-subtitle'>No server errors logged.</p>"}
       <button class='btn btn-outline' onclick='repairCodes(this)'>🔧 Repair scientific-notation codes</button>
       <span id='repairMsg' class='card-subtitle'></span>
       <script>
@@ -2163,8 +2193,11 @@ async def process_scan(
     # remaining catalog quantity count as found (drawing down the remaining);
     # anything beyond is flagged as extra units on hand.
     if matches and units_n > 0:
+        # Guard against an accidental huge number blocking the write.
+        units_n = min(units_n, capacity + 500)
         full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
         found_ct = extra_ct = 0
+        rows_to_insert = []
         for i in range(units_n):
             pos = scanned_so_far + i
             row = _attributed_row(pos)
@@ -2174,14 +2207,17 @@ async def process_scan(
             else:  # beyond catalog quantity → extra units on hand
                 row, ms, itn = matches[0], "extra", None
                 extra_ct += 1
-            await db.execute("""
-                INSERT INTO audit_scans
-                  (session_id, location_id, sublocation_id, barcode, item_number,
-                   full_ref, match_status, description, category, item_status, cost, item_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (session_id, current_location or None, current_sublocation or None, code, itn,
-                  full_ref, ms, row["description"], row["category"], row["item_status"],
-                  _unit_cost(row), row["item_date"]))
+            rows_to_insert.append((
+                session_id, current_location or None, current_sublocation or None, code, itn,
+                full_ref, ms, row["description"], row["category"], row["item_status"],
+                _unit_cost(row), row["item_date"]))
+        # One transaction keeps the write fast and the lock window short.
+        await db.executemany("""
+            INSERT INTO audit_scans
+              (session_id, location_id, sublocation_id, barcode, item_number,
+               full_ref, match_status, description, category, item_status, cost, item_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, rows_to_insert)
         await db.commit()
         desc = matches[0]["description"] or code
         remaining_after = max(0, capacity - (scanned_so_far + found_ct))
