@@ -8,8 +8,11 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
 async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
+    db = await aiosqlite.connect(DB_PATH, timeout=30)
     db.row_factory = aiosqlite.Row
+    # Wait (up to 15s) for a busy lock instead of erroring; WAL lets readers
+    # and a writer work concurrently so "database is locked" is far rarer.
+    await db.execute("PRAGMA busy_timeout=15000")
     try:
         yield db
     finally:
@@ -17,7 +20,14 @@ async def get_db():
 
 
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(DB_PATH, timeout=30) as db:
+        # Concurrency hardening so startup doesn't fail with "database is locked"
+        # when another connection (e.g. a still-running instance) is active.
+        await db.execute("PRAGMA busy_timeout=15000")
+        try:
+            await db.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS locations (
                 id TEXT PRIMARY KEY,
