@@ -354,9 +354,14 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
             ph = ",".join("?" for _ in cats)
             where.append(f"COALESCE(NULLIF(category,''),'Uncategorized') IN ({ph})")
             params.extend(cats)
-    async with db.execute(f"SELECT COUNT(*) FROM items WHERE {' AND '.join(where)}", params) as cur:
-        expected = (await cur.fetchone())[0]
-    # How many distinct expected items already found in this session
+    # Count expected UNITS, not rows: a bulk item with Quantity N counts as N
+    # so the progress bar matches unit-by-unit scanning (found scans are units).
+    async with db.execute(f"SELECT quantity FROM items WHERE {' AND '.join(where)}", params) as cur:
+        expected = 0
+        for r in await cur.fetchall():
+            digits = re.sub(r"[^0-9]", "", str(r["quantity"] or ""))
+            expected += max(1, int(digits)) if digits else 1
+    # Units already counted (found) in this session
     async with db.execute(
         "SELECT COUNT(*) FROM audit_scans WHERE session_id=? AND match_status='found'", (session_id,)
     ) as cur:
@@ -2080,13 +2085,19 @@ async def process_scan(
     # Match on barcode / UPC / item number. Also match ignoring leading zeros
     # so a 13-digit EAN scan (leading 0) finds a 12-digit UPC in the file and
     # vice-versa.
-    code_z = code.lstrip("0") or code
-    async with db.execute(
-        "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? "
-        "OR ltrim(barcode,'0') = ? OR ltrim(upc,'0') = ? OR ltrim(item_number,'0') = ? "
-        "ORDER BY item_number",
-        (code, code, code, code_z, code_z, code_z)
-    ) as cur:
+    # Exact match on any identifier. For NUMERIC codes only, also match a
+    # leading-zero-normalized barcode/UPC (so a 13-digit EAN finds a 12-digit
+    # UPC and vice-versa). We do NOT cross-match item_number after stripping —
+    # that caused unrelated items to collide.
+    if code.isdigit():
+        code_z = code.lstrip("0") or code
+        q = ("SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? "
+             "OR ltrim(barcode,'0') = ? OR ltrim(upc,'0') = ? ORDER BY item_number")
+        params_m = [code, code, code, code_z, code_z]
+    else:
+        q = "SELECT * FROM items WHERE barcode = ? OR upc = ? OR item_number = ? ORDER BY item_number"
+        params_m = [code, code, code]
+    async with db.execute(q, params_m) as cur:
         matches_all = await cur.fetchall()
     # Prefer unsold units, but if the only matches are marked SOLD we still
     # COUNT the physical units found — a sold item on the floor is a real
@@ -2145,8 +2156,9 @@ async def process_scan(
             "capacity": capacity,
         })
 
-    # Record N units at once (from the "how many?" prompt).
-    if matches and units_n > 0:
+    # Record N units at once (from the "how many?" prompt) — only on the first
+    # count of this item, so a re-submitted units value can't append extra rows.
+    if matches and units_n > 0 and scanned_so_far == 0:
         full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
         found_ct = extra_ct = 0
         for i in range(units_n):
