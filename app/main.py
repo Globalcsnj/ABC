@@ -338,8 +338,10 @@ async def audit_page(request: Request, session_id: int, db=Depends(get_db)):
     if not session:
         raise HTTPException(404, "Session not found")
 
-    # Expected item count for this count's scope (for the progress bar)
-    where = ["COALESCE(sold,0) = 0"]
+    # Expected item count for this count's scope (for the progress bar).
+    # A physical floor count expects only true INVENTORY items — not Sold,
+    # Damaged, Shrink, Stolen, Missing, Layaway, etc.
+    where = ["COALESCE(sold,0) = 0", "UPPER(COALESCE(item_status,'')) = 'INVENTORY'"]
     params = []
     sess_source = session["source"] if "source" in session.keys() else ""
     sess_cats = session["categories"] if "categories" in session.keys() else ""
@@ -419,6 +421,7 @@ async def get_missing_items(session_id, session, db):
             SELECT item_number FROM audit_scans
             WHERE session_id = ? AND match_status = 'found' AND item_number IS NOT NULL
         ) AND COALESCE(i.sold,0) = 0
+          AND UPPER(COALESCE(i.item_status,'')) = 'INVENTORY'
     """
     params = [session_id]
     sess_source = session["source"] if "source" in session.keys() else ""
