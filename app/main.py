@@ -2088,16 +2088,13 @@ async def process_scan(
         (code, code, code, code_z, code_z, code_z)
     ) as cur:
         matches_all = await cur.fetchall()
-    # Count only unsold units — the expected population excludes sold items.
-    matches = [r for r in matches_all if not (r["sold"] if "sold" in r.keys() else 0)]
-    # Known but every matching unit is already sold → flag, don't count as found.
-    if not matches and matches_all:
-        return JSONResponse({
-            "type": "duplicate",
-            "barcode": code,
-            "message": f"⚠️ {code} is marked SOLD in Bravo — not counted. "
-                       f"Un-sell it on the item page if it's still on the floor.",
-        })
+    # Prefer unsold units, but if the only matches are marked SOLD we still
+    # COUNT the physical units found — a sold item on the floor is a real
+    # discrepancy to flag, not something to skip.
+    unsold = [r for r in matches_all if not (r["sold"] if "sold" in r.keys() else 0)]
+    matches = unsold if unsold else matches_all
+    # True when we're counting units Bravo says are sold (flag them for review).
+    matched_sold = bool(matches_all) and not unsold
 
     def _qty(row):
         raw = re.sub(r"[^0-9]", "", str(row["quantity"] or ""))
@@ -2166,6 +2163,8 @@ async def process_scan(
         msg = f"✅ Counted {units_n} × {desc}"
         if extra_ct:
             msg += f" — {extra_ct} beyond catalog of {capacity}"
+        if matched_sold:
+            msg += " — ⚠️ marked SOLD in Bravo (verify)"
         return JSONResponse({
             "type": "bulk", "barcode": code, "counted": units_n,
             "found": found_ct, "extra": extra_ct, "message": msg,
@@ -2232,7 +2231,8 @@ async def process_scan(
         item_date = item["item_date"]
         item_number = item["item_number"]
         unit_suffix = f" (unit {scanned_so_far + 1} of {capacity})" if capacity > 1 else ""
-        msg = f"✅ FOUND — {item['item_number']} | {description}{unit_suffix}"
+        sold_note = " — ⚠️ marked SOLD in Bravo (verify)" if matched_sold else ""
+        msg = f"✅ FOUND — {item['item_number']} | {description}{unit_suffix}{sold_note}"
     else:
         match_status = "unknown"
         description = None
