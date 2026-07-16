@@ -2100,6 +2100,14 @@ async def process_scan(
         raw = re.sub(r"[^0-9]", "", str(row["quantity"] or ""))
         return max(1, int(raw)) if raw else 1
 
+    def _unit_cost(row):
+        """Bravo cost is the lot total; each scanned unit records cost ÷ quantity."""
+        c = row["cost"]
+        if c is None:
+            return None
+        q = _qty(row)
+        return round(c / q, 2) if q > 1 else c
+
     capacity = sum(_qty(r) for r in matches)
     match_numbers = [r["item_number"] for r in matches]
 
@@ -2157,7 +2165,7 @@ async def process_scan(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (session_id, current_location or None, current_sublocation or None, code, itn,
                   full_ref, ms, row["description"], row["category"], row["item_status"],
-                  row["cost"], row["item_date"]))
+                  _unit_cost(row), row["item_date"]))
         await db.commit()
         desc = matches[0]["description"] or code
         msg = f"✅ Counted {units_n} × {desc}"
@@ -2218,7 +2226,7 @@ async def process_scan(
         description = item["description"]
         category = item["category"]
         item_status = item["item_status"]
-        cost = item["cost"]
+        cost = _unit_cost(item)
         item_date = item["item_date"]
         item_number = None
         msg = f"➕ EXTRA UNIT recorded — {code} | {description}"
@@ -2227,7 +2235,7 @@ async def process_scan(
         description = item["description"]
         category = item["category"]
         item_status = item["item_status"]
-        cost = item["cost"]
+        cost = _unit_cost(item)
         item_date = item["item_date"]
         item_number = item["item_number"]
         unit_suffix = f" (unit {scanned_so_far + 1} of {capacity})" if capacity > 1 else ""
