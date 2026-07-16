@@ -204,10 +204,15 @@ async function processScan(code, forceExtra, units) {
         prependScanRow(data);
         updateSummary();
     } else if (data.type === 'quantity') {
-        // Multi-unit item: ask how many are physically here, then record them all.
+        // Multi-unit item, possibly spread across locations: ask how many are
+        // HERE and draw them down from the remaining catalog quantity.
+        const remaining = data.remaining != null ? data.remaining : data.capacity;
+        const already = data.already || 0;
+        const ctx = already > 0
+            ? `${already} of ${data.capacity} already counted elsewhere — ${remaining} still to find.`
+            : `Catalog shows ${data.capacity} total.`;
         const ans = prompt(
-            `📦 ${data.description}\n\nThis item can have multiple units (catalog shows ${data.capacity}).\n` +
-            `How many are you counting at this location?`, data.capacity);
+            `📦 ${data.description}\n\n${ctx}\n\nHow many are you counting at THIS location?`, remaining);
         if (ans === null) { showFeedback('Skipped', 'duplicate'); return; }
         const n = parseInt(ans, 10);
         if (!n || n < 1) { showFeedback('⚠️ Enter a whole number', 'error'); return; }

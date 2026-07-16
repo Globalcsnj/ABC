@@ -2145,20 +2145,24 @@ async def process_scan(
 
     units_n = int(units) if str(units).strip().isdigit() else 0
 
-    # First scan of a multi-unit product → ask how many units they're counting,
-    # so bulk items aren't silently double-counted (and duplicate scans can't
-    # slip through). Single-unit items skip this and record straight away.
-    if matches and capacity > 1 and scanned_so_far == 0 and units_n == 0 and not force_extra:
+    # Bulk items can be spread across multiple locations. Whenever units are
+    # still outstanding, ask how many are HERE and draw them down from the
+    # remaining. Single-unit items skip this and record straight away.
+    remaining = capacity - scanned_so_far
+    if matches and capacity > 1 and remaining > 0 and units_n == 0 and not force_extra:
         return JSONResponse({
             "type": "quantity",
             "barcode": code,
             "description": matches[0]["description"] or code,
             "capacity": capacity,
+            "remaining": remaining,
+            "already": scanned_so_far,
         })
 
-    # Record N units at once (from the "how many?" prompt) — only on the first
-    # count of this item, so a re-submitted units value can't append extra rows.
-    if matches and units_n > 0 and scanned_so_far == 0:
+    # Record N units at once (from the "how many?" prompt). Units up to the
+    # remaining catalog quantity count as found (drawing down the remaining);
+    # anything beyond is flagged as extra units on hand.
+    if matches and units_n > 0:
         full_ref = "-".join(filter(None, [current_location, current_sublocation, code]))
         found_ct = extra_ct = 0
         for i in range(units_n):
@@ -2180,14 +2184,19 @@ async def process_scan(
                   _unit_cost(row), row["item_date"]))
         await db.commit()
         desc = matches[0]["description"] or code
+        remaining_after = max(0, capacity - (scanned_so_far + found_ct))
         msg = f"✅ Counted {units_n} × {desc}"
+        if remaining_after:
+            msg += f" — {remaining_after} of {capacity} still to find (other locations)"
+        elif capacity > 1:
+            msg += f" — all {capacity} accounted for"
         if extra_ct:
-            msg += f" — {extra_ct} beyond catalog of {capacity}"
+            msg += f" · {extra_ct} beyond catalog"
         if matched_sold:
-            msg += " — ⚠️ marked SOLD in Bravo (verify)"
+            msg += " · ⚠️ marked SOLD in Bravo (verify)"
         return JSONResponse({
             "type": "bulk", "barcode": code, "counted": units_n,
-            "found": found_ct, "extra": extra_ct, "message": msg,
+            "found": found_ct, "extra": extra_ct, "remaining": remaining_after, "message": msg,
         })
 
     item = None
