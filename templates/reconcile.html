@@ -52,13 +52,21 @@
     {% if not missing %}
     <div class="empty-state">Nothing to reconcile. Everything in the last upload matched. ✓</div>
     {% else %}
-    <table class="table">
+    <div class="missing-search-bar">
+        <input type="text" id="missingSearch" class="search-input" style="min-width:280px"
+               placeholder="🔍 Search item #, description, category…" autocomplete="off"
+               oninput="filterMissing()">
+        <span class="card-subtitle" id="missingCount">{{ missing|length }} items</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="table" id="missingTable">
         <thead>
             <tr><th>Item #</th><th>Description</th><th>Category</th><th>List</th><th>Cost</th><th>Actions</th></tr>
         </thead>
         <tbody>
             {% for m in missing %}
-            <tr class="row-missing">
+            <tr class="row-missing"
+                data-search="{{ (m.item_number ~ ' ' ~ (m.description or '') ~ ' ' ~ (m.category or '') ~ ' ' ~ (m.barcode or ''))|lower }}">
                 <td><strong>{{ m.item_number }}</strong></td>
                 <td>{{ m.description or '—' }}</td>
                 <td>{{ m.category or '—' }}</td>
@@ -82,6 +90,8 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
+    <div id="missingNoMatch" class="empty-state" style="display:none">No missing items match your search.</div>
     {% endif %}
 </div>
 
@@ -161,6 +171,21 @@
 
 {% block scripts %}
 <script>
+function filterMissing() {
+    const q = (document.getElementById('missingSearch').value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#missingTable tbody tr');
+    let shown = 0;
+    rows.forEach(r => {
+        const hit = !q || (r.dataset.search || '').includes(q);
+        r.style.display = hit ? '' : 'none';
+        if (hit) shown++;
+    });
+    const cnt = document.getElementById('missingCount');
+    if (cnt) cnt.textContent = shown + (q ? ' of {{ missing|length }}' : '') + ' items';
+    const none = document.getElementById('missingNoMatch');
+    if (none) none.style.display = shown === 0 ? '' : 'none';
+}
+
 document.getElementById('stageListForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const el = document.getElementById('stageListResult');

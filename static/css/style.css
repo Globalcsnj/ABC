@@ -956,6 +956,8 @@ html { scroll-behavior: smooth; }
 
 .photo-actions { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
 .col-action { white-space: nowrap; text-align: right; }
+.missing-search-bar { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; flex-wrap: wrap; }
+.sold-channel { padding: 5px 6px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 13px; }
 
 /* Campaigns */
 .campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
