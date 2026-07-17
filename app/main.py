@@ -1546,7 +1546,7 @@ async def load_workbench_data(db, session_id: int = 0):
     session is given, each item is tagged Found/Missing for that count."""
     async with db.execute("""
         SELECT item_number, barcode, upc, description, category, item_status, source, product_type,
-               cost, retail_price, metal_type, metal_purity, total_jewelry_weight,
+               cost, retail_price, quantity, metal_type, metal_purity, total_jewelry_weight,
                metal_weight, total_diamond, total_stone_size, quality,
                manufacturer, model, vendor, item_date, date_to_inventory, sold_at,
                COALESCE(NULLIF(stage,''),'Inventory') as stage,
