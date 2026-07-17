@@ -1606,7 +1606,8 @@ async def reconcile_page(request: Request, frm: str = "", to: str = "",
     """) as cur:
         missing = await cur.fetchall()
     async with db.execute("""
-        SELECT item_number, barcode, description, category, sold_at
+        SELECT item_number, barcode, description, category, sold_at,
+               COALESCE(sold_channel,'') as sold_channel
         FROM items WHERE sold=1 ORDER BY sold_at DESC LIMIT 200
     """) as cur:
         sold = await cur.fetchall()
@@ -1660,10 +1661,13 @@ async def reconcile_log_csv(frm: str = "", to: str = "", status: str = "", db=De
 
 
 @app.post("/api/items/{item_number}/sold")
-async def mark_sold(item_number: str, db=Depends(get_db)):
+async def mark_sold(item_number: str, channel: str = Form(default=""), db=Depends(get_db)):
+    # Record where it sold (eBay / Store / Online / …). Once sold, future Bravo
+    # uploads will NOT resurrect this item even if it still lists as INVENTORY.
     await db.execute(
-        "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 WHERE item_number=?",
-        (item_number,)
+        "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0, "
+        "sold_channel=? WHERE item_number=?",
+        (channel.strip(), item_number)
     )
     await db.execute(
         "UPDATE reconcile_log SET status='sold', resolved_at=CURRENT_TIMESTAMP "
@@ -2584,6 +2588,7 @@ async def import_items(
                    inventory_age=COALESCE(NULLIF(excluded.inventory_age,''), items.inventory_age),
                    date_to_inventory=COALESCE(NULLIF(excluded.date_to_inventory,''), items.date_to_inventory),
                    missing=0
+                WHERE COALESCE(items.sold,0)=0
             """, (
                 item_number_u, barcode_u, (upc.upper() if upc else None), description, category, item_type, item_status,
                 cost_in, retail_val, item_date, source, ptype, total_diamond, metal_type,

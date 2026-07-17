@@ -204,6 +204,7 @@ async def init_db():
             "for_sale": "INTEGER DEFAULT 1",
             "sold": "INTEGER DEFAULT 0",
             "sold_at": "TIMESTAMP",
+            "sold_channel": "TEXT DEFAULT ''",     # eBay / Store / Online / …
             "missing": "INTEGER DEFAULT 0",         # in DB but not in latest upload
             "product_type": "TEXT DEFAULT ''",       # jewelry / manufactured / general
             "upc": "TEXT DEFAULT ''",                # UPC/GTIN (separate from Bravo barcode)

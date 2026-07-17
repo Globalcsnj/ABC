@@ -65,7 +65,13 @@
                 <td>{{ m.source|capitalize }}</td>
                 <td>{% if m.cost %}{{ m.cost|usd }}{% else %}—{% endif %}</td>
                 <td class="action-cell">
-                    <form method="POST" action="/api/items/{{ m.item_number }}/sold" style="display:inline">
+                    <form method="POST" action="/api/items/{{ m.item_number }}/sold" style="display:inline-flex;gap:4px;align-items:center">
+                        <select name="channel" class="sold-channel">
+                            <option value="Store">Store</option>
+                            <option value="eBay">eBay</option>
+                            <option value="Online">Online</option>
+                            <option value="Other">Other</option>
+                        </select>
                         <button class="btn btn-sm btn-primary">Sold ✓</button>
                     </form>
                     <form method="POST" action="/api/items/{{ m.item_number }}/keep" style="display:inline">
@@ -130,7 +136,7 @@
     <h2>✅ Sold Items</h2>
     <table class="table">
         <thead>
-            <tr><th>Item #</th><th>Description</th><th>Category</th><th>Sold On</th><th></th></tr>
+            <tr><th>Item #</th><th>Description</th><th>Category</th><th>Channel</th><th>Sold On</th><th></th></tr>
         </thead>
         <tbody>
             {% for s in sold %}
@@ -138,6 +144,7 @@
                 <td>{{ s.item_number }}</td>
                 <td>{{ s.description or '—' }}</td>
                 <td>{{ s.category or '—' }}</td>
+                <td>{% if s.sold_channel %}<span class="badge badge-found">{{ s.sold_channel }}</span>{% else %}—{% endif %}</td>
                 <td>{{ s.sold_at[:16] if s.sold_at else '—' }}</td>
                 <td>
                     <form method="POST" action="/api/items/{{ s.item_number }}/unsold" style="display:inline">
