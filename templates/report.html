@@ -157,6 +157,8 @@
     </div>
     <p class="card-subtitle">Items found in the store but NOT on the list, plus extra units scanned beyond
     the catalog count for a barcode. Investigate these.</p>
+    <details open>
+    <summary class="collapse-summary">🔎 Findings ({{ findings|length }}) — click to collapse/expand</summary>
     <table class="table">
         <thead>
             <tr><th>Type</th><th>Barcode</th><th>Reference</th><th>Location</th><th>Scanned At</th><th></th></tr>
@@ -174,6 +176,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </details>
 </div>
 {% endif %}
 
