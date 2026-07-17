@@ -43,56 +43,35 @@
 </div>
 
 <div class="card mt">
-    <h2>❓ Items missing from the latest upload</h2>
+    <h2>❓ Find an item to mark Sold</h2>
     <p class="card-subtitle">
-        These were in a previous upload but not the most recent one — they may have sold.
-        Confirm each: <strong>Sold</strong> marks it sold (removed from the shop),
-        <strong>Still here</strong> keeps it if it just wasn't in the file.
+        Search <strong>any</strong> in-stock item by item #, description, barcode, or UPC — then mark it
+        <strong>Sold</strong> with where it sold (Store / eBay / Online). Sold items are removed from the
+        shop and won't come back on the next Bravo upload.
+        {% if missing_count %}<br><strong>{{ "{:,}".format(missing_count) }}</strong> items dropped off the
+        latest upload (possibly sold) — tick <em>Only possibly-sold</em> to narrow to those.{% endif %}
     </p>
-    {% if not missing %}
-    <div class="empty-state">Nothing to reconcile. Everything in the last upload matched. ✓</div>
-    {% else %}
     <div class="missing-search-bar">
-        <input type="text" id="missingSearch" class="search-input" style="min-width:280px"
-               placeholder="🔍 Search item #, description, category…" autocomplete="off"
-               oninput="filterMissing()">
-        <span class="card-subtitle" id="missingCount">{{ missing|length }} items</span>
+        <input type="text" id="findSearch" class="search-input" style="min-width:300px"
+               placeholder="🔍 Search item #, description, barcode, UPC…" autocomplete="off">
+        <label class="radio-line" style="margin:0"><input type="checkbox" id="findMissingOnly"> Only possibly-sold</label>
+        <select id="findChannel" class="sold-channel">
+            <option value="Store">Store</option>
+            <option value="eBay">eBay</option>
+            <option value="Online">Online</option>
+            <option value="Other">Other</option>
+        </select>
+        <span class="card-subtitle" id="findStatus"></span>
     </div>
     <div style="overflow-x:auto">
-    <table class="table" id="missingTable">
+    <table class="table" id="findTable" style="display:none">
         <thead>
-            <tr><th>Item #</th><th>Description</th><th>Category</th><th>List</th><th>Cost</th><th>Actions</th></tr>
+            <tr><th>Item #</th><th>Description</th><th>Category</th><th>List</th><th>Status</th><th>Cost</th><th>Actions</th></tr>
         </thead>
-        <tbody>
-            {% for m in missing %}
-            <tr class="row-missing"
-                data-search="{{ (m.item_number ~ ' ' ~ (m.description or '') ~ ' ' ~ (m.category or '') ~ ' ' ~ (m.barcode or ''))|lower }}">
-                <td><strong>{{ m.item_number }}</strong></td>
-                <td>{{ m.description or '—' }}</td>
-                <td>{{ m.category or '—' }}</td>
-                <td>{{ m.source|capitalize }}</td>
-                <td>{% if m.cost %}{{ m.cost|usd }}{% else %}—{% endif %}</td>
-                <td class="action-cell">
-                    <form method="POST" action="/api/items/{{ m.item_number }}/sold" style="display:inline-flex;gap:4px;align-items:center">
-                        <select name="channel" class="sold-channel">
-                            <option value="Store">Store</option>
-                            <option value="eBay">eBay</option>
-                            <option value="Online">Online</option>
-                            <option value="Other">Other</option>
-                        </select>
-                        <button class="btn btn-sm btn-primary">Sold ✓</button>
-                    </form>
-                    <form method="POST" action="/api/items/{{ m.item_number }}/keep" style="display:inline">
-                        <button class="btn btn-sm btn-outline">Still here</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+        <tbody id="findResults"></tbody>
     </table>
     </div>
-    <div id="missingNoMatch" class="empty-state" style="display:none">No missing items match your search.</div>
-    {% endif %}
+    <div id="findHint" class="empty-state">Type at least 2 characters to search.</div>
 </div>
 
 {% if log %}
@@ -171,20 +150,65 @@
 
 {% block scripts %}
 <script>
-function filterMissing() {
-    const q = (document.getElementById('missingSearch').value || '').toLowerCase().trim();
-    const rows = document.querySelectorAll('#missingTable tbody tr');
-    let shown = 0;
-    rows.forEach(r => {
-        const hit = !q || (r.dataset.search || '').includes(q);
-        r.style.display = hit ? '' : 'none';
-        if (hit) shown++;
-    });
-    const cnt = document.getElementById('missingCount');
-    if (cnt) cnt.textContent = shown + (q ? ' of {{ missing|length }}' : '') + ' items';
-    const none = document.getElementById('missingNoMatch');
-    if (none) none.style.display = shown === 0 ? '' : 'none';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const findMoney = v => v == null ? '—' : '$' + Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+let findTimer = null;
+
+function runFind() {
+    clearTimeout(findTimer);
+    findTimer = setTimeout(doFind, 200);
 }
+async function doFind() {
+    const q = (document.getElementById('findSearch').value || '').trim();
+    const hint = document.getElementById('findHint');
+    const table = document.getElementById('findTable');
+    const body = document.getElementById('findResults');
+    const statusEl = document.getElementById('findStatus');
+    if (q.length < 2) {
+        table.style.display = 'none'; hint.style.display = ''; hint.textContent = 'Type at least 2 characters to search.';
+        statusEl.textContent = ''; return;
+    }
+    const scope = document.getElementById('findMissingOnly').checked ? 'missing' : 'all';
+    statusEl.textContent = 'Searching…';
+    let data;
+    try {
+        const res = await fetch(`/api/items/find?q=${encodeURIComponent(q)}&scope=${scope}`);
+        data = await res.json();
+    } catch { statusEl.textContent = 'Search failed.'; return; }
+    const rows = data.results || [];
+    statusEl.textContent = `${rows.length}${data.truncated ? '+' : ''} found`;
+    if (!rows.length) {
+        table.style.display = 'none'; hint.style.display = ''; hint.textContent = 'No matching in-stock items.'; return;
+    }
+    hint.style.display = 'none'; table.style.display = '';
+    body.innerHTML = rows.map(r => `
+        <tr id="find-${esc(r.item_number)}">
+            <td><strong>${esc(r.item_number)}</strong></td>
+            <td>${esc(r.description) || '—'}</td>
+            <td>${esc(r.category) || '—'}</td>
+            <td>${esc((r.source||'').charAt(0).toUpperCase()+(r.source||'').slice(1))}</td>
+            <td>${r.missing ? '<span class="badge badge-old">possibly sold</span>' : esc(r.item_status||'')}</td>
+            <td>${findMoney(r.cost)}</td>
+            <td class="action-cell">
+                <button class="btn btn-sm btn-primary" onclick="markSold('${esc(r.item_number).replace(/'/g,"\\'")}')">Sold ✓</button>
+                ${r.missing ? `<button class="btn btn-sm btn-outline" onclick="keepItem('${esc(r.item_number).replace(/'/g,"\\'")}')">Still here</button>` : ''}
+            </td>
+        </tr>`).join('');
+}
+async function markSold(itemNumber) {
+    const channel = document.getElementById('findChannel').value;
+    const b = new FormData(); b.append('channel', channel);
+    const res = await fetch(`/api/items/${encodeURIComponent(itemNumber)}/sold`, {method:'POST', body:b});
+    if (res.ok) { const row = document.getElementById('find-'+CSS.escape(itemNumber)); if (row) row.remove(); }
+    else alert('Could not mark sold.');
+}
+async function keepItem(itemNumber) {
+    const res = await fetch(`/api/items/${encodeURIComponent(itemNumber)}/keep`, {method:'POST'});
+    if (res.ok) { const row = document.getElementById('find-'+CSS.escape(itemNumber)); if (row) row.remove(); }
+}
+document.getElementById('findSearch').addEventListener('input', runFind);
+document.getElementById('findMissingOnly').addEventListener('change', doFind);
 
 document.getElementById('stageListForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -194,6 +218,7 @@ document.getElementById('stageListForm').addEventListener('submit', async (e) =>
     try {
         const res = await fetch('/api/items/stage-bulk', { method: 'POST', body: new FormData(e.target) });
         const j = await res.json();
+        if (!res.ok || j.type === 'error') { throw new Error(j.message || 'Server error'); }
         el.textContent = `✅ Set ${j.updated} item(s) to that stage.`;
         el.className = 'import-result success';
     } catch (err) {
@@ -210,6 +235,7 @@ document.getElementById('soldListForm').addEventListener('submit', async (e) => 
     try {
         const res = await fetch('/api/items/sold-list', { method: 'POST', body: new FormData(e.target) });
         const j = await res.json();
+        if (!res.ok || j.type === 'error') { throw new Error(j.message || 'Server error'); }
         let msg = `✅ Marked ${j.sold} item(s) sold.`;
         if (j.not_found && j.not_found.length) msg += ` ⚠️ ${j.not_found.length} not found: ${j.not_found.slice(0,10).join(', ')}${j.not_found.length>10?'…':''}`;
         el.textContent = msg;

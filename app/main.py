@@ -97,12 +97,15 @@ async def _unhandled_exception(request: Request, exc: Exception):
     except Exception:
         pass
     if request.url.path.startswith("/api/"):
+        # Real 500 so fetch callers see res.ok=false; JSON body carries a
+        # readable message for the scan screen and other handlers.
         return JSONResponse(
-            {"type": "error",
+            {"type": "error", "ok": False,
              "message": f"⚠️ Server error: {type(exc).__name__}: {exc} — retry; if it repeats, see Diagnostics."},
-            status_code=200)
+            status_code=500)
+    import html as _html
     return HTMLResponse(
-        f"<h2>Server error</h2><p>{type(exc).__name__}: {exc}</p>"
+        f"<h2>Server error</h2><p>{_html.escape(f'{type(exc).__name__}: {exc}')}</p>"
         f"<p>Details logged to data/errors.log · see <a href='/diagnostics'>Diagnostics</a>.</p>",
         status_code=500)
 
@@ -1600,21 +1603,41 @@ async def load_workbench_data(db, session_id: int = 0):
 @app.get("/reconcile", response_class=HTMLResponse)
 async def reconcile_page(request: Request, frm: str = "", to: str = "",
                          status: str = "", db=Depends(get_db)):
-    async with db.execute("""
-        SELECT item_number, barcode, description, category, cost, retail_price, source
-        FROM items WHERE missing=1 AND sold=0 ORDER BY source, category, item_number
-    """) as cur:
-        missing = await cur.fetchall()
+    # Only the COUNT of possibly-sold items — the list itself is searched
+    # on demand (rendering thousands of rows made the page slow to load).
+    async with db.execute("SELECT COUNT(*) FROM items WHERE missing=1 AND sold=0") as cur:
+        missing_count = (await cur.fetchone())[0]
     async with db.execute("""
         SELECT item_number, barcode, description, category, sold_at,
                COALESCE(sold_channel,'') as sold_channel
         FROM items WHERE sold=1 ORDER BY sold_at DESC LIMIT 200
     """) as cur:
         sold = await cur.fetchall()
-    return await _render_reconcile(request, db, missing, sold, frm, to, status)
+    return await _render_reconcile(request, db, missing_count, sold, frm, to, status)
 
 
-async def _render_reconcile(request, db, missing, sold, frm="", to="", status=""):
+@app.get("/api/items/find")
+async def find_items(q: str = "", scope: str = "all", db=Depends(get_db)):
+    """Search unsold items to mark sold (any item — not just upload-missing)."""
+    q = q.strip()
+    if len(q) < 2:
+        return JSONResponse({"results": []})
+    like = f"%{q}%"
+    where = ["COALESCE(sold,0)=0",
+             "(item_number LIKE ? OR description LIKE ? OR barcode LIKE ? OR COALESCE(upc,'') LIKE ?)"]
+    params = [like, like, like, like]
+    if scope == "missing":
+        where.append("missing=1")
+    async with db.execute(
+        f"SELECT item_number, description, category, barcode, COALESCE(upc,'') as upc, "
+        f"cost, retail_price, source, item_status, COALESCE(missing,0) as missing "
+        f"FROM items WHERE {' AND '.join(where)} ORDER BY item_number LIMIT 80", params
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    return JSONResponse({"results": rows, "truncated": len(rows) == 80})
+
+
+async def _render_reconcile(request, db, missing_count, sold, frm="", to="", status=""):
     query = "SELECT * FROM reconcile_log WHERE 1=1"
     params = []
     if frm:
@@ -1630,7 +1653,7 @@ async def _render_reconcile(request, db, missing, sold, frm="", to="", status=""
     async with db.execute(query, params) as cur:
         log = await cur.fetchall()
     return templates.TemplateResponse("reconcile.html", {
-        "request": request, "missing": missing, "sold": sold, "log": log,
+        "request": request, "missing_count": missing_count, "sold": sold, "log": log,
         "frm": frm, "to": to, "log_status": status,
     })
 
@@ -2529,8 +2552,10 @@ async def import_items(
                 seen_codes.append(item_number_u)
 
             # Does it already exist? (decides new vs updated, and preserves admin fields)
-            async with db.execute("SELECT item_number FROM items WHERE item_number = ?", (item_number_u,)) as cur:
-                exists = await cur.fetchone() is not None
+            async with db.execute("SELECT sold FROM items WHERE item_number = ?", (item_number_u,)) as cur:
+                _ex = await cur.fetchone()
+            exists = _ex is not None
+            was_sold = bool(_ex["sold"]) if _ex is not None else False
 
             # Derive a barcode from the item number ONLY for brand-new items —
             # never overwrite an existing item's real barcode with derived digits.
@@ -2597,10 +2622,11 @@ async def import_items(
                 metal_weight, quality, stone_auth_in, quantity, vendor,
                 inventory_age, date_to_inventory,
             ))
-            if exists:
-                updated += 1
-            else:
+            if not exists:
                 inserted += 1
+            elif not was_sold:
+                updated += 1
+            # else: already sold → the UPSERT skipped it, don't count as updated
 
         # Record this upload first so we can tie the reconciliation log to it
         async with db.execute(
