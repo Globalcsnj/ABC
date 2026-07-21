@@ -125,6 +125,25 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
+def _asset_version():
+    """Cache-buster for static assets — changes whenever CSS/JS is updated
+    (e.g. after the store PC self-updates via git), so browsers stop serving a
+    stale style.css and always pick up the latest styles."""
+    latest = 0.0
+    static_dir = os.path.join(BASE_DIR, "static")
+    for root, _dirs, files in os.walk(static_dir):
+        for f in files:
+            if f.endswith((".css", ".js")):
+                try:
+                    latest = max(latest, os.path.getmtime(os.path.join(root, f)))
+                except OSError:
+                    pass
+    return str(int(latest))
+
+
+templates.env.globals["asset_v"] = _asset_version()
+
+
 def _to_num(v):
     try:
         return float(v)
