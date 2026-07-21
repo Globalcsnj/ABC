@@ -3,8 +3,85 @@
 {% block content %}
 <div class="page-header">
     <h1>Sales Dashboard</h1>
+    <div class="period-tabs">
+        {% for key, label in periods.items() %}
+        <a href="/dashboard?period={{ key }}" class="period-tab {% if period==key %}active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
 </div>
 
+<!-- Buys vs Sells comparison for the selected period -->
+<div class="card">
+    <div class="card-header"><h2>💵 Buys vs Sells — {{ period_label }}</h2></div>
+    <div class="cmp-grid">
+        <div class="cmp-col cmp-buys">
+            <div class="cmp-title">⬇ Buys (acquired)</div>
+            <div class="cmp-big">{{ "{:,}".format(cmp.buys_cnt) }}</div>
+            <div class="cmp-sub">items in · cost {{ cmp.buys_cost|usd0 }}</div>
+        </div>
+        <div class="cmp-col cmp-sells">
+            <div class="cmp-title">⬆ Sells</div>
+            <div class="cmp-big">{{ "{:,}".format(cmp.sells_cnt) }}</div>
+            <div class="cmp-sub">items out · revenue {{ cmp.sells_rev|usd0 }}</div>
+        </div>
+        <div class="cmp-col">
+            <div class="cmp-title">Gross margin (sold)</div>
+            <div class="cmp-big found-text">{{ cmp.sells_margin|usd0 }}</div>
+            <div class="cmp-sub">revenue − cost of sold</div>
+        </div>
+        <div class="cmp-col">
+            <div class="cmp-title">Net cash flow</div>
+            <div class="cmp-big {% if cmp.net_cash < 0 %}missing-text{% else %}found-text{% endif %}">{{ cmp.net_cash|usd0 }}</div>
+            <div class="cmp-sub">sales revenue − buy cost</div>
+        </div>
+    </div>
+    {% if by_channel %}
+    <div class="chan-row">
+        <span class="card-subtitle">Sales by channel:</span>
+        {% for name, v in by_channel %}
+        <span class="chan-pill">{{ name }}: <strong>{{ v.cnt }}</strong> · {{ v.rev|usd0 }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <p class="card-subtitle">Buys use each item's acquisition date from Bravo (Date to Inventory); sells use the recorded sale date.</p>
+</div>
+
+<!-- Monthly accumulation for the year -->
+<div class="card mt">
+    <div class="card-header">
+        <h2>📅 {{ year }} by Month — Buys vs Sells</h2>
+        <span class="total-badge">YTD sells {{ ytd.sells_rev|usd0 }} · buys {{ ytd.buys_cost|usd0 }}</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="table">
+        <thead><tr><th>Month</th><th>Buys (in)</th><th>Buy cost</th><th>Sells (out)</th><th>Revenue</th><th>Trend</th></tr></thead>
+        <tbody>
+            {% for m in months %}
+            <tr>
+                <td><strong>{{ m.label }}</strong></td>
+                <td>{{ m.buys_cnt }}</td>
+                <td>{{ m.buys_cost|usd0 }}</td>
+                <td>{{ m.sells_cnt }}</td>
+                <td class="found-text">{{ m.sells_rev|usd0 }}</td>
+                <td>
+                    <div class="dual-bar">
+                        <div class="dual-buy" style="width: {{ (m.buys_cost / month_max * 100)|round|int }}%"></div>
+                        <div class="dual-sell" style="width: {{ (m.sells_rev / month_max * 100)|round|int }}%"></div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><th>YTD</th><th>{{ ytd.buys_cnt }}</th><th>{{ ytd.buys_cost|usd0 }}</th>
+                <th>{{ ytd.sells_cnt }}</th><th>{{ ytd.sells_rev|usd0 }}</th><th></th></tr>
+        </tfoot>
+    </table>
+    </div>
+    <p class="card-subtitle"><span class="dot-legend dual-buy"></span> buy cost &nbsp; <span class="dot-legend dual-sell"></span> sales revenue</p>
+</div>
+
+<h2 class="section-title" style="text-align:left;margin-top:32px">Overall snapshot</h2>
 <div class="stat-row dash-stats">
     <div class="stat-card stat-found">
         <div class="stat-num">{{ "{:,}".format(sold_total) }}</div>

@@ -949,6 +949,27 @@ html { scroll-behavior: smooth; }
 .footer2-addr { font-size: 13px; margin-top: 8px; }
 .footer2-note { font-size: 12px; max-width: 520px; opacity: .8; line-height: 1.5; }
 
+/* Dashboard period tabs + buys-vs-sells */
+.period-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.period-tab { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    text-decoration: none; color: var(--gray-600); border: 1px solid var(--gray-200); background: #fff; }
+.period-tab:hover { border-color: var(--primary); color: var(--primary); }
+.period-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 6px 0 12px; }
+.cmp-col { border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; text-align: center; }
+.cmp-buys { background: #fff7ed; border-color: #fed7aa; }
+.cmp-sells { background: #f0fdf4; border-color: #bbf7d0; }
+.cmp-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); font-weight: 700; }
+.cmp-big { font-size: 26px; font-weight: 800; margin: 4px 0; }
+.cmp-sub { font-size: 12px; color: var(--gray-600); }
+.missing-text { color: var(--danger); }
+.chan-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0 10px; }
+.chan-pill { background: var(--gray-100); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+.dual-bar { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+.dual-buy { height: 8px; background: #fb923c; border-radius: 4px; }
+.dual-sell { height: 8px; background: #10b981; border-radius: 4px; }
+.dot-legend { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; }
+
 /* Best-sellers reorder bar (inline in table) */
 .seller-bar-wrap { position: relative; min-width: 180px; padding: 4px 8px; border-radius: 5px; overflow: hidden; }
 .seller-bar { position: absolute; inset: 0; background: #dbeafe; border-radius: 5px; z-index: 0; }

@@ -213,6 +213,22 @@ def expand_code(v) -> str:
     return s
 
 
+def parse_date_any(s):
+    """Best-effort parse of a messy date string → date, or None."""
+    if not s:
+        return None
+    s = str(s).strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d",
+                "%m/%d/%Y", "%m/%d/%y", "%Y/%m/%d", "%m-%d-%Y", "%d-%b-%Y", "%b %d, %Y"):
+        try:
+            return datetime.strptime(s[:19] if len(fmt) > 10 else s, fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
 def clean_money(val: str) -> float:
     try:
         return float(str(val).replace("$", "").replace(",", "").strip())
@@ -450,7 +466,7 @@ async def load_group_overrides(db) -> dict:
 async def get_missing_items(session_id, session, db):
     """Items expected for this count (respecting list + category filters) not scanned."""
     query = """
-        SELECT i.item_number, i.barcode, i.description, i.category, i.item_status,
+        SELECT i.item_number, i.barcode, i.upc, i.quantity, i.description, i.category, i.item_status,
                i.cost, i.retail_price, i.source, i.product_type,
                i.metal_type, i.metal_purity, i.total_diamond, i.total_stone_size
         FROM items i
@@ -626,11 +642,12 @@ async def report_missing_csv(session_id: int, group: str = "", db=Depends(get_db
                 f"{sum(g['retail'] for g in groups.values()):.2f}"])
     w.writerow([])
     w.writerow(["MISSING ITEMS DETAIL"])
-    w.writerow(["Group", "Item #", "Barcode", "Description", "Category", "Status",
+    w.writerow(["Group", "Item #", "Barcode", "UPC", "Qty", "Description", "Category", "Status",
                 "Cost", "Retail Price", "Metal", "Purity", "Total Diamond", "Total Stone"])
     for m in missing:
         w.writerow([
-            big_group(m, overrides), m["item_number"], m["barcode"], m["description"], m["category"],
+            big_group(m, overrides), m["item_number"], m["barcode"], m["upc"], m["quantity"] or "1",
+            m["description"], m["category"],
             m["item_status"], m["cost"], m["retail_price"], m["metal_type"],
             m["metal_purity"], m["total_diamond"], m["total_stone_size"],
         ])
@@ -1160,12 +1177,100 @@ async def set_stage_bulk(codes: str = Form(...), stage: str = Form(...), db=Depe
 
 # ── Sold / reconciliation workflow ──────────────────────────────────────────
 
+DASH_PERIODS = {
+    "today": "Today", "7d": "Last 7 days", "month": "This month",
+    "year": "This year", "all": "All time",
+}
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request, db=Depends(get_db)):
+async def dashboard_page(request: Request, period: str = "month", db=Depends(get_db)):
+    if period not in DASH_PERIODS:
+        period = "month"
     async def scalar(sql, params=()):
         async with db.execute(sql, params) as cur:
             row = await cur.fetchone()
             return row[0] if row and row[0] is not None else 0
+
+    # Period start (local): drives the buys-vs-sells comparison
+    now = datetime.now()
+    today = now.date()
+    if period == "today":
+        start = today
+    elif period == "7d":
+        start = today - timedelta(days=7)
+    elif period == "month":
+        start = today.replace(day=1)
+    elif period == "year":
+        start = today.replace(month=1, day=1)
+    else:
+        start = None
+
+    # ── SELLS (reliable sold_at timestamp) ───────────────────────────────────
+    async with db.execute(
+        "SELECT sold_at, COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, "
+        "COALESCE(sold_channel,'') channel FROM items WHERE sold=1 AND sold_at IS NOT NULL"
+    ) as cur:
+        sell_rows = [dict(r) for r in await cur.fetchall()]
+    # ── BUYS / acquired (from Bravo date_to_inventory → item_date → imported) ─
+    async with db.execute(
+        "SELECT date_to_inventory, item_date, imported_at, COALESCE(cost,0) cost FROM items"
+    ) as cur:
+        buy_rows = [dict(r) for r in await cur.fetchall()]
+
+    def _sell_date(r):
+        return parse_date_any(r["sold_at"])
+    def _buy_date(r):
+        return parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"]) or parse_date_any(r["imported_at"])
+
+    def _in_period(d):
+        return d is not None and (start is None or d >= start)
+
+    # Period comparison
+    sells_p = [r for r in sell_rows if _in_period(_sell_date(r))]
+    buys_p = [r for r in buy_rows if _in_period(_buy_date(r))]
+    cmp_sells_cnt = len(sells_p)
+    cmp_sells_rev = sum(r["retail"] for r in sells_p)
+    cmp_sells_cost = sum(r["cost"] for r in sells_p)
+    cmp_buys_cnt = len(buys_p)
+    cmp_buys_cost = sum(r["cost"] for r in buys_p)
+    cmp = {
+        "sells_cnt": cmp_sells_cnt, "sells_rev": cmp_sells_rev, "sells_cost": cmp_sells_cost,
+        "sells_margin": cmp_sells_rev - cmp_sells_cost,
+        "buys_cnt": cmp_buys_cnt, "buys_cost": cmp_buys_cost,
+        "net_cash": cmp_sells_rev - cmp_buys_cost,
+    }
+    # Sells by channel for the period (Store / eBay / Online / …)
+    chan = {}
+    for r in sells_p:
+        k = r["channel"] or "Store/Unspecified"
+        chan.setdefault(k, {"cnt": 0, "rev": 0.0})
+        chan[k]["cnt"] += 1
+        chan[k]["rev"] += r["retail"]
+    by_channel = sorted(chan.items(), key=lambda kv: kv[1]["rev"], reverse=True)
+
+    # Monthly accumulation for the current year: buys vs sells
+    yr = today.year
+    months = [{"m": i, "label": datetime(yr, i, 1).strftime("%b"),
+               "sells_cnt": 0, "sells_rev": 0.0, "buys_cnt": 0, "buys_cost": 0.0}
+              for i in range(1, 13)]
+    for r in sell_rows:
+        d = _sell_date(r)
+        if d and d.year == yr:
+            months[d.month - 1]["sells_cnt"] += 1
+            months[d.month - 1]["sells_rev"] += r["retail"]
+    for r in buy_rows:
+        d = _buy_date(r)
+        if d and d.year == yr:
+            months[d.month - 1]["buys_cnt"] += 1
+            months[d.month - 1]["buys_cost"] += r["cost"]
+    month_max = max([max(m["sells_rev"], m["buys_cost"]) for m in months], default=1) or 1
+    ytd = {
+        "sells_cnt": sum(m["sells_cnt"] for m in months),
+        "sells_rev": sum(m["sells_rev"] for m in months),
+        "buys_cnt": sum(m["buys_cnt"] for m in months),
+        "buys_cost": sum(m["buys_cost"] for m in months),
+    }
 
     in_stock = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0")
     sold_total = await scalar("SELECT COUNT(*) FROM items WHERE sold=1")
@@ -1244,6 +1349,9 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
         "per_day": per_day, "top_cats": top_cats, "sellthrough": sellthrough,
         "best_sellers": best_sellers, "max_seller": max_seller,
         "max_day": max_day, "max_cat": max_cat,
+        "period": period, "period_label": DASH_PERIODS[period], "periods": DASH_PERIODS,
+        "cmp": cmp, "by_channel": by_channel,
+        "months": months, "month_max": month_max, "ytd": ytd, "year": yr,
     })
 
 
@@ -1341,7 +1449,7 @@ async def analysis_page(request: Request, session_id: int = 0, db=Depends(get_db
 async def aged_stock_csv(db=Depends(get_db)):
     """Items in stock 90+ days — the offers/markdown candidate list."""
     async with db.execute("""
-        SELECT item_number, barcode, description, category, cost, retail_price,
+        SELECT item_number, barcode, upc, quantity, description, category, cost, retail_price,
                inventory_age, item_status
         FROM items WHERE COALESCE(sold,0)=0 AND inventory_age IS NOT NULL AND inventory_age != ''
     """) as cur:
@@ -1356,11 +1464,11 @@ async def aged_stock_csv(db=Depends(get_db)):
 
     def write(w):
         w.writerow(["AGED STOCK 90+ DAYS — OFFER CANDIDATES", datetime.now().strftime("%Y-%m-%d %H:%M")])
-        w.writerow(["Days in Stock", "Item #", "Barcode", "Description", "Category",
+        w.writerow(["Days in Stock", "Item #", "Barcode", "UPC", "Qty", "Description", "Category",
                     "Status", "Cost", "Retail Price"])
         for r in aged:
-            w.writerow([r["age_days"], r["item_number"], r["barcode"], r["description"],
-                        r["category"], r["item_status"], r["cost"], r["retail_price"]])
+            w.writerow([r["age_days"], r["item_number"], r["barcode"], r["upc"], r["quantity"] or "1",
+                        r["description"], r["category"], r["item_status"], r["cost"], r["retail_price"]])
     return _csv_response(write, "aged_stock_offers.csv")
 
 
