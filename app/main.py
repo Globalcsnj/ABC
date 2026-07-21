@@ -1184,174 +1184,80 @@ DASH_PERIODS = {
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request, period: str = "month", db=Depends(get_db)):
-    if period not in DASH_PERIODS:
-        period = "month"
+async def dashboard_page(request: Request, db=Depends(get_db)):
+    """Sales dashboard. All range-sensitive analysis (KPIs, charts, chips,
+    drill-down table) is computed client-side from the JSON emitted here, so the
+    user can pick any date range and filter general→specific without a reload."""
     async def scalar(sql, params=()):
         async with db.execute(sql, params) as cur:
             row = await cur.fetchone()
             return row[0] if row and row[0] is not None else 0
 
-    # Period start (local): drives the buys-vs-sells comparison
-    now = datetime.now()
-    today = now.date()
-    if period == "today":
-        start = today
-    elif period == "7d":
-        start = today - timedelta(days=7)
-    elif period == "month":
-        start = today.replace(day=1)
-    elif period == "year":
-        start = today.replace(month=1, day=1)
-    else:
-        start = None
-
     # ── SELLS (reliable sold_at timestamp) ───────────────────────────────────
     async with db.execute(
-        "SELECT sold_at, COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, "
-        "COALESCE(sold_channel,'') channel FROM items WHERE sold=1 AND sold_at IS NOT NULL"
+        "SELECT item_number, description, "
+        "COALESCE(NULLIF(category,''),'Uncategorized') category, "
+        "COALESCE(NULLIF(product_type,''),'general') ptype, "
+        "sold_at, COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, "
+        "COALESCE(NULLIF(sold_channel,''),'Store/Unspecified') channel "
+        "FROM items WHERE sold=1 AND sold_at IS NOT NULL"
     ) as cur:
-        sell_rows = [dict(r) for r in await cur.fetchall()]
+        sell_raw = [dict(r) for r in await cur.fetchall()]
     # ── BUYS / acquired (from Bravo date_to_inventory → item_date → imported) ─
     async with db.execute(
-        "SELECT date_to_inventory, item_date, imported_at, COALESCE(cost,0) cost FROM items"
+        "SELECT date_to_inventory, item_date, imported_at, "
+        "COALESCE(NULLIF(category,''),'Uncategorized') category, "
+        "COALESCE(cost,0) cost FROM items"
     ) as cur:
-        buy_rows = [dict(r) for r in await cur.fetchall()]
+        buy_raw = [dict(r) for r in await cur.fetchall()]
 
-    def _sell_date(r):
-        return parse_date_any(r["sold_at"])
-    def _buy_date(r):
-        return parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"]) or parse_date_any(r["imported_at"])
+    def _iso(d):
+        return d.isoformat() if d else None
 
-    def _in_period(d):
-        return d is not None and (start is None or d >= start)
+    # Emit clean rows with dates already parsed to ISO (client can't reliably
+    # parse Bravo's mixed date formats).
+    sells = []
+    for r in sell_raw:
+        d = parse_date_any(r["sold_at"])
+        if not d:
+            continue
+        sells.append({
+            "date": _iso(d), "item": r["item_number"],
+            "desc": r["description"] or "—", "cat": r["category"],
+            "ptype": r["ptype"], "channel": r["channel"],
+            "cost": float(r["cost"] or 0), "retail": float(r["retail"] or 0),
+        })
+    buys = []
+    for r in buy_raw:
+        d = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
+             or parse_date_any(r["imported_at"]))
+        if not d:
+            continue
+        buys.append({"date": _iso(d), "cat": r["category"], "cost": float(r["cost"] or 0)})
 
-    # Period comparison
-    sells_p = [r for r in sell_rows if _in_period(_sell_date(r))]
-    buys_p = [r for r in buy_rows if _in_period(_buy_date(r))]
-    cmp_sells_cnt = len(sells_p)
-    cmp_sells_rev = sum(r["retail"] for r in sells_p)
-    cmp_sells_cost = sum(r["cost"] for r in sells_p)
-    cmp_buys_cnt = len(buys_p)
-    cmp_buys_cost = sum(r["cost"] for r in buys_p)
-    cmp = {
-        "sells_cnt": cmp_sells_cnt, "sells_rev": cmp_sells_rev, "sells_cost": cmp_sells_cost,
-        "sells_margin": cmp_sells_rev - cmp_sells_cost,
-        "buys_cnt": cmp_buys_cnt, "buys_cost": cmp_buys_cost,
-        "net_cash": cmp_sells_rev - cmp_buys_cost,
-    }
-    # Sells by channel for the period (Store / eBay / Online / …)
-    chan = {}
-    for r in sells_p:
-        k = r["channel"] or "Store/Unspecified"
-        chan.setdefault(k, {"cnt": 0, "rev": 0.0})
-        chan[k]["cnt"] += 1
-        chan[k]["rev"] += r["retail"]
-    by_channel = sorted(chan.items(), key=lambda kv: kv[1]["rev"], reverse=True)
-
-    # Monthly accumulation for the current year: buys vs sells
-    yr = today.year
-    months = [{"m": i, "label": datetime(yr, i, 1).strftime("%b"),
-               "sells_cnt": 0, "sells_rev": 0.0, "buys_cnt": 0, "buys_cost": 0.0}
-              for i in range(1, 13)]
-    for r in sell_rows:
-        d = _sell_date(r)
-        if d and d.year == yr:
-            months[d.month - 1]["sells_cnt"] += 1
-            months[d.month - 1]["sells_rev"] += r["retail"]
-    for r in buy_rows:
-        d = _buy_date(r)
-        if d and d.year == yr:
-            months[d.month - 1]["buys_cnt"] += 1
-            months[d.month - 1]["buys_cost"] += r["cost"]
-    month_max = max([max(m["sells_rev"], m["buys_cost"]) for m in months], default=1) or 1
-    ytd = {
-        "sells_cnt": sum(m["sells_cnt"] for m in months),
-        "sells_rev": sum(m["sells_rev"] for m in months),
-        "buys_cnt": sum(m["buys_cnt"] for m in months),
-        "buys_cost": sum(m["buys_cost"] for m in months),
-    }
+    # Current in-stock snapshot (not range-sensitive) — used for reorder signal.
+    async with db.execute(
+        "SELECT COALESCE(NULLIF(category,''),'Uncategorized') category, COUNT(*) cnt "
+        "FROM items WHERE COALESCE(sold,0)=0 GROUP BY category"
+    ) as cur:
+        stock_by_cat = {r["category"]: r["cnt"] for r in await cur.fetchall()}
+    async with db.execute(
+        "SELECT UPPER(TRIM(description)) pkey, COUNT(*) cnt "
+        "FROM items WHERE COALESCE(sold,0)=0 AND TRIM(COALESCE(description,''))!='' "
+        "GROUP BY pkey"
+    ) as cur:
+        stock_by_desc = {r["pkey"]: r["cnt"] for r in await cur.fetchall()}
 
     in_stock = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0")
-    sold_total = await scalar("SELECT COUNT(*) FROM items WHERE sold=1")
-    sold_value = await scalar("SELECT SUM(retail_price) FROM items WHERE sold=1 AND retail_price IS NOT NULL")
-    sold_7 = await scalar("SELECT COUNT(*) FROM items WHERE sold=1 AND sold_at >= datetime('now','-7 days')")
-    sold_30 = await scalar("SELECT COUNT(*) FROM items WHERE sold=1 AND sold_at >= datetime('now','-30 days')")
-    stock_value = await scalar("SELECT SUM(retail_price) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
-
-    # Sold per day, last 14 days
-    async with db.execute("""
-        SELECT date(sold_at) as d, COUNT(*) as cnt
-        FROM items WHERE sold=1 AND sold_at >= datetime('now','-14 days')
-        GROUP BY date(sold_at) ORDER BY d
-    """) as cur:
-        per_day = [dict(r) for r in await cur.fetchall()]
-
-    # Top categories by units sold
-    async with db.execute("""
-        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
-               COUNT(*) as cnt, SUM(COALESCE(retail_price,0)) as value
-        FROM items WHERE sold=1
-        GROUP BY category ORDER BY cnt DESC LIMIT 12
-    """) as cur:
-        top_cats = [dict(r) for r in await cur.fetchall()]
-
-    # Sell-through per category (sold vs in stock)
-    async with db.execute("""
-        SELECT COALESCE(NULLIF(category,''),'Uncategorized') as category,
-               SUM(CASE WHEN sold=1 THEN 1 ELSE 0 END) as sold,
-               SUM(CASE WHEN COALESCE(sold,0)=0 THEN 1 ELSE 0 END) as stock
-        FROM items GROUP BY category
-        HAVING sold > 0 ORDER BY sold DESC LIMIT 10
-    """) as cur:
-        sellthrough = [dict(r) for r in await cur.fetchall()]
-
-    # Best-selling products (reorder candidates). Each item_number is unique
-    # stock, so we group sold items by their description to see which products
-    # sell repeatedly — the ones worth sourcing more of.
-    async with db.execute("""
-        SELECT UPPER(TRIM(description)) as pkey,
-               MAX(description) as description,
-               MAX(COALESCE(NULLIF(category,''),'Uncategorized')) as category,
-               COUNT(*) as sold_cnt,
-               SUM(CASE WHEN sold_at >= datetime('now','-90 days') THEN 1 ELSE 0 END) as sold_90,
-               SUM(COALESCE(retail_price,0)) as revenue,
-               AVG(retail_price) as avg_price
-        FROM items
-        WHERE sold=1 AND TRIM(COALESCE(description,'')) != ''
-        GROUP BY pkey
-        ORDER BY sold_cnt DESC, revenue DESC
-        LIMIT 20
-    """) as cur:
-        best_sellers = [dict(r) for r in await cur.fetchall()]
-
-    # How many of each best-seller are still in stock (0 → definitely reorder)
-    if best_sellers:
-        keys = [b["pkey"] for b in best_sellers]
-        ph = ",".join("?" for _ in keys)
-        async with db.execute(
-            f"""SELECT UPPER(TRIM(description)) as pkey, COUNT(*) as stock
-                FROM items WHERE COALESCE(sold,0)=0 AND UPPER(TRIM(description)) IN ({ph})
-                GROUP BY pkey""", keys
-        ) as cur:
-            stock_map = {r["pkey"]: r["stock"] for r in await cur.fetchall()}
-        for b in best_sellers:
-            b["in_stock"] = stock_map.get(b["pkey"], 0)
-
-    max_day = max([d["cnt"] for d in per_day], default=1) or 1
-    max_cat = max([c["cnt"] for c in top_cats], default=1) or 1
-    max_seller = max([b["sold_cnt"] for b in best_sellers], default=1) or 1
+    stock_value = await scalar(
+        "SELECT SUM(retail_price) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "in_stock": in_stock, "sold_total": sold_total, "sold_value": sold_value,
-        "sold_7": sold_7, "sold_30": sold_30, "stock_value": stock_value,
-        "per_day": per_day, "top_cats": top_cats, "sellthrough": sellthrough,
-        "best_sellers": best_sellers, "max_seller": max_seller,
-        "max_day": max_day, "max_cat": max_cat,
-        "period": period, "period_label": DASH_PERIODS[period], "periods": DASH_PERIODS,
-        "cmp": cmp, "by_channel": by_channel,
-        "months": months, "month_max": month_max, "ytd": ytd, "year": yr,
+        "sells": sells, "buys": buys,
+        "stock_by_cat": stock_by_cat, "stock_by_desc": stock_by_desc,
+        "in_stock": in_stock, "stock_value": float(stock_value or 0),
+        "today": datetime.now().date().isoformat(),
     })
 
 
