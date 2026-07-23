@@ -377,8 +377,14 @@
   }
   const uniq = k => [...new Set(ITEMS.map(x => x[k]).filter(Boolean))].sort();
   fill('fCat', 'All categories', uniq('c'), F.cat);
-  fill('fChannel', 'All channels', uniq('ch'), F.channel);
   fill('fStatus', 'All statuses', uniq('s'), F.status);
+  // Channel selector is future-ready: always offer the standard sales channels
+  // (Store, eBay, Online) even before any sale is recorded on them — so the
+  // eBay integration slots straight in — then merge in anything already in data.
+  const STD_CHANNELS = ['Store', 'eBay', 'Online'];
+  const channels = [...new Set([...STD_CHANNELS, ...uniq('ch')])]
+    .filter(c => c !== 'Store/Unspecified');
+  fill('fChannel', 'All channels', channels, F.channel);
 
   // ---------- events ----------
   document.getElementById('rangePresets').addEventListener('click', e => {
