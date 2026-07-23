@@ -2494,6 +2494,7 @@ async def import_items(
         inserted = 0     # new items
         updated = 0      # existing items refreshed
         skipped = 0
+        sold_from_import = 0  # items the file marks as SOLD (status column)
         seen_codes = []  # item numbers present in this file
         barcode_conflicts = []  # rows imported without barcode (already taken)
 
@@ -2584,6 +2585,24 @@ async def import_items(
             if item_number_u:
                 seen_codes.append(item_number_u)
 
+            # Translate a Bravo "SOLD" status into the sold flag + a sale date,
+            # so the item leaves inventory and appears on the Sales Dashboard
+            # (which reads sold=1 AND sold_at). Bravo doesn't always export a
+            # dedicated sale-date column, so fall back to the item's date, then
+            # today. Only "SOLD" statuses count — LAYAWAY/DAMAGE/etc. do not.
+            status_u = (item_status or "").strip().upper()
+            is_sold_status = "SOLD" in status_u
+            sold_flag = 1 if is_sold_status else 0
+            sold_at_val = None
+            if is_sold_status:
+                sold_date_raw = find_column(
+                    row, "Date Sold", "Sold Date", "Sale Date", "Sold On",
+                    "Date Out", "Date Sold/Out", "Sold Date/Time"
+                )
+                _sd = (parse_date_any(sold_date_raw) or parse_date_any(item_date)
+                       or parse_date_any(date_to_inventory))
+                sold_at_val = _sd.isoformat() if _sd else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
             # Does it already exist? (decides new vs updated, and preserves admin fields)
             async with db.execute("SELECT sold FROM items WHERE item_number = ?", (item_number_u,)) as cur:
                 _ex = await cur.fetchone()
@@ -2613,8 +2632,8 @@ async def import_items(
                    metal_color, total_stone_size, condition, diamond_authentic,
                    serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                    metal_weight, quality, authentic_stone, quantity, vendor,
-                   inventory_age, date_to_inventory, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                   inventory_age, date_to_inventory, sold, sold_at, missing)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=COALESCE(NULLIF(excluded.barcode,''), items.barcode),
                    upc=COALESCE(NULLIF(excluded.upc,''), items.upc),
@@ -2645,6 +2664,9 @@ async def import_items(
                    vendor=COALESCE(NULLIF(excluded.vendor,''), items.vendor),
                    inventory_age=COALESCE(NULLIF(excluded.inventory_age,''), items.inventory_age),
                    date_to_inventory=COALESCE(NULLIF(excluded.date_to_inventory,''), items.date_to_inventory),
+                   sold=excluded.sold,
+                   sold_at=COALESCE(items.sold_at, excluded.sold_at),
+                   for_sale=CASE WHEN excluded.sold=1 THEN 0 ELSE items.for_sale END,
                    missing=0
                 WHERE COALESCE(items.sold,0)=0
             """, (
@@ -2653,13 +2675,15 @@ async def import_items(
                 metal_color, total_stone_size, condition, dia_auth_in,
                 serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                 metal_weight, quality, stone_auth_in, quantity, vendor,
-                inventory_age, date_to_inventory,
+                inventory_age, date_to_inventory, sold_flag, sold_at_val,
             ))
             if not exists:
                 inserted += 1
             elif not was_sold:
                 updated += 1
             # else: already sold → the UPSERT skipped it, don't count as updated
+            if sold_flag and not was_sold:
+                sold_from_import += 1  # newly marked sold by this file
 
         # Record this upload first so we can tie the reconciliation log to it
         async with db.execute(
@@ -2727,6 +2751,7 @@ async def import_items(
     return JSONResponse({
         "imported": inserted,
         "updated": updated,
+        "sold_from_import": sold_from_import,
         "missing": missing_count,
         "newly_missing": sum(newly_missing_groups.values()),
         "newly_missing_groups": newly_missing_groups,
