@@ -34,8 +34,19 @@
         </div>
     </div>
 
-    <!-- KPI tiles -->
-    <div class="kpi-row" id="kpiRow"></div>
+    <!-- KPI tiles (target tile is manual + auto-calculated) -->
+    <div class="kpi-row">
+        <div class="kpi kpi-target" id="targetTile">
+            <div class="kpi-label">Sales Target Progress</div>
+            <div class="kpi-big" id="tgtPct">—</div>
+            <div class="kpi-sub">Target
+                <input type="number" id="tgtInput" class="tgt-input" placeholder="set…" min="0" step="100">
+                · Actual <span id="tgtActual">$0</span>
+            </div>
+            <div class="kpi-prog"><span id="tgtBar"></span></div>
+        </div>
+        <div id="kpiRow" style="display:contents"></div>
+    </div>
 
     <div class="card-grid mt">
         <div class="card">
@@ -52,15 +63,17 @@
             <div class="card-header"><h2>Inventory by status</h2></div>
             <div class="donut-wrap"><div class="donut" id="statusDonut"></div><div class="donut-legend" id="statusLegend"></div></div>
         </div>
-    </div>
-
-    <div class="card-grid mt">
         <div class="card">
             <div class="card-header"><h2>Sales by channel</h2></div>
             <div class="donut-wrap"><div class="donut" id="chanDonut"></div><div class="donut-legend" id="chanLegend"></div></div>
         </div>
         <div class="card">
-            <div class="card-header"><h2>Top products sold</h2></div>
+            <div class="card-header"><h2>Top products sold</h2>
+                <select id="topSort" class="mini-select">
+                    <option value="cnt">By units sold</option>
+                    <option value="rev">By revenue</option>
+                </select>
+            </div>
             <p class="card-subtitle">Click a bar to drill into that product.</p>
             <div id="topProducts" class="hbar-chart"></div>
         </div>
@@ -142,7 +155,9 @@
 
   const F = {frm: presetRange('ytd')[0], to: presetRange('ytd')[1],
              ptype: '', cat: '', channel: '', status: '', search: '',
-             heatGrp: 'c', heatSort: 'sold', heatDir: -1, txnSort: 'sd', txnDir: -1};
+             heatGrp: 'c', heatSort: 'sold', heatDir: -1, txnSort: 'sd', txnDir: -1,
+             topSort: 'cnt'};
+  const TGT_KEY = 'abc_sales_target';
 
   // dimension filters that apply to EVERY metric
   const dims = it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat)
@@ -187,6 +202,17 @@
       `<div class="kpi-big">${t.big}</div><div class="kpi-sub">${t.sub}</div>` +
       (t.prog != null ? `<div class="kpi-prog"><span style="width:${Math.round(t.prog * 100)}%"></span></div>` : '') +
       `</div>`).join('');
+  }
+
+  // ---------- sales target (manual entry, auto-calculated) ----------
+  function updateTarget() {
+    const rev = sellsOf(base()).reduce((a, r) => a + r.r, 0);
+    const tgt = parseFloat(localStorage.getItem(TGT_KEY) || '') || 0;
+    document.getElementById('tgtActual').textContent = usd(rev);
+    const p = tgt > 0 ? rev / tgt : 0;
+    document.getElementById('tgtPct').textContent = tgt > 0 ? pct(p) : '—';
+    document.getElementById('tgtBar').style.width = Math.min(100, Math.round(p * 100)) + '%';
+    document.getElementById('targetTile').classList.toggle('over', tgt > 0 && p >= 1);
   }
 
   // ---------- time chart ----------
@@ -251,14 +277,15 @@
   function renderTop() {
     const m = {};
     sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt++; m[k].rev += it.r; });
-    const rows = Object.entries(m).sort((a, b) => b[1].cnt - a[1].cnt).slice(0, 10);
+    const sk = F.topSort;
+    const rows = Object.entries(m).sort((a, b) => b[1][sk] - a[1][sk]).slice(0, 10);
     const el = document.getElementById('topProducts');
     if (!rows.length) { el.innerHTML = '<div class="empty-state">No sales in range.</div>'; return; }
-    const mx = Math.max(1, ...rows.map(r => r[1].cnt));
+    const mx = Math.max(1, ...rows.map(r => r[1][sk]));
     el.innerHTML = rows.map(([name, v]) =>
       `<button class="hbar-row" data-prod="${name.replace(/"/g, '&quot;')}" data-tip="${name} · ${v.cnt} sold · ${usd(v.rev)}">
         <span class="hbar-label">${name}</span>
-        <span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(v.cnt / mx * 100)}%"></span></span>
+        <span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(v[sk] / mx * 100)}%"></span></span>
         <span class="hbar-num">${v.cnt} · ${usd(v.rev)}</span></button>`).join('');
   }
 
@@ -365,7 +392,7 @@
 
   function renderAll() {
     document.getElementById('rangeNote').textContent = F.frm === '0000-01-01' ? 'All time' : `${F.frm} → ${F.to}`;
-    renderKpis(); renderTime(); renderStatus(); renderChannel(); renderTop();
+    renderKpis(); updateTarget(); renderTime(); renderStatus(); renderChannel(); renderTop();
     renderHeat(); renderChips(); renderTxn();
   }
 
@@ -433,7 +460,12 @@
     document.querySelectorAll('.ptype-tab').forEach(x => x.classList.toggle('active', x.dataset.p === F.ptype));
     renderAll();
   });
-  document.getElementById('chanDonut').addEventListener('click', () => {}); // reserved
+  document.getElementById('tgtInput').addEventListener('input', e => {
+    const v = e.target.value.trim();
+    if (v) localStorage.setItem(TGT_KEY, v); else localStorage.removeItem(TGT_KEY);
+    updateTarget();
+  });
+  document.getElementById('topSort').addEventListener('change', e => { F.topSort = e.target.value; renderTop(); });
   document.getElementById('topProducts').addEventListener('click', e => {
     const b = e.target.closest('.hbar-row'); if (!b) return;
     F.search = b.dataset.prod.toLowerCase();
@@ -469,6 +501,7 @@
 
   document.getElementById('frm').value = F.frm;
   document.getElementById('to').value = F.to;
+  document.getElementById('tgtInput').value = localStorage.getItem(TGT_KEY) || '';
   renderAll();
 })();
 </script>

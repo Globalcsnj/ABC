@@ -950,6 +950,8 @@ html { scroll-behavior: smooth; }
 .footer2-note { font-size: 12px; max-width: 520px; opacity: .8; line-height: 1.5; }
 
 /* ── Sales Dashboard (client-rendered viz) ──────────────────────────────── */
+/* Landscape: use the full window width so there's little vertical scrolling. */
+main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 .viz-root {
     /* validated categorical/status palette (dataviz skill, light surface) */
     --sw-sell: #1baf7a;   /* aqua — sells/revenue */
@@ -1036,7 +1038,18 @@ html { scroll-behavior: smooth; }
 
 /* KPI progress bar (sell-through) */
 .kpi-prog { height: 7px; border-radius: 4px; background: var(--v-track); margin-top: 8px; overflow: hidden; }
-.kpi-prog span { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
+.kpi-prog span { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
+
+/* Sales target tile (manual entry, auto-calculated) */
+.kpi-target { background: linear-gradient(135deg, #2a78d6, #1c5cab); color: #fff; border: none; }
+.kpi-target .kpi-label, .kpi-target .kpi-sub { color: rgba(255,255,255,.85); }
+.kpi-target .kpi-big { color: #fff; }
+.kpi-target.over .kpi-big::after { content: ' ✓'; }
+.kpi-target .kpi-prog { background: rgba(255,255,255,.28); }
+.kpi-target .kpi-prog span { background: #fff; }
+.tgt-input { width: 84px; padding: 2px 6px; border: none; border-radius: 5px; font-size: 12px;
+    font-weight: 700; color: #0b0b0b; background: rgba(255,255,255,.92); }
+.mini-select { padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 7px; font-size: 12px; background: #fff; }
 
 /* donut */
 .donut-wrap { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
