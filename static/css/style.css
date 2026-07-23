@@ -1048,6 +1048,36 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
     font-weight: 700; color: #0b0b0b; background: rgba(255,255,255,.92); }
 .mini-select { padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 7px; font-size: 12px; background: #fff; }
 
+/* battery meter (goal progress) */
+.battery { display: flex; gap: 3px; margin-top: 8px; }
+.bcell { flex: 1; height: 14px; border-radius: 2px; background: rgba(255,255,255,.26); transition: background .2s; }
+.bcell.on { background: #fff; }
+.bcell.on.ok { background: #b7f7c6; }
+.kpi-pace { font-size: 11px; color: rgba(255,255,255,.9); margin-top: 6px; }
+/* battery on a light card (non-target) */
+.card:not(.kpi-target) .bcell { background: var(--v-track); }
+.card:not(.kpi-target) .bcell.on { background: var(--primary); }
+
+/* click-to-enlarge */
+.viz-root .card { position: relative; }
+.viz-root .card-header { padding-right: 32px; }
+.card-expand { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 7px;
+    border: 1px solid var(--gray-200); background: #fff; color: var(--gray-600); cursor: pointer;
+    font-size: 15px; line-height: 1; opacity: 0; transition: opacity .15s; z-index: 3; }
+.viz-root .card:hover .card-expand { opacity: 1; }
+.card-expand:hover { color: var(--primary); border-color: var(--primary); }
+.kpi-target .card-expand { display: none; }
+.viz-modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: flex;
+    align-items: center; justify-content: center; padding: 24px; }
+.viz-modal[hidden] { display: none; }
+.viz-modal-box { background: var(--surface, #fff); border-radius: 14px; width: min(1200px, 96vw);
+    max-height: 92vh; overflow: auto; padding: 8px; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.viz-modal-close { position: absolute; top: 12px; right: 14px; width: 32px; height: 32px; border-radius: 8px;
+    border: none; background: var(--gray-100); color: var(--gray-700); font-size: 20px; cursor: pointer; z-index: 4; }
+.viz-modal-body .card { border: none; box-shadow: none; margin: 0; }
+.viz-modal-body .donut { width: 260px; height: 260px; }
+.viz-modal-body .area-svg { min-height: 380px; }
+
 /* donut */
 .donut-wrap { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .donut { width: 150px; height: 150px; border-radius: 50%; flex-shrink: 0;

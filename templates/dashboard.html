@@ -43,7 +43,8 @@
                 <input type="number" id="tgtInput" class="tgt-input" placeholder="set…" min="0" step="100">
                 · Actual <span id="tgtActual">$0</span>
             </div>
-            <div class="kpi-prog"><span id="tgtBar"></span></div>
+            <div class="battery" id="tgtBattery"></div>
+            <div class="kpi-pace" id="tgtPace"></div>
         </div>
         <div id="kpiRow" style="display:contents"></div>
     </div>
@@ -154,6 +155,12 @@
     </div>
 
     <div class="viz-tooltip" id="tip" hidden></div>
+    <div class="viz-modal" id="vizModal" hidden>
+        <div class="viz-modal-box">
+            <button class="viz-modal-close" id="vizClose" type="button" title="Close">×</button>
+            <div class="viz-modal-body" id="vizModalBody"></div>
+        </div>
+    </div>
 </div>
 
 <script type="application/json" id="dashData">
@@ -243,15 +250,34 @@
   }
 
   // ---------- sales target (manual entry, auto-calculated) ----------
+  function periodDays() {
+    let f = F.frm, t = F.to;
+    if (f === '0000-01-01') {
+      const ds = ITEMS.map(x => x.sd || x.bd).filter(Boolean).sort();
+      f = ds.length ? ds[0] : t; t = today;
+    }
+    return Math.max(1, (new Date(t) - new Date(f)) / 86400000 + 1);
+  }
+  function battery(elId, p, over) {
+    const seg = 10, filled = Math.min(seg, Math.max(0, Math.round(p * seg)));
+    let h = '';
+    for (let i = 0; i < seg; i++) h += `<span class="bcell${i < filled ? ' on' : ''}${over ? ' ok' : ''}"></span>`;
+    document.getElementById(elId).innerHTML = h;
+  }
   function updateTarget() {
     const rev = sellsOf(base()).reduce((a, r) => a + r.r, 0);
     const tgt = tgtVal();
+    const days = periodDays(), months = rangeMonths();
     document.getElementById('tgtScope').textContent = '· ' + (PRESET_LABELS[F.preset] || '');
     document.getElementById('tgtActual').textContent = usd(rev);
-    const p = tgt > 0 ? rev / tgt : 0;
+    const p = tgt > 0 ? rev / tgt : 0, over = tgt > 0 && p >= 1;
     document.getElementById('tgtPct').textContent = tgt > 0 ? pct(p) : '—';
-    document.getElementById('tgtBar').style.width = Math.min(100, Math.round(p * 100)) + '%';
-    document.getElementById('targetTile').classList.toggle('over', tgt > 0 && p >= 1);
+    battery('tgtBattery', p, over);
+    document.getElementById('targetTile').classList.toggle('over', over);
+    // Break the goal down per day and per month for the selected period.
+    let pace = `Actual ${usd(rev / days)}/day · ${usd(rev / months)}/mo`;
+    if (tgt > 0) pace += ` &nbsp;|&nbsp; Goal ${usd(tgt / days)}/day · ${usd(tgt / months)}/mo`;
+    document.getElementById('tgtPace').innerHTML = pace;
   }
   function syncTargetInput() { document.getElementById('tgtInput').value = localStorage.getItem(tgtKey()) || ''; }
 
@@ -633,6 +659,32 @@
     tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
   });
   document.getElementById('dash').addEventListener('mouseleave', () => { tip.hidden = true; });
+
+  // ---------- click-to-enlarge any card ----------
+  document.querySelectorAll('#dash > .card, #dash .card-grid > .card').forEach(card => {
+    if (card.querySelector('.card-expand')) return;
+    const btn = document.createElement('button');
+    btn.className = 'card-expand'; btn.type = 'button'; btn.title = 'Enlarge'; btn.textContent = '⤢';
+    card.appendChild(btn);
+  });
+  const modal = document.getElementById('vizModal'), modalBody = document.getElementById('vizModalBody');
+  function openModal(card) {
+    const clone = card.cloneNode(true);
+    clone.querySelectorAll('.card-expand').forEach(b => b.remove());
+    clone.querySelectorAll('[id]').forEach(n => n.removeAttribute('id')); // avoid duplicate ids
+    clone.querySelectorAll('details').forEach(d => d.open = true);
+    modalBody.innerHTML = '';
+    modalBody.appendChild(clone);
+    modal.hidden = false;
+  }
+  function closeModal() { modal.hidden = true; modalBody.innerHTML = ''; }
+  document.getElementById('dash').addEventListener('click', e => {
+    const ex = e.target.closest('.card-expand'); if (!ex) return;
+    openModal(ex.closest('.card'));
+  });
+  document.getElementById('vizClose').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
 
   document.getElementById('frm').value = F.frm;
   document.getElementById('to').value = F.to;
