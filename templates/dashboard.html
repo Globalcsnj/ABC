@@ -207,6 +207,10 @@
   const sellsOf = arr => arr.filter(x => x.sold === 1 && inRange(x.sd));
   const buysOf  = arr => arr.filter(x => inRange(x.bd));
   const availOf = arr => arr.filter(x => x.sold === 0);
+  // On-hand "Inventory Base" (to reconcile with Bravo): unsold, minus the
+  // loss/exit statuses that Bravo drops from its inventory base.
+  const OFF_HAND = ['SHRINK', 'DAMAGED', 'MISSING', 'STOLEN', 'RECYCLE', 'DONATION'];
+  const onHandOf = arr => arr.filter(x => x.sold === 0 && !OFF_HAND.some(k => x.s.includes(k)));
 
   // months spanned by the range (for per-month rates)
   function rangeMonths() {
@@ -226,21 +230,21 @@
     const sCost = sells.reduce((a, r) => a + r.co, 0);
     const bCost = buys.reduce((a, r) => a + r.co, 0);
     const margin = rev - sCost, net = rev - bCost;
-    const soldU = sells.length, availU = avail.reduce((a, r) => a + r.q, 0);
-    const st = soldU + availU > 0 ? soldU / (soldU + availU) : 0;
-    // Inventory value = only items with Bravo status INVENTORY, split cost vs retail.
-    const inv = avail.filter(x => x.s === 'INVENTORY');
-    const invU = inv.reduce((a, r) => a + r.q, 0);
-    const invRetail = inv.reduce((a, r) => a + r.r, 0);
-    const invCost = inv.reduce((a, r) => a + r.co, 0);
+    const soldU = sells.length;
+    // On-hand inventory base (matches Bravo): unsold minus loss/exit statuses.
+    const onHand = onHandOf(b);
+    const invU = onHand.reduce((a, r) => a + r.q, 0);
+    const invRetail = onHand.reduce((a, r) => a + r.r, 0);
+    const invCost = onHand.reduce((a, r) => a + r.co, 0);
+    const st = soldU + invU > 0 ? soldU / (soldU + invU) : 0;
     const tiles = [
       {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' revenue', cls: 'k-sell'},
       {l: 'Buys', big: buys.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
       {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of revenue', cls: margin >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
-      {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + availU.toLocaleString() + ' in stock', prog: st},
-      {l: 'Inventory value (status: INVENTORY)', big: usd(invRetail),
-       sub: 'retail · cost ' + usd(invCost) + ' · ' + invU.toLocaleString() + ' units', cls: ''},
+      {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + invU.toLocaleString() + ' on-hand', prog: st},
+      {l: 'Inventory base (on-hand, at cost)', big: usd(invCost),
+       sub: 'retail ' + usd(invRetail) + ' · ' + invU.toLocaleString() + ' units', cls: ''},
     ];
     document.getElementById('kpiRow').innerHTML = tiles.map(t =>
       `<div class="kpi ${t.cls || ''}"><div class="kpi-label">${t.l}</div>` +
