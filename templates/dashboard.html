@@ -79,6 +79,28 @@
         </div>
     </div>
 
+    <!-- Type breakdown: Manufactured vs Jewelry (buys vs sold, cost vs price, margin) -->
+    <div class="card mt">
+        <div class="card-header"><h2>By type — Jewelry vs Manufactured (buys vs sold)</h2></div>
+        <p class="card-subtitle">Always compares product types regardless of the tab above — quantity in stock, what you bought, what sold, and cost vs sale price with margin.</p>
+        <div style="overflow-x:auto">
+            <table class="table" id="typeTable">
+                <thead><tr>
+                    <th>Type</th>
+                    <th class="num">In stock (qty)</th>
+                    <th class="num">Buys (units)</th>
+                    <th class="num">Buy cost</th>
+                    <th class="num">Sold (units)</th>
+                    <th class="num">Cost of sold</th>
+                    <th class="num">Sale price</th>
+                    <th class="num">Margin</th>
+                </tr></thead>
+                <tbody id="typeBody"></tbody>
+                <tfoot id="typeFoot"></tfoot>
+            </table>
+        </div>
+    </div>
+
     <!-- Heatmap detail table -->
     <div class="card mt">
         <div class="card-header">
@@ -197,15 +219,20 @@
     const bCost = buys.reduce((a, r) => a + r.co, 0);
     const margin = rev - sCost, net = rev - bCost;
     const soldU = sells.length, availU = avail.reduce((a, r) => a + r.q, 0);
-    const stockVal = avail.reduce((a, r) => a + r.r, 0);
     const st = soldU + availU > 0 ? soldU / (soldU + availU) : 0;
+    // Inventory value = only items with Bravo status INVENTORY, split cost vs retail.
+    const inv = avail.filter(x => x.s === 'INVENTORY');
+    const invU = inv.reduce((a, r) => a + r.q, 0);
+    const invRetail = inv.reduce((a, r) => a + r.r, 0);
+    const invCost = inv.reduce((a, r) => a + r.co, 0);
     const tiles = [
       {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' revenue', cls: 'k-sell'},
       {l: 'Buys', big: buys.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
       {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of revenue', cls: margin >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + availU.toLocaleString() + ' in stock', prog: st},
-      {l: 'Inventory value', big: usd(stockVal), sub: availU.toLocaleString() + ' units at retail', cls: ''},
+      {l: 'Inventory value (status: INVENTORY)', big: usd(invRetail),
+       sub: 'retail · cost ' + usd(invCost) + ' · ' + invU.toLocaleString() + ' units', cls: ''},
     ];
     document.getElementById('kpiRow').innerHTML = tiles.map(t =>
       `<div class="kpi ${t.cls || ''}"><div class="kpi-label">${t.l}</div>` +
@@ -252,36 +279,57 @@
     const keys = Object.keys(map).sort(), el = document.getElementById('timeChart');
     if (!keys.length) { el.innerHTML = '<div class="empty-state">No activity in this range.</div>'; return; }
     const mx = Math.max(1, ...keys.map(k => Math.max(map[k].buy, map[k].sell)));
-    el.innerHTML = keys.map(k => {
-      const v = map[k];
-      return `<div class="tc-col"><div class="tc-bars">
-        <div class="tc-bar sw-buy" style="height:${Math.round(v.buy / mx * 150)}px" data-tip="${blabel(k, m)} · buys ${usd(v.buy)}"></div>
-        <div class="tc-bar sw-sell" style="height:${Math.round(v.sell / mx * 150)}px" data-tip="${blabel(k, m)} · sells ${usd(v.sell)}"></div>
-      </div><div class="tc-label">${blabel(k, m)}</div></div>`;
-    }).join('');
+    const W = 820, H = 220, padL = 8, padR = 8, padT = 12, padB = 26;
+    const iw = W - padL - padR, ih = H - padT - padB, n = keys.length;
+    const X = i => n === 1 ? padL + iw / 2 : padL + i / (n - 1) * iw;
+    const Y = v => padT + ih - (v / mx) * ih;
+    const pts = sel => keys.map((k, i) => [X(i), Y(map[k][sel])]);
+    const line = p => p.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    const area = p => 'M' + p[0][0].toFixed(1) + ' ' + (padT + ih) + ' ' +
+      p.map(q => 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ') +
+      ' L' + p[p.length - 1][0].toFixed(1) + ' ' + (padT + ih) + ' Z';
+    const bp = pts('buy'), sp = pts('sell');
+    let grid = '';
+    for (let g = 0; g <= 4; g++) { const y = padT + ih * g / 4; grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--v-track)" stroke-width="1"/>`; }
+    const step = Math.ceil(n / 12);
+    let labels = '';
+    keys.forEach((k, i) => { if (i % step === 0 || i === n - 1) labels += `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="10" fill="var(--gray-500)" text-anchor="middle">${blabel(k, m)}</text>`; });
+    const dots = (p, sel, col, lbl) => p.map((q, i) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3.4" fill="${col}" data-tip="${blabel(keys[i], m)} · ${lbl} ${usd(map[keys[i]][sel])}"/>`).join('');
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="area-svg">
+      ${grid}
+      <path d="${area(bp)}" fill="var(--sw-buy)" fill-opacity="0.13"/>
+      <path d="${area(sp)}" fill="var(--sw-sell)" fill-opacity="0.16"/>
+      <path d="${line(bp)}" fill="none" stroke="var(--sw-buy)" stroke-width="2"/>
+      <path d="${line(sp)}" fill="none" stroke="var(--sw-sell)" stroke-width="2"/>
+      ${dots(bp, 'buy', 'var(--sw-buy)', 'buys')}${dots(sp, 'sell', 'var(--sw-sell)', 'sells')}
+      ${labels}</svg>`;
   }
 
   // ---------- donuts ----------
   function donut(elId, legId, pairs, fmt) {
     const el = document.getElementById(elId), leg = document.getElementById(legId);
     const total = pairs.reduce((a, p) => a + p[1], 0);
-    if (!total) { el.style.background = 'var(--v-track)'; leg.innerHTML = '<span class="muted-sm">No data in range.</span>'; return; }
+    const legend = zeroLabel => pairs.map((p, i) =>
+      `<div class="dleg"><i style="background:${PAL[i % PAL.length]}"></i><span>${p[0]}</span>` +
+      `<b>${fmt(p[1])}</b><em>${zeroLabel ? '0%' : pct(p[1] / total)}</em></div>`).join('');
+    if (!total) { el.style.background = 'var(--v-track)'; leg.innerHTML = pairs.length ? legend(true) : '<span class="muted-sm">No data in range.</span>'; return; }
     let acc = 0; const stops = [];
     pairs.forEach((p, i) => {
       const col = PAL[i % PAL.length], a = acc / total * 360, b = (acc + p[1]) / total * 360;
       stops.push(`${col} ${a}deg ${b}deg`); acc += p[1];
     });
     el.style.background = `conic-gradient(${stops.join(',')})`;
-    leg.innerHTML = pairs.map((p, i) =>
-      `<div class="dleg"><i style="background:${PAL[i % PAL.length]}"></i><span>${p[0]}</span>` +
-      `<b>${fmt(p[1])}</b><em>${pct(p[1] / total)}</em></div>`).join('');
+    leg.innerHTML = legend(false);
   }
   function renderStatus() {
     const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
     donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
   }
   function renderChannel() {
-    const m = {}; sellsOf(base()).forEach(it => m[it.ch] = (m[it.ch] || 0) + it.r);
+    // Always list the standard channels (Store, Online, eBay) so they show even
+    // before any sale is recorded on them — eBay slots in when it goes live.
+    const m = {Store: 0, Online: 0, eBay: 0};
+    sellsOf(base()).forEach(it => m[it.ch] = (m[it.ch] || 0) + it.r);
     donut('chanDonut', 'chanLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), usd);
   }
 
@@ -299,6 +347,41 @@
         <span class="hbar-label">${name}</span>
         <span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(v[sk] / mx * 100)}%"></span></span>
         <span class="hbar-num">${v.cnt} · ${usd(v.rev)}</span></button>`).join('');
+  }
+
+  // ---------- type breakdown (Jewelry vs Manufactured) ----------
+  // Deliberately ignores the product-type tab so it always compares all types.
+  const dimsNoType = it => (!F.cat || it.c === F.cat) && (!F.channel || it.ch === F.channel) && (!F.status || it.s === F.status);
+  function renderTypes() {
+    const b = ITEMS.filter(dimsNoType);
+    const types = [['jewelry', 'Jewelry'], ['manufactured', 'Manufactured'], ['general', 'General']];
+    const tot = {av: 0, bu: 0, bc: 0, su: 0, sc: 0, rv: 0};
+    const rowHtml = ([p, label]) => {
+      const it = b.filter(x => x.p === p);
+      const avail = it.filter(x => x.sold === 0).reduce((a, r) => a + r.q, 0);
+      const buys = it.filter(x => inRange(x.bd));
+      const sells = it.filter(x => x.sold === 1 && inRange(x.sd));
+      const buCost = buys.reduce((a, r) => a + r.co, 0);
+      const soCost = sells.reduce((a, r) => a + r.co, 0);
+      const rev = sells.reduce((a, r) => a + r.r, 0), mg = rev - soCost;
+      tot.av += avail; tot.bu += buys.length; tot.bc += buCost; tot.su += sells.length; tot.sc += soCost; tot.rv += rev;
+      return `<tr><td><strong>${label}</strong></td>
+        <td class="num">${avail.toLocaleString()}</td>
+        <td class="num">${buys.length.toLocaleString()}</td>
+        <td class="num">${usd(buCost)}</td>
+        <td class="num">${sells.length.toLocaleString()}</td>
+        <td class="num">${usd(soCost)}</td>
+        <td class="num">${usd(rev)}</td>
+        <td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd(mg)}</td></tr>`;
+    };
+    document.getElementById('typeBody').innerHTML = types.map(rowHtml).join('');
+    const mgt = tot.rv - tot.sc;
+    document.getElementById('typeFoot').innerHTML =
+      `<tr><th>All types</th><th class="num">${tot.av.toLocaleString()}</th>
+        <th class="num">${tot.bu.toLocaleString()}</th><th class="num">${usd(tot.bc)}</th>
+        <th class="num">${tot.su.toLocaleString()}</th><th class="num">${usd(tot.sc)}</th>
+        <th class="num">${usd(tot.rv)}</th>
+        <th class="num ${mgt < 0 ? 'missing-text' : 'found-text'}">${usd(mgt)}</th></tr>`;
   }
 
   // ---------- heatmap detail ----------
@@ -405,7 +488,7 @@
   function renderAll() {
     document.getElementById('rangeNote').textContent = F.frm === '0000-01-01' ? 'All time' : `${F.frm} → ${F.to}`;
     renderKpis(); updateTarget(); renderTime(); renderStatus(); renderChannel(); renderTop();
-    renderHeat(); renderChips(); renderTxn();
+    renderTypes(); renderHeat(); renderChips(); renderTxn();
   }
 
   // ---------- build filter dropdowns ----------

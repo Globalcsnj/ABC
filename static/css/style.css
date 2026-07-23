@@ -993,13 +993,10 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
 .sw-buy { background: var(--sw-buy); } .sw-sell { background: var(--sw-sell); }
 
-/* time chart (grouped bars) */
-.time-chart { display: flex; align-items: flex-end; gap: 10px; overflow-x: auto; padding: 12px 4px 0; min-height: 190px; }
-.tc-col { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 34px; }
-.tc-bars { display: flex; align-items: flex-end; gap: 3px; height: 155px; }
-.tc-bar { width: 12px; border-radius: 4px 4px 0 0; min-height: 2px; }
-.tc-bar.sw-buy { background: var(--sw-buy); } .tc-bar.sw-sell { background: var(--sw-sell); }
-.tc-label { font-size: 11px; color: var(--gray-500); white-space: nowrap; }
+/* time chart — area/line trend */
+.time-chart { display: block; padding: 10px 2px 0; }
+.area-svg { width: 100%; height: auto; display: block; }
+.area-svg circle { cursor: pointer; }
 
 /* clickable horizontal bars */
 .hbar-chart { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
