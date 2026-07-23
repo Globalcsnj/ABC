@@ -37,7 +37,7 @@
     <!-- KPI tiles (target tile is manual + auto-calculated) -->
     <div class="kpi-row">
         <div class="kpi kpi-target" id="targetTile">
-            <div class="kpi-label">Sales Target Progress</div>
+            <div class="kpi-label">Sales Target Progress <span id="tgtScope"></span></div>
             <div class="kpi-big" id="tgtPct">—</div>
             <div class="kpi-sub">Target
                 <input type="number" id="tgtInput" class="tgt-input" placeholder="set…" min="0" step="100">
@@ -156,8 +156,12 @@
   const F = {frm: presetRange('ytd')[0], to: presetRange('ytd')[1],
              ptype: '', cat: '', channel: '', status: '', search: '',
              heatGrp: 'c', heatSort: 'sold', heatDir: -1, txnSort: 'sd', txnDir: -1,
-             topSort: 'cnt'};
-  const TGT_KEY = 'abc_sales_target';
+             topSort: 'cnt', preset: 'ytd'};
+  // Each period keeps its own target (a monthly goal differs from a yearly one).
+  const PRESET_LABELS = {today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days',
+    '90d': 'Last 90 days', mtd: 'This month', ytd: 'Year to date', all: 'All time', custom: 'Custom range'};
+  const tgtKey = () => 'abc_sales_target_' + F.preset;
+  const tgtVal = () => parseFloat(localStorage.getItem(tgtKey()) || '') || 0;
 
   // dimension filters that apply to EVERY metric
   const dims = it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat)
@@ -207,13 +211,15 @@
   // ---------- sales target (manual entry, auto-calculated) ----------
   function updateTarget() {
     const rev = sellsOf(base()).reduce((a, r) => a + r.r, 0);
-    const tgt = parseFloat(localStorage.getItem(TGT_KEY) || '') || 0;
+    const tgt = tgtVal();
+    document.getElementById('tgtScope').textContent = '· ' + (PRESET_LABELS[F.preset] || '');
     document.getElementById('tgtActual').textContent = usd(rev);
     const p = tgt > 0 ? rev / tgt : 0;
     document.getElementById('tgtPct').textContent = tgt > 0 ? pct(p) : '—';
     document.getElementById('tgtBar').style.width = Math.min(100, Math.round(p * 100)) + '%';
     document.getElementById('targetTile').classList.toggle('over', tgt > 0 && p >= 1);
   }
+  function syncTargetInput() { document.getElementById('tgtInput').value = localStorage.getItem(tgtKey()) || ''; }
 
   // ---------- time chart ----------
   function bmode() {
@@ -418,15 +424,17 @@
     const b = e.target.closest('.range-btn'); if (!b) return;
     document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    [F.frm, F.to] = presetRange(b.dataset.range);
+    F.preset = b.dataset.range;
+    [F.frm, F.to] = presetRange(F.preset);
     document.getElementById('frm').value = F.frm === '0000-01-01' ? '' : F.frm;
     document.getElementById('to').value = F.to === '9999-12-31' ? '' : F.to;
+    syncTargetInput();
     renderAll();
   });
   function custom() {
     const f = document.getElementById('frm').value, t = document.getElementById('to').value;
     if (f) F.frm = f; if (t) F.to = t;
-    if (f || t) document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active'));
+    if (f || t) { document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active')); F.preset = 'custom'; syncTargetInput(); }
     renderAll();
   }
   document.getElementById('frm').addEventListener('change', custom);
@@ -462,7 +470,7 @@
   });
   document.getElementById('tgtInput').addEventListener('input', e => {
     const v = e.target.value.trim();
-    if (v) localStorage.setItem(TGT_KEY, v); else localStorage.removeItem(TGT_KEY);
+    if (v) localStorage.setItem(tgtKey(), v); else localStorage.removeItem(tgtKey());
     updateTarget();
   });
   document.getElementById('topSort').addEventListener('change', e => { F.topSort = e.target.value; renderTop(); });
@@ -501,7 +509,7 @@
 
   document.getElementById('frm').value = F.frm;
   document.getElementById('to').value = F.to;
-  document.getElementById('tgtInput').value = localStorage.getItem(TGT_KEY) || '';
+  syncTargetInput();
   renderAll();
 })();
 </script>
