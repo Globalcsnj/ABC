@@ -65,7 +65,8 @@
         </div>
         <div class="card">
             <div class="card-header"><h2>Sales by channel</h2></div>
-            <div class="donut-wrap"><div class="donut" id="chanDonut"></div><div class="donut-legend" id="chanLegend"></div></div>
+            <p class="card-subtitle">Set a goal per channel — progress calculates automatically for the selected period.</p>
+            <div class="donut-wrap"><div class="donut" id="chanDonut"></div><div class="chan-goals" id="chanGoals"></div></div>
         </div>
         <div class="card">
             <div class="card-header"><h2>Top products sold</h2>
@@ -307,30 +308,61 @@
 
   // ---------- donuts ----------
   function donut(elId, legId, pairs, fmt) {
-    const el = document.getElementById(elId), leg = document.getElementById(legId);
+    const el = document.getElementById(elId), leg = legId ? document.getElementById(legId) : null;
     const total = pairs.reduce((a, p) => a + p[1], 0);
     const legend = zeroLabel => pairs.map((p, i) =>
       `<div class="dleg"><i style="background:${PAL[i % PAL.length]}"></i><span>${p[0]}</span>` +
       `<b>${fmt(p[1])}</b><em>${zeroLabel ? '0%' : pct(p[1] / total)}</em></div>`).join('');
-    if (!total) { el.style.background = 'var(--v-track)'; leg.innerHTML = pairs.length ? legend(true) : '<span class="muted-sm">No data in range.</span>'; return; }
+    if (!total) { el.style.background = 'var(--v-track)'; if (leg) leg.innerHTML = pairs.length ? legend(true) : '<span class="muted-sm">No data in range.</span>'; return; }
     let acc = 0; const stops = [];
     pairs.forEach((p, i) => {
       const col = PAL[i % PAL.length], a = acc / total * 360, b = (acc + p[1]) / total * 360;
       stops.push(`${col} ${a}deg ${b}deg`); acc += p[1];
     });
     el.style.background = `conic-gradient(${stops.join(',')})`;
-    leg.innerHTML = legend(false);
+    if (leg) leg.innerHTML = legend(false);
   }
   function renderStatus() {
     const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
     donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
   }
-  function renderChannel() {
-    // Always list the standard channels (Store, Online, eBay) so they show even
-    // before any sale is recorded on them — eBay slots in when it goes live.
+  // Fixed channel order → stable donut colours matching the goal rows.
+  const CHAN_LIST = ['Store', 'Online', 'eBay'];
+  const chanKey = ch => 'abc_chan_target_' + F.preset + '_' + ch;
+  function chanRevenue() {
     const m = {Store: 0, Online: 0, eBay: 0};
-    sellsOf(base()).forEach(it => m[it.ch] = (m[it.ch] || 0) + it.r);
-    donut('chanDonut', 'chanLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), usd);
+    sellsOf(base()).forEach(it => { if (m[it.ch] == null) m[it.ch] = 0; m[it.ch] += it.r; });
+    return m;
+  }
+  function buildChanGoals() {
+    document.getElementById('chanGoals').innerHTML = CHAN_LIST.map((ch, i) =>
+      `<div class="cg-row" data-ch="${ch}">
+        <i style="background:${PAL[i % PAL.length]}"></i>
+        <span class="cg-name">${ch}</span>
+        <span class="cg-actual" data-actual>$0</span>
+        <label class="cg-goal">goal <input type="number" class="tgt-input cg-input" min="0" step="100"></label>
+        <div class="cg-prog"><span data-bar></span></div>
+        <span class="cg-pct" data-pct>—</span>
+      </div>`).join('');
+  }
+  function syncChanInputs() {
+    document.querySelectorAll('#chanGoals .cg-row').forEach(row => {
+      row.querySelector('.cg-input').value = localStorage.getItem(chanKey(row.dataset.ch)) || '';
+    });
+  }
+  function renderChannel() {
+    const m = chanRevenue();
+    // Donut keeps CHAN_LIST order so colours line up with the goal rows.
+    donut('chanDonut', null, CHAN_LIST.map(c => [c, m[c] || 0]), usd);
+    document.querySelectorAll('#chanGoals .cg-row').forEach(row => {
+      const ch = row.dataset.ch, actual = m[ch] || 0;
+      const goal = parseFloat(localStorage.getItem(chanKey(ch)) || '') || 0;
+      const p = goal > 0 ? actual / goal : 0;
+      row.querySelector('[data-actual]').textContent = usd(actual);
+      row.querySelector('[data-bar]').style.width = Math.min(100, Math.round(p * 100)) + '%';
+      row.querySelector('[data-pct]').textContent = goal > 0 ? pct(p) : '—';
+      row.classList.toggle('over', goal > 0 && p >= 1);
+    });
   }
 
   // ---------- top products ----------
@@ -517,13 +549,13 @@
     [F.frm, F.to] = presetRange(F.preset);
     document.getElementById('frm').value = F.frm === '0000-01-01' ? '' : F.frm;
     document.getElementById('to').value = F.to === '9999-12-31' ? '' : F.to;
-    syncTargetInput();
+    syncTargetInput(); syncChanInputs();
     renderAll();
   });
   function custom() {
     const f = document.getElementById('frm').value, t = document.getElementById('to').value;
     if (f) F.frm = f; if (t) F.to = t;
-    if (f || t) { document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active')); F.preset = 'custom'; syncTargetInput(); }
+    if (f || t) { document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active')); F.preset = 'custom'; syncTargetInput(); syncChanInputs(); }
     renderAll();
   }
   document.getElementById('frm').addEventListener('change', custom);
@@ -562,6 +594,12 @@
     if (v) localStorage.setItem(tgtKey(), v); else localStorage.removeItem(tgtKey());
     updateTarget();
   });
+  document.getElementById('chanGoals').addEventListener('input', e => {
+    const inp = e.target.closest('.cg-input'); if (!inp) return;
+    const ch = inp.closest('.cg-row').dataset.ch, v = inp.value.trim();
+    if (v) localStorage.setItem(chanKey(ch), v); else localStorage.removeItem(chanKey(ch));
+    renderChannel();
+  });
   document.getElementById('topSort').addEventListener('change', e => { F.topSort = e.target.value; renderTop(); });
   document.getElementById('topProducts').addEventListener('click', e => {
     const b = e.target.closest('.hbar-row'); if (!b) return;
@@ -598,7 +636,8 @@
 
   document.getElementById('frm').value = F.frm;
   document.getElementById('to').value = F.to;
-  syncTargetInput();
+  buildChanGoals();
+  syncTargetInput(); syncChanInputs();
   renderAll();
 })();
 </script>
