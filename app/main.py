@@ -2466,6 +2466,7 @@ async def import_items(
         updated = 0      # existing items refreshed
         skipped = 0
         sold_from_import = 0  # items the file marks as SOLD (status column)
+        sold_dates = []       # sale dates detected, to report the range back
         seen_codes = []  # item numbers present in this file
         barcode_conflicts = []  # rows imported without barcode (already taken)
 
@@ -2573,6 +2574,7 @@ async def import_items(
                 _sd = (parse_date_any(sold_date_raw) or parse_date_any(item_date)
                        or parse_date_any(date_to_inventory))
                 sold_at_val = _sd.isoformat() if _sd else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sold_dates.append(sold_at_val[:10])
 
             # Does it already exist? (decides new vs updated, and preserves admin fields)
             async with db.execute("SELECT sold FROM items WHERE item_number = ?", (item_number_u,)) as cur:
@@ -2723,6 +2725,8 @@ async def import_items(
         "imported": inserted,
         "updated": updated,
         "sold_from_import": sold_from_import,
+        "sold_date_min": min(sold_dates) if sold_dates else None,
+        "sold_date_max": max(sold_dates) if sold_dates else None,
         "missing": missing_count,
         "newly_missing": sum(newly_missing_groups.values()),
         "newly_missing_groups": newly_missing_groups,

@@ -141,7 +141,10 @@ document.getElementById('importForm').addEventListener('submit', async (e) => {
 
         let msg = `✅ ${json.imported} new`;
         if (json.updated) msg += `, ${json.updated} updated`;
-        if (json.sold_from_import) msg += `, ${json.sold_from_import} marked SOLD (status column)`;
+        if (json.sold_from_import) {
+            msg += `, ${json.sold_from_import} marked SOLD (status column)`;
+            if (json.sold_date_min) msg += ` dated ${json.sold_date_min} → ${json.sold_date_max}`;
+        }
         if (json.missing) msg += `, ${json.missing} now missing (possibly sold)`;
         if (json.skipped) msg += ` · skipped ${json.skipped} blank rows`;
         if (json.missing) {
