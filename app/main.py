@@ -1212,7 +1212,7 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
         "SELECT item_number, description, "
         "COALESCE(NULLIF(category,''),'Uncategorized') category, "
         "COALESCE(NULLIF(product_type,''),'general') ptype, "
-        "UPPER(COALESCE(NULLIF(item_status,''), CASE WHEN sold=1 THEN 'SOLD' ELSE 'UNSPECIFIED' END)) status, "
+        "CASE WHEN sold=1 THEN 'SOLD' ELSE UPPER(COALESCE(NULLIF(item_status,''),'UNSPECIFIED')) END status, "
         "COALESCE(NULLIF(sold_channel,''),'Store') channel, "
         "COALESCE(sold,0) sold, sold_at, date_to_inventory, item_date, imported_at, "
         "COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, quantity "
