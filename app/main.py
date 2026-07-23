@@ -1204,78 +1204,49 @@ DASH_PERIODS = {
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request, db=Depends(get_db)):
-    """Sales dashboard. All range-sensitive analysis (KPIs, charts, chips,
-    drill-down table) is computed client-side from the JSON emitted here, so the
-    user can pick any date range and filter general→specific without a reload."""
-    async def scalar(sql, params=()):
-        async with db.execute(sql, params) as cur:
-            row = await cur.fetchone()
-            return row[0] if row and row[0] is not None else 0
-
-    # ── SELLS (reliable sold_at timestamp) ───────────────────────────────────
+    """Sales dashboard. Emits ONE unified item feed (stock + sold). Every KPI,
+    chart, status slice and the heatmap detail table are computed client-side
+    from that feed, so a single set of global filters (date range, product type,
+    category, channel, Bravo status) drives every metric at once."""
     async with db.execute(
         "SELECT item_number, description, "
         "COALESCE(NULLIF(category,''),'Uncategorized') category, "
         "COALESCE(NULLIF(product_type,''),'general') ptype, "
-        "sold_at, COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, "
-        "COALESCE(NULLIF(sold_channel,''),'Store/Unspecified') channel "
-        "FROM items WHERE sold=1 AND sold_at IS NOT NULL"
+        "UPPER(COALESCE(NULLIF(item_status,''), CASE WHEN sold=1 THEN 'SOLD' ELSE 'UNSPECIFIED' END)) status, "
+        "COALESCE(NULLIF(sold_channel,''),'Store/Unspecified') channel, "
+        "COALESCE(sold,0) sold, sold_at, date_to_inventory, item_date, imported_at, "
+        "COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, quantity "
+        "FROM items"
     ) as cur:
-        sell_raw = [dict(r) for r in await cur.fetchall()]
-    # ── BUYS / acquired (from Bravo date_to_inventory → item_date → imported) ─
-    async with db.execute(
-        "SELECT date_to_inventory, item_date, imported_at, "
-        "COALESCE(NULLIF(category,''),'Uncategorized') category, "
-        "COALESCE(cost,0) cost FROM items"
-    ) as cur:
-        buy_raw = [dict(r) for r in await cur.fetchall()]
+        rows = [dict(r) for r in await cur.fetchall()]
 
     def _iso(d):
         return d.isoformat() if d else None
 
-    # Emit clean rows with dates already parsed to ISO (client can't reliably
-    # parse Bravo's mixed date formats).
-    sells = []
-    for r in sell_raw:
-        d = parse_date_any(r["sold_at"])
-        if not d:
-            continue
-        sells.append({
-            "date": _iso(d), "item": r["item_number"],
-            "desc": r["description"] or "—", "cat": r["category"],
-            "ptype": r["ptype"], "channel": r["channel"],
-            "cost": float(r["cost"] or 0), "retail": float(r["retail"] or 0),
+    def _qty(v):
+        try:
+            n = int(float(str(v).strip()))
+            return n if n > 0 else 1
+        except (TypeError, ValueError):
+            return 1
+
+    items = []
+    for r in rows:
+        sd = parse_date_any(r["sold_at"]) if r["sold"] else None
+        bd = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
+              or parse_date_any(r["imported_at"]))
+        items.append({
+            "n": r["item_number"], "d": r["description"] or "—",
+            "c": r["category"], "p": r["ptype"], "s": r["status"],
+            "ch": r["channel"], "sold": int(r["sold"] or 0),
+            "sd": _iso(sd), "bd": _iso(bd),
+            "co": float(r["cost"] or 0), "r": float(r["retail"] or 0),
+            "q": _qty(r["quantity"]),
         })
-    buys = []
-    for r in buy_raw:
-        d = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
-             or parse_date_any(r["imported_at"]))
-        if not d:
-            continue
-        buys.append({"date": _iso(d), "cat": r["category"], "cost": float(r["cost"] or 0)})
-
-    # Current in-stock snapshot (not range-sensitive) — used for reorder signal.
-    async with db.execute(
-        "SELECT COALESCE(NULLIF(category,''),'Uncategorized') category, COUNT(*) cnt "
-        "FROM items WHERE COALESCE(sold,0)=0 GROUP BY category"
-    ) as cur:
-        stock_by_cat = {r["category"]: r["cnt"] for r in await cur.fetchall()}
-    async with db.execute(
-        "SELECT UPPER(TRIM(description)) pkey, COUNT(*) cnt "
-        "FROM items WHERE COALESCE(sold,0)=0 AND TRIM(COALESCE(description,''))!='' "
-        "GROUP BY pkey"
-    ) as cur:
-        stock_by_desc = {r["pkey"]: r["cnt"] for r in await cur.fetchall()}
-
-    in_stock = await scalar("SELECT COUNT(*) FROM items WHERE COALESCE(sold,0)=0")
-    stock_value = await scalar(
-        "SELECT SUM(retail_price) FROM items WHERE COALESCE(sold,0)=0 AND retail_price IS NOT NULL")
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "sells": sells, "buys": buys,
-        "stock_by_cat": stock_by_cat, "stock_by_desc": stock_by_desc,
-        "in_stock": in_stock, "stock_value": float(stock_value or 0),
+        "items": items,
         "today": datetime.now().date().isoformat(),
     })
 

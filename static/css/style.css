@@ -1021,6 +1021,46 @@ html { scroll-behavior: smooth; }
 #txnTable th[data-sort]:hover { color: var(--primary); }
 #txnTable th.sorted::after { content: attr(data-dir); font-size: 10px; margin-left: 4px; }
 
+/* global filter bar */
+.filter-bar { display: flex; flex-direction: column; gap: 12px; }
+.filter-line { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.filter-line label { font-size: 13px; color: var(--gray-600); }
+.filter-line input[type=date], .filter-line select, .filter-bar select {
+    padding: 6px 9px; border: 1px solid var(--gray-200); border-radius: 7px; font-size: 13px; background: #fff; }
+.filter-line .search-input { flex: 1; min-width: 180px; }
+.ptype-tabs { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--gray-100); padding-top: 12px; }
+.ptype-tab { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    color: var(--gray-600); border: 1px solid transparent; background: var(--gray-100); }
+.ptype-tab:hover { color: var(--primary); }
+.ptype-tab.active { background: var(--primary); color: #fff; }
+
+/* KPI progress bar (sell-through) */
+.kpi-prog { height: 7px; border-radius: 4px; background: var(--v-track); margin-top: 8px; overflow: hidden; }
+.kpi-prog span { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
+
+/* donut */
+.donut-wrap { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.donut { width: 150px; height: 150px; border-radius: 50%; flex-shrink: 0;
+    -webkit-mask: radial-gradient(circle 44px at center, transparent 98%, #000 100%);
+            mask: radial-gradient(circle 44px at center, transparent 98%, #000 100%); }
+.donut-legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 5px; }
+.dleg { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 8px; align-items: center; font-size: 13px; }
+.dleg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.dleg b { font-variant-numeric: tabular-nums; } .dleg em { color: var(--gray-500); font-style: normal; font-size: 12px; min-width: 34px; text-align: right; }
+
+/* segmented control */
+.seg { display: inline-flex; border: 1px solid var(--gray-200); border-radius: 8px; overflow: hidden; }
+.seg-btn { padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; background: #fff; border: none; color: var(--gray-600); }
+.seg-btn.active { background: var(--primary); color: #fff; }
+
+/* heatmap table */
+.table.heat td, .table.heat th { padding: 7px 10px; }
+.table.heat .heat-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.table.heat td.num { font-variant-numeric: tabular-nums; }
+#heatTable th[data-sort], #txnTable th[data-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
+#heatTable th[data-sort]:hover, #txnTable th[data-sort]:hover { color: var(--primary); }
+#heatTable th.sorted::after, #txnTable th.sorted::after { content: attr(data-dir); font-size: 10px; margin-left: 4px; }
+
 /* tooltip */
 .viz-tooltip { position: fixed; z-index: 999; background: #0b0b0b; color: #fff; font-size: 12px;
     padding: 5px 9px; border-radius: 6px; pointer-events: none; white-space: nowrap; }

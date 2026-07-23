@@ -1,92 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Sales Dashboard – ABC{% endblock %}
 {% block content %}
-<div class="page-header">
-    <h1>Sales Dashboard</h1>
-</div>
+<div class="page-header"><h1>Sales Dashboard</h1></div>
 
 <div class="viz-root" id="dash">
 
-    <!-- Date range: presets + custom -->
-    <div class="card dash-controls">
+    <!-- Global filters — apply to every metric on the page -->
+    <div class="card filter-bar">
         <div class="range-presets" id="rangePresets">
             <button class="range-btn" data-range="today">Today</button>
-            <button class="range-btn" data-range="7d">Last 7 days</button>
-            <button class="range-btn" data-range="30d">Last 30 days</button>
-            <button class="range-btn" data-range="90d">Last 90 days</button>
-            <button class="range-btn" data-range="mtd">Month to date</button>
+            <button class="range-btn" data-range="7d">7 days</button>
+            <button class="range-btn" data-range="30d">30 days</button>
+            <button class="range-btn" data-range="90d">90 days</button>
+            <button class="range-btn" data-range="mtd">Month</button>
             <button class="range-btn active" data-range="ytd">Year to date</button>
             <button class="range-btn" data-range="all">All time</button>
         </div>
-        <div class="range-custom">
+        <div class="filter-line">
             <label>From <input type="date" id="frm"></label>
             <label>To <input type="date" id="to"></label>
+            <select id="fCat"></select>
+            <select id="fChannel"></select>
+            <select id="fStatus"></select>
+            <input type="text" id="fSearch" class="search-input" placeholder="Search item #, description…">
+            <button class="btn btn-outline btn-sm" id="resetFilters">Reset</button>
             <span class="range-note" id="rangeNote"></span>
+        </div>
+        <div class="ptype-tabs" id="ptypeTabs">
+            <button class="ptype-tab active" data-p="">All products</button>
+            <button class="ptype-tab" data-p="jewelry">Jewelry</button>
+            <button class="ptype-tab" data-p="manufactured">Manufactured</button>
+            <button class="ptype-tab" data-p="general">General</button>
         </div>
     </div>
 
     <!-- KPI tiles -->
     <div class="kpi-row" id="kpiRow"></div>
 
-    <!-- Buys vs Sells over time -->
-    <div class="card mt">
-        <div class="card-header">
-            <h2>Buys vs Sells over time</h2>
-            <div class="viz-legend">
-                <span class="lg"><i class="sw sw-buy"></i>Buy cost</span>
-                <span class="lg"><i class="sw sw-sell"></i>Sales revenue</span>
+    <div class="card-grid mt">
+        <div class="card">
+            <div class="card-header"><h2>Buys vs Sells over time</h2>
+                <div class="viz-legend">
+                    <span class="lg"><i class="sw sw-buy"></i>Buy cost</span>
+                    <span class="lg"><i class="sw sw-sell"></i>Sales revenue</span>
+                </div>
             </div>
+            <div id="timeChart" class="time-chart"></div>
+            <p class="card-subtitle">Buys use each item's acquisition date; sells use the sale date. Bucketed by day, week, or month to fit the range.</p>
         </div>
-        <div id="timeChart" class="time-chart"></div>
-        <p class="card-subtitle">Buys use each item's acquisition date (Bravo “Date to Inventory”); sells use the recorded sale date. Bucketed by day, week, or month to fit the range.</p>
+        <div class="card">
+            <div class="card-header"><h2>Inventory by status</h2></div>
+            <div class="donut-wrap"><div class="donut" id="statusDonut"></div><div class="donut-legend" id="statusLegend"></div></div>
+        </div>
     </div>
 
     <div class="card-grid mt">
-        <!-- Sales by channel -->
         <div class="card">
             <div class="card-header"><h2>Sales by channel</h2></div>
-            <p class="card-subtitle">Click a bar to filter the table below.</p>
-            <div id="chanChart" class="hbar-chart"></div>
+            <div class="donut-wrap"><div class="donut" id="chanDonut"></div><div class="donut-legend" id="chanLegend"></div></div>
         </div>
-        <!-- Sales by category -->
         <div class="card">
-            <div class="card-header"><h2>Sales by category</h2></div>
-            <p class="card-subtitle">Click a bar to drill into that category.</p>
-            <div id="catChart" class="hbar-chart"></div>
+            <div class="card-header"><h2>Top products sold</h2></div>
+            <p class="card-subtitle">Click a bar to drill into that product.</p>
+            <div id="topProducts" class="hbar-chart"></div>
         </div>
     </div>
 
-    <!-- Reorder candidates -->
-    <div class="card mt">
-        <div class="card-header"><h2>🔁 Best sellers &amp; reorder candidates</h2></div>
-        <p class="card-subtitle">Top products sold in this range, grouped by description. A strong seller with little or no stock is a signal to source more.</p>
-        <div id="reorder"></div>
-    </div>
-
-    <!-- Drill-down: specific transactions -->
+    <!-- Heatmap detail table -->
     <div class="card mt">
         <div class="card-header">
-            <h2>Transactions</h2>
-            <span class="total-badge" id="txnCount"></span>
+            <h2>Inventory &amp; sales detail</h2>
+            <div class="seg" id="grpToggle">
+                <button class="seg-btn active" data-grp="c">By category</button>
+                <button class="seg-btn" data-grp="d">By product</button>
+            </div>
         </div>
-        <div class="drill-filters">
-            <div class="chip-row" id="activeChips"></div>
-            <input type="text" id="txnSearch" class="search-input" placeholder="Search item #, description, category…">
+        <p class="card-subtitle">Cells are shaded by value — deeper = higher. “Months of stock remaining” turns orange when a fast seller is running low. Click a header to sort.</p>
+        <div style="overflow-x:auto">
+            <table class="table heat" id="heatTable">
+                <thead><tr>
+                    <th data-sort="name">Name</th>
+                    <th data-sort="avail" class="num">Available</th>
+                    <th data-sort="sold" class="num">Units sold</th>
+                    <th data-sort="permo" class="num">Avg monthly sales</th>
+                    <th data-sort="months" class="num">Months of stock left</th>
+                    <th data-sort="price" class="num">Avg unit price</th>
+                    <th data-sort="stockval" class="num">Stock value</th>
+                    <th data-sort="sellthru" class="num">Sell-through</th>
+                </tr></thead>
+                <tbody id="heatBody"></tbody>
+            </table>
         </div>
+    </div>
+
+    <!-- Transaction drill-down -->
+    <div class="card mt">
+        <div class="card-header"><h2>Transactions</h2><span class="total-badge" id="txnCount"></span></div>
+        <div class="chip-row" id="activeChips"></div>
         <div style="overflow-x:auto">
             <table class="table" id="txnTable">
-                <thead>
-                    <tr>
-                        <th data-sort="date">Sold date</th>
-                        <th data-sort="item">Item #</th>
-                        <th data-sort="desc">Description</th>
-                        <th data-sort="cat">Category</th>
-                        <th data-sort="channel">Channel</th>
-                        <th data-sort="cost" class="num">Cost</th>
-                        <th data-sort="retail" class="num">Sale price</th>
-                        <th data-sort="margin" class="num">Margin</th>
-                    </tr>
-                </thead>
+                <thead><tr>
+                    <th data-sort="sd">Sold date</th><th data-sort="n">Item #</th>
+                    <th data-sort="d">Description</th><th data-sort="c">Category</th>
+                    <th data-sort="ch">Channel</th><th data-sort="co" class="num">Cost</th>
+                    <th data-sort="r" class="num">Sale price</th><th data-sort="mg" class="num">Margin</th>
+                </tr></thead>
                 <tbody id="txnBody"></tbody>
             </table>
         </div>
@@ -97,300 +115,354 @@
 </div>
 
 <script type="application/json" id="dashData">
-{
-  "sells": {{ sells|tojson }},
-  "buys": {{ buys|tojson }},
-  "stockByCat": {{ stock_by_cat|tojson }},
-  "stockByDesc": {{ stock_by_desc|tojson }},
-  "inStock": {{ in_stock|tojson }},
-  "stockValue": {{ stock_value|tojson }},
-  "today": {{ today|tojson }}
-}
+{ "items": {{ items|tojson }}, "today": {{ today|tojson }} }
 </script>
 
 <script>
 (function () {
   const DATA = JSON.parse(document.getElementById('dashData').textContent);
-  const SELLS = DATA.sells, BUYS = DATA.buys;
-  const usd = n => '$' + (Math.round(n)).toLocaleString();
+  const ITEMS = DATA.items, today = DATA.today;
+  const usd = n => '$' + Math.round(n).toLocaleString();
   const usd2 = n => '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const parse = s => s;            // dates are ISO strings, compare lexically
-  const today = DATA.today;
+  const pct = n => (isFinite(n) ? Math.round(n * 100) : 0) + '%';
+  // categorical palette (validated, light surface)
+  const PAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
 
-  // ---- range state ----
-  function addDays(iso, n) {
-    const d = new Date(iso + 'T00:00:00');
-    d.setDate(d.getDate() + n);
-    return d.toISOString().slice(0, 10);
-  }
-  function presetRange(key) {
+  function addDays(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function presetRange(k) {
     const t = today;
-    if (key === 'today') return [t, t];
-    if (key === '7d')  return [addDays(t, -6), t];
-    if (key === '30d') return [addDays(t, -29), t];
-    if (key === '90d') return [addDays(t, -89), t];
-    if (key === 'mtd') return [t.slice(0, 8) + '01', t];
-    if (key === 'ytd') return [t.slice(0, 4) + '-01-01', t];
-    return ['0000-01-01', '9999-12-31']; // all
+    if (k === 'today') return [t, t];
+    if (k === '7d')  return [addDays(t, -6), t];
+    if (k === '30d') return [addDays(t, -29), t];
+    if (k === '90d') return [addDays(t, -89), t];
+    if (k === 'mtd') return [t.slice(0, 8) + '01', t];
+    if (k === 'ytd') return [t.slice(0, 4) + '-01-01', t];
+    return ['0000-01-01', '9999-12-31'];
   }
 
-  const state = {
-    frm: presetRange('ytd')[0],
-    to:  presetRange('ytd')[1],
-    channel: null, cat: null, search: '',
-    sortKey: 'date', sortDir: -1,
-  };
+  const F = {frm: presetRange('ytd')[0], to: presetRange('ytd')[1],
+             ptype: '', cat: '', channel: '', status: '', search: '',
+             heatGrp: 'c', heatSort: 'sold', heatDir: -1, txnSort: 'sd', txnDir: -1};
 
-  const inRange = r => r.date >= state.frm && r.date <= state.to;
-  function filteredSells() {
-    return SELLS.filter(r => inRange(r)
-      && (!state.channel || r.channel === state.channel)
-      && (!state.cat || r.cat === state.cat)
-      && (!state.search || (
-        (r.item || '').toLowerCase().includes(state.search) ||
-        (r.desc || '').toLowerCase().includes(state.search) ||
-        (r.cat || '').toLowerCase().includes(state.search))));
+  // dimension filters that apply to EVERY metric
+  const dims = it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat)
+    && (!F.channel || it.ch === F.channel) && (!F.status || it.s === F.status);
+  const inRange = d => d && d >= F.frm && d <= F.to;
+  const base = () => ITEMS.filter(dims);
+  const sellsOf = arr => arr.filter(x => x.sold === 1 && inRange(x.sd));
+  const buysOf  = arr => arr.filter(x => inRange(x.bd));
+  const availOf = arr => arr.filter(x => x.sold === 0);
+
+  // months spanned by the range (for per-month rates)
+  function rangeMonths() {
+    let f = F.frm, t = F.to;
+    if (f === '0000-01-01') {
+      const ds = ITEMS.map(x => x.bd).filter(Boolean).sort();
+      f = ds.length ? ds[0] : t; t = today;
+    }
+    const days = Math.max(1, (new Date(t) - new Date(f)) / 86400000 + 1);
+    return Math.max(1, days / 30.44);
   }
-  const rangeSells = () => SELLS.filter(inRange);        // range only (for charts)
-  const rangeBuys  = () => BUYS.filter(inRange);
 
-  // ---- KPIs ----
+  // ---------- KPIs ----------
   function renderKpis() {
-    const s = rangeSells(), b = rangeBuys();
-    const rev = s.reduce((a, r) => a + r.retail, 0);
-    const sCost = s.reduce((a, r) => a + r.cost, 0);
-    const bCost = b.reduce((a, r) => a + r.cost, 0);
+    const b = base(), sells = sellsOf(b), buys = buysOf(b), avail = availOf(b);
+    const rev = sells.reduce((a, r) => a + r.r, 0);
+    const sCost = sells.reduce((a, r) => a + r.co, 0);
+    const bCost = buys.reduce((a, r) => a + r.co, 0);
     const margin = rev - sCost, net = rev - bCost;
+    const soldU = sells.length, availU = avail.reduce((a, r) => a + r.q, 0);
+    const stockVal = avail.reduce((a, r) => a + r.r, 0);
+    const st = soldU + availU > 0 ? soldU / (soldU + availU) : 0;
     const tiles = [
-      {label: 'Sells', big: s.length.toLocaleString(), sub: usd(rev) + ' revenue', cls: 'k-sell'},
-      {label: 'Buys',  big: b.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
-      {label: 'Gross margin', big: usd(margin), sub: 'revenue − cost of sold', cls: margin >= 0 ? 'k-good' : 'k-bad'},
-      {label: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
-      {label: 'In stock', big: DATA.inStock.toLocaleString(), sub: usd(DATA.stockValue) + ' at retail', cls: ''},
+      {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' revenue', cls: 'k-sell'},
+      {l: 'Buys', big: buys.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
+      {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of revenue', cls: margin >= 0 ? 'k-good' : 'k-bad'},
+      {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
+      {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + availU.toLocaleString() + ' in stock', prog: st},
+      {l: 'Inventory value', big: usd(stockVal), sub: availU.toLocaleString() + ' units at retail', cls: ''},
     ];
     document.getElementById('kpiRow').innerHTML = tiles.map(t =>
-      `<div class="kpi ${t.cls}"><div class="kpi-label">${t.label}</div>` +
-      `<div class="kpi-big">${t.big}</div><div class="kpi-sub">${t.sub}</div></div>`).join('');
+      `<div class="kpi ${t.cls || ''}"><div class="kpi-label">${t.l}</div>` +
+      `<div class="kpi-big">${t.big}</div><div class="kpi-sub">${t.sub}</div>` +
+      (t.prog != null ? `<div class="kpi-prog"><span style="width:${Math.round(t.prog * 100)}%"></span></div>` : '') +
+      `</div>`).join('');
   }
 
-  // ---- bucketed time chart (buys vs sells) ----
-  function bucketing() {
-    const days = (new Date(state.to) - new Date(state.frm)) / 86400000;
-    if (state.frm === '0000-01-01') return 'month';
-    if (days <= 31) return 'day';
-    if (days <= 182) return 'week';
-    return 'month';
+  // ---------- time chart ----------
+  function bmode() {
+    if (F.frm === '0000-01-01') return 'month';
+    const days = (new Date(F.to) - new Date(F.frm)) / 86400000;
+    return days <= 31 ? 'day' : days <= 182 ? 'week' : 'month';
   }
-  function bucketKey(iso, mode) {
-    if (mode === 'day') return iso;
-    if (mode === 'month') return iso.slice(0, 7);
-    // week → Monday of that week
-    const d = new Date(iso + 'T00:00:00');
-    const dow = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - dow);
+  function bkey(iso, m) {
+    if (m === 'day') return iso;
+    if (m === 'month') return iso.slice(0, 7);
+    const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return d.toISOString().slice(0, 10);
   }
-  function bucketLabel(key, mode) {
-    if (mode === 'month') {
-      const [y, m] = key.split('-');
-      return new Date(y, m - 1, 1).toLocaleString(undefined, {month: 'short'}) + " '" + y.slice(2);
-    }
-    if (mode === 'week') return 'wk ' + key.slice(5);
-    return key.slice(5);
+  function blabel(k, m) {
+    if (m === 'month') { const [y, mo] = k.split('-'); return new Date(y, mo - 1, 1).toLocaleString(undefined, {month: 'short'}) + " '" + y.slice(2); }
+    if (m === 'week') return 'wk ' + k.slice(5);
+    return k.slice(5);
   }
-  function renderTimeChart() {
-    const mode = bucketing();
-    const map = {};
-    const touch = k => (map[k] = map[k] || {buy: 0, sell: 0});
-    rangeBuys().forEach(r => touch(bucketKey(r.date, mode)).buy += r.cost);
-    rangeSells().forEach(r => touch(bucketKey(r.date, mode)).sell += r.retail);
-    const keys = Object.keys(map).sort();
-    const el = document.getElementById('timeChart');
+  function renderTime() {
+    const b = base(), m = bmode(), map = {};
+    const t = k => (map[k] = map[k] || {buy: 0, sell: 0});
+    buysOf(b).forEach(r => t(bkey(r.bd, m)).buy += r.co);
+    sellsOf(b).forEach(r => t(bkey(r.sd, m)).sell += r.r);
+    const keys = Object.keys(map).sort(), el = document.getElementById('timeChart');
     if (!keys.length) { el.innerHTML = '<div class="empty-state">No activity in this range.</div>'; return; }
-    const max = Math.max(1, ...keys.map(k => Math.max(map[k].buy, map[k].sell)));
+    const mx = Math.max(1, ...keys.map(k => Math.max(map[k].buy, map[k].sell)));
     el.innerHTML = keys.map(k => {
       const v = map[k];
-      const bh = Math.round(v.buy / max * 150), sh = Math.round(v.sell / max * 150);
-      return `<div class="tc-col">
-        <div class="tc-bars">
-          <div class="tc-bar sw-buy" style="height:${bh}px" data-tip="${bucketLabel(k, mode)} · buys ${usd(v.buy)}"></div>
-          <div class="tc-bar sw-sell" style="height:${sh}px" data-tip="${bucketLabel(k, mode)} · sells ${usd(v.sell)}"></div>
-        </div>
-        <div class="tc-label">${bucketLabel(k, mode)}</div>
-      </div>`;
+      return `<div class="tc-col"><div class="tc-bars">
+        <div class="tc-bar sw-buy" style="height:${Math.round(v.buy / mx * 150)}px" data-tip="${blabel(k, m)} · buys ${usd(v.buy)}"></div>
+        <div class="tc-bar sw-sell" style="height:${Math.round(v.sell / mx * 150)}px" data-tip="${blabel(k, m)} · sells ${usd(v.sell)}"></div>
+      </div><div class="tc-label">${blabel(k, m)}</div></div>`;
     }).join('');
   }
 
-  // ---- horizontal bar charts (channel, category) — clickable ----
-  function groupBy(rows, key) {
-    const m = {};
-    rows.forEach(r => {
-      const k = r[key] || '—';
-      m[k] = m[k] || {cnt: 0, rev: 0};
-      m[k].cnt++; m[k].rev += r.retail;
+  // ---------- donuts ----------
+  function donut(elId, legId, pairs, fmt) {
+    const el = document.getElementById(elId), leg = document.getElementById(legId);
+    const total = pairs.reduce((a, p) => a + p[1], 0);
+    if (!total) { el.style.background = 'var(--v-track)'; leg.innerHTML = '<span class="muted-sm">No data in range.</span>'; return; }
+    let acc = 0; const stops = [];
+    pairs.forEach((p, i) => {
+      const col = PAL[i % PAL.length], a = acc / total * 360, b = (acc + p[1]) / total * 360;
+      stops.push(`${col} ${a}deg ${b}deg`); acc += p[1];
     });
-    return Object.entries(m).sort((a, b) => b[1].rev - a[1].rev);
+    el.style.background = `conic-gradient(${stops.join(',')})`;
+    leg.innerHTML = pairs.map((p, i) =>
+      `<div class="dleg"><i style="background:${PAL[i % PAL.length]}"></i><span>${p[0]}</span>` +
+      `<b>${fmt(p[1])}</b><em>${pct(p[1] / total)}</em></div>`).join('');
   }
-  function renderHbar(elId, key, activeVal) {
-    const rows = groupBy(rangeSells(), key);
-    const el = document.getElementById(elId);
-    if (!rows.length) { el.innerHTML = '<div class="empty-state">No sales in this range.</div>'; return; }
-    const max = Math.max(1, ...rows.map(r => r[1].rev));
-    el.innerHTML = rows.map(([name, v]) => {
-      const w = Math.round(v.rev / max * 100);
-      const on = activeVal === name ? ' active' : '';
-      return `<button class="hbar-row${on}" data-val="${name.replace(/"/g, '&quot;')}"
-          data-tip="${name} · ${v.cnt} sold · ${usd(v.rev)}">
+  function renderStatus() {
+    const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
+    donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
+  }
+  function renderChannel() {
+    const m = {}; sellsOf(base()).forEach(it => m[it.ch] = (m[it.ch] || 0) + it.r);
+    donut('chanDonut', 'chanLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), usd);
+  }
+
+  // ---------- top products ----------
+  function renderTop() {
+    const m = {};
+    sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt++; m[k].rev += it.r; });
+    const rows = Object.entries(m).sort((a, b) => b[1].cnt - a[1].cnt).slice(0, 10);
+    const el = document.getElementById('topProducts');
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No sales in range.</div>'; return; }
+    const mx = Math.max(1, ...rows.map(r => r[1].cnt));
+    el.innerHTML = rows.map(([name, v]) =>
+      `<button class="hbar-row" data-prod="${name.replace(/"/g, '&quot;')}" data-tip="${name} · ${v.cnt} sold · ${usd(v.rev)}">
         <span class="hbar-label">${name}</span>
-        <span class="hbar-track"><span class="hbar-fill" style="width:${w}%"></span></span>
-        <span class="hbar-num">${v.cnt} · ${usd(v.rev)}</span>
-      </button>`;
-    }).join('');
+        <span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(v.cnt / mx * 100)}%"></span></span>
+        <span class="hbar-num">${v.cnt} · ${usd(v.rev)}</span></button>`).join('');
   }
 
-  // ---- reorder candidates (range-aware) ----
-  function renderReorder() {
-    const m = {};
-    rangeSells().forEach(r => {
-      const k = (r.desc || '').toUpperCase().trim();
-      if (!k) return;
-      m[k] = m[k] || {desc: r.desc, cat: r.cat, cnt: 0, rev: 0};
-      m[k].cnt++; m[k].rev += r.retail;
+  // ---------- heatmap detail ----------
+  function heatRows() {
+    const b = base(), key = F.heatGrp, months = rangeMonths(), g = {};
+    b.forEach(it => {
+      const name = key === 'c' ? it.c : it.d;
+      const row = g[name] = g[name] || {name, avail: 0, sold: 0, stockval: 0, psum: 0, pcnt: 0};
+      if (it.sold === 0) { row.avail += it.q; row.stockval += it.r; if (it.r) { row.psum += it.r; row.pcnt++; } }
+      if (it.sold === 1 && inRange(it.sd)) row.sold += 1;
     });
-    const rows = Object.entries(m).map(([k, v]) => ({...v, stock: DATA.stockByDesc[k] || 0}))
-      .sort((a, b) => b.cnt - a.cnt || b.rev - a.rev).slice(0, 15);
-    const el = document.getElementById('reorder');
-    if (!rows.length) { el.innerHTML = '<div class="empty-state">No sales in this range yet.</div>'; return; }
-    const max = Math.max(1, ...rows.map(r => r.cnt));
-    el.innerHTML = '<div style="overflow-x:auto"><table class="table"><thead><tr>' +
-      '<th>Product</th><th>Category</th><th class="num">Sold</th><th class="num">Revenue</th><th class="num">In stock</th><th>Reorder?</th>' +
-      '</tr></thead><tbody>' + rows.map(r => {
-        let flag = '<span class="muted-sm">OK</span>';
-        if (r.cnt >= 2 && r.stock === 0) flag = '<span class="badge badge-old">⚠ Reorder</span>';
-        else if (r.cnt >= 2 && r.stock <= 1) flag = '<span class="badge badge-unknown">Low</span>';
-        return `<tr><td><div class="seller-bar-wrap"><div class="seller-bar" style="width:${Math.round(r.cnt / max * 100)}%"></div>` +
-          `<span class="seller-name">${r.desc}</span></div></td>` +
-          `<td>${r.cat}</td><td class="num found-text"><strong>${r.cnt}</strong></td>` +
-          `<td class="num">${usd(r.rev)}</td><td class="num">${r.stock}</td><td>${flag}</td></tr>`;
-      }).join('') + '</tbody></table></div>';
+    return Object.values(g).map(r => {
+      r.permo = r.sold / months;
+      r.months = r.permo > 0 ? r.avail / r.permo : (r.avail > 0 ? Infinity : 0);
+      r.price = r.pcnt ? r.psum / r.pcnt : 0;
+      r.sellthru = (r.sold + r.avail) > 0 ? r.sold / (r.sold + r.avail) : 0;
+      return r;
+    }).filter(r => r.avail || r.sold);
+  }
+  function shade(t, kind) {
+    t = Math.max(0, Math.min(1, t));
+    if (kind === 'good') return `background:rgba(11,163,12,${(0.10 + 0.45 * t).toFixed(3)})`;
+    if (kind === 'warnlow') { // low value = urgent (orange), high = calm
+      const u = 1 - t;
+      return `background:rgba(235,104,52,${(0.08 + 0.5 * u).toFixed(3)})`;
+    }
+    return `background:rgba(42,120,214,${(0.08 + 0.5 * t).toFixed(3)})`; // sequential blue
+  }
+  function renderHeat() {
+    let rows = heatRows();
+    const cols = ['avail', 'sold', 'permo', 'months', 'price', 'stockval', 'sellthru'];
+    const rng = {};
+    cols.forEach(c => {
+      const vals = rows.map(r => isFinite(r[c]) ? r[c] : 0);
+      rng[c] = {min: Math.min(...vals, 0), max: Math.max(...vals, 1)};
+    });
+    rows.sort((a, b) => {
+      const x = isFinite(a[F.heatSort]) ? a[F.heatSort] : (F.heatSort === 'months' ? 1e9 : 0);
+      const y = isFinite(b[F.heatSort]) ? b[F.heatSort] : (F.heatSort === 'months' ? 1e9 : 0);
+      if (F.heatSort === 'name') return F.heatDir * String(a.name).localeCompare(b.name);
+      return F.heatDir * (x - y);
+    });
+    const norm = (v, c) => { const {min, max} = rng[c]; return max > min ? (v - min) / (max - min) : 0; };
+    const body = document.getElementById('heatBody');
+    body.innerHTML = rows.slice(0, 300).map(r => {
+      const monthsTxt = isFinite(r.months) ? r.months.toFixed(1) : (r.avail ? '∞' : '—');
+      const monthsShade = isFinite(r.months) && r.sold > 0 ? shade(norm(Math.min(r.months, 24), 'months') , 'warnlow') : '';
+      return `<tr>
+        <td class="heat-name" title="${r.name}">${r.name}</td>
+        <td class="num" style="${shade(norm(r.avail, 'avail'), 'seq')}">${r.avail.toLocaleString()}</td>
+        <td class="num" style="${shade(norm(r.sold, 'sold'), 'seq')}">${r.sold.toLocaleString()}</td>
+        <td class="num" style="${shade(norm(r.permo, 'permo'), 'seq')}">${r.permo.toFixed(1)}</td>
+        <td class="num" style="${monthsShade}">${monthsTxt}</td>
+        <td class="num" style="${shade(norm(r.price, 'price'), 'seq')}">${r.price ? usd2(r.price) : '—'}</td>
+        <td class="num" style="${shade(norm(r.stockval, 'stockval'), 'seq')}">${usd(r.stockval)}</td>
+        <td class="num" style="${shade(r.sellthru, 'good')}">${pct(r.sellthru)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" class="empty-state">No items match these filters.</td></tr>';
+    document.querySelectorAll('#heatTable th[data-sort]').forEach(th => {
+      th.classList.toggle('sorted', th.dataset.sort === F.heatSort);
+      th.dataset.dir = th.dataset.sort === F.heatSort ? (F.heatDir < 0 ? '▼' : '▲') : '';
+    });
   }
 
-  // ---- active filter chips ----
+  // ---------- transactions ----------
   function renderChips() {
-    const chips = [];
-    if (state.channel) chips.push(['channel', 'Channel: ' + state.channel]);
-    if (state.cat) chips.push(['cat', 'Category: ' + state.cat]);
-    const wrap = document.getElementById('activeChips');
-    if (!chips.length) { wrap.innerHTML = '<span class="muted-sm">No filters — showing all sales in range.</span>'; return; }
-    wrap.innerHTML = chips.map(([k, txt]) =>
-      `<button class="chip" data-clear="${k}">${txt} <span class="chip-x">×</span></button>`).join('') +
-      '<button class="chip chip-clear" data-clear="all">Clear all</button>';
+    const c = [];
+    if (F.ptype) c.push(['ptype', 'Type: ' + F.ptype]);
+    if (F.cat) c.push(['cat', 'Category: ' + F.cat]);
+    if (F.channel) c.push(['channel', 'Channel: ' + F.channel]);
+    if (F.status) c.push(['status', 'Status: ' + F.status]);
+    const w = document.getElementById('activeChips');
+    w.innerHTML = c.length
+      ? c.map(([k, t]) => `<button class="chip" data-clear="${k}">${t} <span class="chip-x">×</span></button>`).join('') +
+        '<button class="chip chip-clear" data-clear="all">Clear all</button>'
+      : '<span class="muted-sm">No filters — showing everything in range.</span>';
   }
-
-  // ---- drill-down table ----
-  function renderTable() {
-    const rows = filteredSells();
+  function renderTxn() {
+    let rows = sellsOf(base());
+    if (F.search) rows = rows.filter(r => (r.n || '').toLowerCase().includes(F.search)
+      || (r.d || '').toLowerCase().includes(F.search) || (r.c || '').toLowerCase().includes(F.search));
     rows.sort((a, b) => {
       let x, y;
-      if (state.sortKey === 'margin') { x = a.retail - a.cost; y = b.retail - b.cost; }
-      else { x = a[state.sortKey]; y = b[state.sortKey]; }
-      if (typeof x === 'string') return state.sortDir * x.localeCompare(y);
-      return state.sortDir * ((x || 0) - (y || 0));
+      if (F.txnSort === 'mg') { x = a.r - a.co; y = b.r - b.co; }
+      else { x = a[F.txnSort]; y = b[F.txnSort]; }
+      return typeof x === 'string' ? F.txnDir * x.localeCompare(y) : F.txnDir * ((x || 0) - (y || 0));
     });
     document.getElementById('txnCount').textContent =
-      rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.retail, 0)) + ' revenue';
-    const shown = rows.slice(0, 500);
-    document.getElementById('txnBody').innerHTML = shown.map(r => {
-      const mg = r.retail - r.cost;
-      return `<tr><td>${r.date}</td><td><strong>${r.item || '—'}</strong></td>` +
-        `<td>${r.desc}</td><td>${r.cat}</td><td>${r.channel}</td>` +
-        `<td class="num">${usd2(r.cost)}</td><td class="num">${usd2(r.retail)}</td>` +
+      rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.r, 0)) + ' revenue';
+    document.getElementById('txnBody').innerHTML = rows.slice(0, 500).map(r => {
+      const mg = r.r - r.co;
+      return `<tr><td>${r.sd}</td><td><strong>${r.n || '—'}</strong></td><td>${r.d}</td><td>${r.c}</td>` +
+        `<td>${r.ch}</td><td class="num">${usd2(r.co)}</td><td class="num">${usd2(r.r)}</td>` +
         `<td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd2(mg)}</td></tr>`;
     }).join('') || '<tr><td colspan="8" class="empty-state">No transactions match these filters.</td></tr>';
     document.getElementById('txnMore').textContent =
-      rows.length > 500 ? `Showing first 500 of ${rows.length.toLocaleString()} — narrow the range or filters to see the rest.` : '';
-    // sort indicators
+      rows.length > 500 ? `Showing first 500 of ${rows.length.toLocaleString()}.` : '';
     document.querySelectorAll('#txnTable th[data-sort]').forEach(th => {
-      th.classList.toggle('sorted', th.dataset.sort === state.sortKey);
-      th.dataset.dir = th.dataset.sort === state.sortKey ? (state.sortDir < 0 ? '▼' : '▲') : '';
+      th.classList.toggle('sorted', th.dataset.sort === F.txnSort);
+      th.dataset.dir = th.dataset.sort === F.txnSort ? (F.txnDir < 0 ? '▼' : '▲') : '';
     });
   }
 
   function renderAll() {
-    document.getElementById('rangeNote').textContent =
-      state.frm === '0000-01-01' ? 'All time' : `${state.frm} → ${state.to}`;
-    renderKpis(); renderTimeChart();
-    renderHbar('chanChart', 'channel', state.channel);
-    renderHbar('catChart', 'cat', state.cat);
-    renderReorder(); renderChips(); renderTable();
+    document.getElementById('rangeNote').textContent = F.frm === '0000-01-01' ? 'All time' : `${F.frm} → ${F.to}`;
+    renderKpis(); renderTime(); renderStatus(); renderChannel(); renderTop();
+    renderHeat(); renderChips(); renderTxn();
   }
 
-  // ---- events ----
+  // ---------- build filter dropdowns ----------
+  function fill(sel, label, values, cur) {
+    const el = document.getElementById(sel);
+    el.innerHTML = `<option value="">${label}</option>` +
+      values.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${v}</option>`).join('');
+  }
+  const uniq = k => [...new Set(ITEMS.map(x => x[k]).filter(Boolean))].sort();
+  fill('fCat', 'All categories', uniq('c'), F.cat);
+  fill('fChannel', 'All channels', uniq('ch'), F.channel);
+  fill('fStatus', 'All statuses', uniq('s'), F.status);
+
+  // ---------- events ----------
   document.getElementById('rangePresets').addEventListener('click', e => {
     const b = e.target.closest('.range-btn'); if (!b) return;
     document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    [state.frm, state.to] = presetRange(b.dataset.range);
-    document.getElementById('frm').value = state.frm === '0000-01-01' ? '' : state.frm;
-    document.getElementById('to').value = state.to === '9999-12-31' ? '' : state.to;
+    [F.frm, F.to] = presetRange(b.dataset.range);
+    document.getElementById('frm').value = F.frm === '0000-01-01' ? '' : F.frm;
+    document.getElementById('to').value = F.to === '9999-12-31' ? '' : F.to;
     renderAll();
   });
-  function customChanged() {
+  function custom() {
     const f = document.getElementById('frm').value, t = document.getElementById('to').value;
-    if (f) state.frm = f; if (t) state.to = t;
+    if (f) F.frm = f; if (t) F.to = t;
     if (f || t) document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active'));
     renderAll();
   }
-  document.getElementById('frm').addEventListener('change', customChanged);
-  document.getElementById('to').addEventListener('change', customChanged);
-
-  document.getElementById('chanChart').addEventListener('click', e => {
-    const b = e.target.closest('.hbar-row'); if (!b) return;
-    state.channel = state.channel === b.dataset.val ? null : b.dataset.val;
-    renderAll();
-    document.getElementById('txnTable').scrollIntoView({behavior: 'smooth', block: 'start'});
+  document.getElementById('frm').addEventListener('change', custom);
+  document.getElementById('to').addEventListener('change', custom);
+  document.getElementById('fCat').addEventListener('change', e => { F.cat = e.target.value; renderAll(); });
+  document.getElementById('fChannel').addEventListener('change', e => { F.channel = e.target.value; renderAll(); });
+  document.getElementById('fStatus').addEventListener('change', e => { F.status = e.target.value; renderAll(); });
+  let st;
+  document.getElementById('fSearch').addEventListener('input', e => {
+    clearTimeout(st); st = setTimeout(() => { F.search = e.target.value.toLowerCase().trim(); renderTxn(); }, 150);
   });
-  document.getElementById('catChart').addEventListener('click', e => {
-    const b = e.target.closest('.hbar-row'); if (!b) return;
-    state.cat = state.cat === b.dataset.val ? null : b.dataset.val;
+  document.getElementById('ptypeTabs').addEventListener('click', e => {
+    const b = e.target.closest('.ptype-tab'); if (!b) return;
+    document.querySelectorAll('.ptype-tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); F.ptype = b.dataset.p; renderAll();
+  });
+  document.getElementById('resetFilters').addEventListener('click', () => {
+    F.ptype = F.cat = F.channel = F.status = ''; F.search = '';
+    document.getElementById('fCat').value = ''; document.getElementById('fChannel').value = '';
+    document.getElementById('fStatus').value = ''; document.getElementById('fSearch').value = '';
+    document.querySelectorAll('.ptype-tab').forEach((x, i) => x.classList.toggle('active', i === 0));
     renderAll();
-    document.getElementById('txnTable').scrollIntoView({behavior: 'smooth', block: 'start'});
   });
   document.getElementById('activeChips').addEventListener('click', e => {
     const b = e.target.closest('[data-clear]'); if (!b) return;
     const k = b.dataset.clear;
-    if (k === 'all') { state.channel = null; state.cat = null; }
-    else state[k] = null;
+    if (k === 'all') { F.ptype = F.cat = F.channel = F.status = ''; }
+    else F[k] = '';
+    document.getElementById('fCat').value = F.cat; document.getElementById('fChannel').value = F.channel;
+    document.getElementById('fStatus').value = F.status;
+    document.querySelectorAll('.ptype-tab').forEach(x => x.classList.toggle('active', x.dataset.p === F.ptype));
     renderAll();
   });
-  let searchTimer;
-  document.getElementById('txnSearch').addEventListener('input', e => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { state.search = e.target.value.toLowerCase().trim(); renderTable(); }, 150);
+  document.getElementById('chanDonut').addEventListener('click', () => {}); // reserved
+  document.getElementById('topProducts').addEventListener('click', e => {
+    const b = e.target.closest('.hbar-row'); if (!b) return;
+    F.search = b.dataset.prod.toLowerCase();
+    document.getElementById('fSearch').value = b.dataset.prod;
+    renderTxn();
+    document.getElementById('txnTable').scrollIntoView({behavior: 'smooth', block: 'start'});
   });
-  document.querySelectorAll('#txnTable th[data-sort]').forEach(th => {
-    th.addEventListener('click', () => {
-      if (state.sortKey === th.dataset.sort) state.sortDir *= -1;
-      else { state.sortKey = th.dataset.sort; state.sortDir = th.dataset.sort === 'date' ? -1 : 1; }
-      renderTable();
-    });
+  document.getElementById('grpToggle').addEventListener('click', e => {
+    const b = e.target.closest('.seg-btn'); if (!b) return;
+    document.querySelectorAll('#grpToggle .seg-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); F.heatGrp = b.dataset.grp; renderHeat();
   });
+  document.querySelectorAll('#heatTable th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    if (F.heatSort === th.dataset.sort) F.heatDir *= -1;
+    else { F.heatSort = th.dataset.sort; F.heatDir = th.dataset.sort === 'name' ? 1 : -1; }
+    renderHeat();
+  }));
+  document.querySelectorAll('#txnTable th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    if (F.txnSort === th.dataset.sort) F.txnDir *= -1;
+    else { F.txnSort = th.dataset.sort; F.txnDir = th.dataset.sort === 'sd' ? -1 : 1; }
+    renderTxn();
+  }));
 
-  // ---- tooltip ----
+  // tooltip
   const tip = document.getElementById('tip');
   document.getElementById('dash').addEventListener('mousemove', e => {
     const t = e.target.closest('[data-tip]');
     if (!t) { tip.hidden = true; return; }
-    tip.textContent = t.dataset.tip;
-    tip.hidden = false;
-    tip.style.left = (e.clientX + 12) + 'px';
-    tip.style.top = (e.clientY + 12) + 'px';
+    tip.textContent = t.dataset.tip; tip.hidden = false;
+    tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
   });
   document.getElementById('dash').addEventListener('mouseleave', () => { tip.hidden = true; });
 
-  // init custom inputs then render
-  document.getElementById('frm').value = state.frm;
-  document.getElementById('to').value = state.to;
+  document.getElementById('frm').value = F.frm;
+  document.getElementById('to').value = F.to;
   renderAll();
 })();
 </script>
