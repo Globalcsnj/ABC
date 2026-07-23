@@ -54,7 +54,7 @@
             <div class="card-header"><h2>Buys vs Sells over time</h2>
                 <div class="viz-legend">
                     <span class="lg"><i class="sw sw-buy"></i>Buy cost</span>
-                    <span class="lg"><i class="sw sw-sell"></i>Sales revenue</span>
+                    <span class="lg"><i class="sw sw-sell"></i>Sell amount</span>
                 </div>
             </div>
             <div id="timeChart" class="time-chart"></div>
@@ -73,7 +73,7 @@
             <div class="card-header"><h2>Top products sold</h2>
                 <select id="topSort" class="mini-select">
                     <option value="cnt">By units sold</option>
-                    <option value="rev">By revenue</option>
+                    <option value="rev">By sell amount</option>
                 </select>
             </div>
             <p class="card-subtitle">Click a bar to drill into that product.</p>
@@ -243,9 +243,9 @@
     const invCost = onHand.reduce((a, r) => a + r.co, 0);
     const st = soldU + invU > 0 ? soldU / (soldU + invU) : 0;
     const tiles = [
-      {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' revenue', cls: 'k-sell'},
+      {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' sell amount', cls: 'k-sell'},
       {l: 'Buys', big: buys.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
-      {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of revenue', cls: margin >= 0 ? 'k-good' : 'k-bad'},
+      {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of sell amount', cls: margin >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + invU.toLocaleString() + ' on-hand', prog: st},
       {l: 'Inventory base (on-hand, at cost)', big: usd(invCost),
@@ -553,7 +553,7 @@
   function renderTxn() {
     const rows = txnRows();
     document.getElementById('txnCount').textContent =
-      rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.r, 0)) + ' revenue';
+      rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.r, 0)) + ' sell amount';
     document.getElementById('txnBody').innerHTML = rows.slice(0, 500).map(r => {
       const mg = r.r - r.co;
       return `<tr><td>${r.sd}</td><td><strong>${r.n || '—'}</strong></td><td>${r.d}</td><td>${r.c}</td>` +
