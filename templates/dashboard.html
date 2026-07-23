@@ -89,39 +89,45 @@
             </div>
         </div>
         <p class="card-subtitle">Cells are shaded by value — deeper = higher. “Months of stock remaining” turns orange when a fast seller is running low. Click a header to sort.</p>
-        <div style="overflow-x:auto">
-            <table class="table heat" id="heatTable">
-                <thead><tr>
-                    <th data-sort="name">Name</th>
-                    <th data-sort="avail" class="num">Available</th>
-                    <th data-sort="sold" class="num">Units sold</th>
-                    <th data-sort="permo" class="num">Avg monthly sales</th>
-                    <th data-sort="months" class="num">Months of stock left</th>
-                    <th data-sort="price" class="num">Avg unit price</th>
-                    <th data-sort="stockval" class="num">Stock value</th>
-                    <th data-sort="sellthru" class="num">Sell-through</th>
-                </tr></thead>
-                <tbody id="heatBody"></tbody>
-            </table>
-        </div>
+        <details open>
+            <summary class="collapse-summary">📊 Show / hide the detail table</summary>
+            <div style="overflow-x:auto">
+                <table class="table heat" id="heatTable">
+                    <thead><tr>
+                        <th data-sort="name">Name</th>
+                        <th data-sort="avail" class="num">Available</th>
+                        <th data-sort="sold" class="num">Units sold</th>
+                        <th data-sort="permo" class="num">Avg monthly sales</th>
+                        <th data-sort="months" class="num">Months of stock left</th>
+                        <th data-sort="price" class="num">Avg unit price</th>
+                        <th data-sort="stockval" class="num">Stock value</th>
+                        <th data-sort="sellthru" class="num">Sell-through</th>
+                    </tr></thead>
+                    <tbody id="heatBody"></tbody>
+                </table>
+            </div>
+        </details>
     </div>
 
     <!-- Transaction drill-down -->
     <div class="card mt">
         <div class="card-header"><h2>Transactions</h2><span class="total-badge" id="txnCount"></span></div>
         <div class="chip-row" id="activeChips"></div>
-        <div style="overflow-x:auto">
-            <table class="table" id="txnTable">
-                <thead><tr>
-                    <th data-sort="sd">Sold date</th><th data-sort="n">Item #</th>
-                    <th data-sort="d">Description</th><th data-sort="c">Category</th>
-                    <th data-sort="ch">Channel</th><th data-sort="co" class="num">Cost</th>
-                    <th data-sort="r" class="num">Sale price</th><th data-sort="mg" class="num">Margin</th>
-                </tr></thead>
-                <tbody id="txnBody"></tbody>
-            </table>
-        </div>
-        <p class="card-subtitle" id="txnMore"></p>
+        <details open>
+            <summary class="collapse-summary">🧾 Show / hide transactions</summary>
+            <div style="overflow-x:auto">
+                <table class="table" id="txnTable">
+                    <thead><tr>
+                        <th data-sort="sd">Sold date</th><th data-sort="n">Item #</th>
+                        <th data-sort="d">Description</th><th data-sort="c">Category</th>
+                        <th data-sort="ch">Channel</th><th data-sort="co" class="num">Cost</th>
+                        <th data-sort="r" class="num">Sale price</th><th data-sort="mg" class="num">Margin</th>
+                    </tr></thead>
+                    <tbody id="txnBody"></tbody>
+                </table>
+            </div>
+            <p class="card-subtitle" id="txnMore"></p>
+        </details>
     </div>
 
     <div class="viz-tooltip" id="tip" hidden></div>
