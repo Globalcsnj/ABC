@@ -135,7 +135,10 @@
 
     <!-- Transaction drill-down -->
     <div class="card mt">
-        <div class="card-header"><h2>Transactions</h2><span class="total-badge" id="txnCount"></span></div>
+        <div class="card-header"><h2>Transactions</h2>
+            <span class="total-badge" id="txnCount"></span>
+            <button class="btn btn-outline btn-sm" id="txnExport" type="button">⬇ Export CSV</button>
+        </div>
         <div class="chip-row" id="activeChips"></div>
         <details open>
             <summary class="collapse-summary">🧾 Show / hide transactions</summary>
@@ -144,8 +147,10 @@
                     <thead><tr>
                         <th data-sort="sd">Sold date</th><th data-sort="n">Item #</th>
                         <th data-sort="d">Description</th><th data-sort="c">Category</th>
-                        <th data-sort="ch">Channel</th><th data-sort="co" class="num">Cost</th>
-                        <th data-sort="r" class="num">Sale price</th><th data-sort="mg" class="num">Margin</th>
+                        <th data-sort="p">Type</th><th data-sort="s">Status</th>
+                        <th data-sort="ch">Channel</th><th data-sort="q" class="num">Qty</th>
+                        <th data-sort="co" class="num">Cost</th><th data-sort="r" class="num">Sale price</th>
+                        <th data-sort="mg" class="num">Margin</th><th data-sort="bd">Buy date</th>
                     </tr></thead>
                     <tbody id="txnBody"></tbody>
                 </table>
@@ -521,7 +526,7 @@
         '<button class="chip chip-clear" data-clear="all">Clear all</button>'
       : '<span class="muted-sm">No filters — showing everything in range.</span>';
   }
-  function renderTxn() {
+  function txnRows() {
     let rows = sellsOf(base());
     if (F.search) rows = rows.filter(r => (r.n || '').toLowerCase().includes(F.search)
       || (r.d || '').toLowerCase().includes(F.search) || (r.c || '').toLowerCase().includes(F.search));
@@ -531,14 +536,31 @@
       else { x = a[F.txnSort]; y = b[F.txnSort]; }
       return typeof x === 'string' ? F.txnDir * x.localeCompare(y) : F.txnDir * ((x || 0) - (y || 0));
     });
+    return rows;
+  }
+  function exportTxnCsv() {
+    const rows = txnRows();
+    const head = ['Sold date', 'Item #', 'Description', 'Category', 'Type', 'Status', 'Channel', 'Qty', 'Cost', 'Sale price', 'Margin', 'Buy date'];
+    const esc = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const lines = [head.join(',')];
+    rows.forEach(r => lines.push([r.sd, r.n, r.d, r.c, r.p, r.s, r.ch, r.q, r.co, r.r, (r.r - r.co), r.bd].map(esc).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'transactions_' + F.frm + '_to_' + F.to + '.csv';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function renderTxn() {
+    const rows = txnRows();
     document.getElementById('txnCount').textContent =
       rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.r, 0)) + ' revenue';
     document.getElementById('txnBody').innerHTML = rows.slice(0, 500).map(r => {
       const mg = r.r - r.co;
       return `<tr><td>${r.sd}</td><td><strong>${r.n || '—'}</strong></td><td>${r.d}</td><td>${r.c}</td>` +
-        `<td>${r.ch}</td><td class="num">${usd2(r.co)}</td><td class="num">${usd2(r.r)}</td>` +
-        `<td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd2(mg)}</td></tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty-state">No transactions match these filters.</td></tr>';
+        `<td>${r.p}</td><td>${r.s}</td><td>${r.ch}</td><td class="num">${r.q}</td>` +
+        `<td class="num">${usd2(r.co)}</td><td class="num">${usd2(r.r)}</td>` +
+        `<td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd2(mg)}</td><td>${r.bd || '—'}</td></tr>`;
+    }).join('') || '<tr><td colspan="12" class="empty-state">No transactions match these filters.</td></tr>';
     document.getElementById('txnMore').textContent =
       rows.length > 500 ? `Showing first 500 of ${rows.length.toLocaleString()}.` : '';
     document.querySelectorAll('#txnTable th[data-sort]').forEach(th => {
@@ -631,6 +653,7 @@
     renderChannel();
   });
   document.getElementById('topSort').addEventListener('change', e => { F.topSort = e.target.value; renderTop(); });
+  document.getElementById('txnExport').addEventListener('click', exportTxnCsv);
   document.getElementById('topProducts').addEventListener('click', e => {
     const b = e.target.closest('.hbar-row'); if (!b) return;
     F.search = b.dataset.prod.toLowerCase();
