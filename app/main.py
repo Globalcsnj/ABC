@@ -2892,13 +2892,18 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             # If a single stock item with this number exists and isn't sold yet,
             # flip it in place (real price/date/cost). Otherwise record the sold
             # line as its own row (bulk/UPC lines, or already-sold matches).
+            # Borrow the real category/type so sold units respond to the category
+            # and product-type filters instead of all landing in "Uncategorized".
+            cat, ptype = None, None
             if item_number_u:
                 async with db.execute(
-                    "SELECT quantity, COALESCE(sold,0) sold, COALESCE(source,'') source "
+                    "SELECT quantity, COALESCE(sold,0) sold, COALESCE(source,'') source, "
+                    "category, product_type "
                     "FROM items WHERE item_number=? AND COALESCE(source,'')!='sold_report'",
                     (item_number_u,)) as cur:
                     ex = await cur.fetchone()
                 if ex is not None:
+                    cat, ptype = ex["category"], ex["product_type"]
                     if int(ex["sold"] or 0) == 1:
                         matched += 1          # already counted by the inventory export
                         continue
@@ -2910,6 +2915,17 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                             (date_iso, price, cost, channel, str(qty), list_price, customer, phone, item_number_u))
                         matched += 1
                         continue
+            # Fallback: match by description to an existing item for its category/type.
+            if not cat and desc:
+                async with db.execute(
+                    "SELECT category, product_type FROM items "
+                    "WHERE UPPER(TRIM(description))=? AND COALESCE(source,'')!='sold_report' LIMIT 1",
+                    (desc.strip().upper(),)) as cur:
+                    mrow = await cur.fetchone()
+                if mrow is not None:
+                    cat, ptype = mrow["category"], mrow["product_type"]
+            cat = cat or "Uncategorized"
+            ptype = ptype or "general"
             k = f"{item_number or 'SOLD'}~S~{date_iso}"
             n = seq.get(k, 0)
             seq[k] = n + 1
@@ -2918,13 +2934,14 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 "INSERT INTO items (item_number, description, category, product_type, "
                 "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
                 "quantity, list_price, customer_name, customer_phone, for_sale, missing) "
-                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) "
+                "VALUES (?, ?, ?, ?, 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) "
                 "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
                 "retail_price=excluded.retail_price, cost=excluded.cost, "
                 "sold_channel=excluded.sold_channel, quantity=excluded.quantity, "
                 "list_price=excluded.list_price, customer_name=excluded.customer_name, "
-                "customer_phone=excluded.customer_phone",
-                (key, desc, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
+                "customer_phone=excluded.customer_phone, category=excluded.category, "
+                "product_type=excluded.product_type",
+                (key, desc, cat, ptype, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
             created += 1
 
         await db.commit()
