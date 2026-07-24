@@ -1273,11 +1273,14 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
         else:
             bd = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
                   or parse_date_any(r["imported_at"]))
+        # Status/event date: when the item last changed status (Bravo "Date").
+        # Sold items use the sale date; everything else uses the item date.
+        idt = sd or parse_date_any(r["item_date"]) or bd
         items.append({
             "n": r["item_number"], "d": r["description"] or "—",
             "c": r["category"], "p": r["ptype"], "s": r["status"],
             "ch": r["channel"], "sold": int(r["sold"] or 0),
-            "sd": _iso(sd), "bd": _iso(bd),
+            "sd": _iso(sd), "bd": _iso(bd), "idt": _iso(idt),
             "co": float(r["cost"] or 0), "r": float(r["retail"] or 0),
             "q": _qty(r["quantity"]),
         })

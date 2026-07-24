@@ -369,21 +369,38 @@
     const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
     donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
   }
-  // Quick status chips at the top — click to filter the whole dashboard.
+  // Statuses that removed inventory WITHOUT a sale/payment (a loss) — show the
+  // cost and price value lost so it's easy to notice.
+  const LOSS_STATUS = ['SHRINK', 'DAMAGED', 'MISSING', 'STOLEN', 'DONATION'];
+  const isLoss = s => LOSS_STATUS.some(k => s.includes(k));
+  // Quick status chips at the top — always list every status (even at 0 so you
+  // notice), respond to the date filter, and click to filter the dashboard.
   function renderStatusStrip() {
+    const dimOnly = it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat) && (!F.channel || it.ch === F.channel);
+    // Every status that exists in the data (all-time) so chips never disappear.
+    const allStatuses = [...new Set(ITEMS.map(x => x.s))];
     const m = {};
-    // Count over dimension filters but ignore the status filter itself, so all
-    // statuses stay visible/clickable even when one is selected.
-    ITEMS.filter(it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat) && (!F.channel || it.ch === F.channel))
-      .forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
-    const rows = Object.entries(m).sort((a, b) => b[1] - a[1]);
+    allStatuses.forEach(s => m[s] = {cnt: 0, cost: 0, retail: 0});
+    // Count within the selected date range (by status/event date). All-time
+    // includes items even when they have no date on file.
+    const inStatusRange = it => F.frm === '0000-01-01' ? true : inRange(it.idt);
+    ITEMS.filter(it => dimOnly(it) && inStatusRange(it)).forEach(it => {
+      const g = m[it.s]; if (!g) return;
+      g.cnt += it.q; g.cost += it.co; g.retail += it.r;
+    });
+    const rows = Object.entries(m).sort((a, b) => b[1].cnt - a[1].cnt);
     const el = document.getElementById('statusStrip');
     if (!rows.length) { el.innerHTML = '<span class="muted-sm">No items.</span>'; return; }
-    el.innerHTML = rows.map(([name, cnt], i) =>
-      `<button class="status-chip${F.status === name ? ' active' : ''}" data-status="${name.replace(/"/g, '&quot;')}">
-        <span class="sc-dot" style="background:${PAL[i % PAL.length]}"></span>
-        <span class="sc-name">${name}</span><span class="sc-count">${cnt.toLocaleString()}</span>
-      </button>`).join('');
+    el.innerHTML = rows.map(([name, v], i) => {
+      const loss = isLoss(name);
+      const valTxt = loss
+        ? `<span class="sc-val">cost ${usd(v.cost)} · ${usd(v.retail)}</span>`
+        : '';
+      return `<button class="status-chip${F.status === name ? ' active' : ''}${loss ? ' loss' : ''}" data-status="${name.replace(/"/g, '&quot;')}">
+        <span class="sc-dot" style="background:${loss ? 'var(--v-bad)' : PAL[i % PAL.length]}"></span>
+        <span class="sc-name">${name}</span><span class="sc-count">${v.cnt.toLocaleString()}</span>${valTxt}
+      </button>`;
+    }).join('');
   }
   // Fixed channel order → stable donut colours matching the goal rows.
   const CHAN_LIST = ['Store', 'Online', 'eBay'];
