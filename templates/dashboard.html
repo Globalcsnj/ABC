@@ -235,7 +235,9 @@
     const sCost = sells.reduce((a, r) => a + r.co, 0);
     const bCost = buys.reduce((a, r) => a + r.co, 0);
     const margin = rev - sCost, net = rev - bCost;
-    const soldU = sells.length;
+    // Count UNITS (sum quantity), not line items, so bulk lots are accurate.
+    const soldU = sells.reduce((a, r) => a + r.q, 0);
+    const buyU = buys.reduce((a, r) => a + r.q, 0);
     // On-hand inventory base (matches Bravo): unsold minus loss/exit statuses.
     const onHand = onHandOf(b);
     const invU = onHand.reduce((a, r) => a + r.q, 0);
@@ -244,7 +246,7 @@
     const st = soldU + invU > 0 ? soldU / (soldU + invU) : 0;
     const tiles = [
       {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' sell amount', cls: 'k-sell'},
-      {l: 'Buys', big: buys.length.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
+      {l: 'Buys', big: buyU.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
       {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of sell amount', cls: margin >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Sell-through', big: pct(st), sub: soldU.toLocaleString() + ' sold / ' + invU.toLocaleString() + ' on-hand', prog: st},
@@ -403,7 +405,7 @@
   // ---------- top products ----------
   function renderTop() {
     const m = {};
-    sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt++; m[k].rev += it.r; });
+    sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt += it.q; m[k].rev += it.r; });
     const sk = F.topSort;
     const rows = Object.entries(m).sort((a, b) => b[1][sk] - a[1][sk]).slice(0, 10);
     const el = document.getElementById('topProducts');
@@ -428,15 +430,17 @@
       const avail = it.filter(x => x.sold === 0).reduce((a, r) => a + r.q, 0);
       const buys = it.filter(x => inRange(x.bd));
       const sells = it.filter(x => x.sold === 1 && inRange(x.sd));
+      const buU = buys.reduce((a, r) => a + r.q, 0);       // units, not line items
+      const soU = sells.reduce((a, r) => a + r.q, 0);
       const buCost = buys.reduce((a, r) => a + r.co, 0);
       const soCost = sells.reduce((a, r) => a + r.co, 0);
       const rev = sells.reduce((a, r) => a + r.r, 0), mg = rev - soCost;
-      tot.av += avail; tot.bu += buys.length; tot.bc += buCost; tot.su += sells.length; tot.sc += soCost; tot.rv += rev;
+      tot.av += avail; tot.bu += buU; tot.bc += buCost; tot.su += soU; tot.sc += soCost; tot.rv += rev;
       return `<tr><td><strong>${label}</strong></td>
         <td class="num">${avail.toLocaleString()}</td>
-        <td class="num">${buys.length.toLocaleString()}</td>
+        <td class="num">${buU.toLocaleString()}</td>
         <td class="num">${usd(buCost)}</td>
-        <td class="num">${sells.length.toLocaleString()}</td>
+        <td class="num">${soU.toLocaleString()}</td>
         <td class="num">${usd(soCost)}</td>
         <td class="num">${usd(rev)}</td>
         <td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd(mg)}</td></tr>`;
@@ -458,7 +462,7 @@
       const name = key === 'c' ? it.c : it.d;
       const row = g[name] = g[name] || {name, avail: 0, sold: 0, stockval: 0, psum: 0, pcnt: 0};
       if (it.sold === 0) { row.avail += it.q; row.stockval += it.r; if (it.r) { row.psum += it.r; row.pcnt++; } }
-      if (it.sold === 1 && inRange(it.sd)) row.sold += 1;
+      if (it.sold === 1 && inRange(it.sd)) row.sold += it.q;
     });
     return Object.values(g).map(r => {
       r.permo = r.sold / months;
@@ -553,7 +557,8 @@
   function renderTxn() {
     const rows = txnRows();
     document.getElementById('txnCount').textContent =
-      rows.length.toLocaleString() + ' sold · ' + usd(rows.reduce((a, r) => a + r.r, 0)) + ' sell amount';
+      rows.reduce((a, r) => a + r.q, 0).toLocaleString() + ' units sold · ' +
+      usd(rows.reduce((a, r) => a + r.r, 0)) + ' sell amount';
     document.getElementById('txnBody').innerHTML = rows.slice(0, 500).map(r => {
       const mg = r.r - r.co;
       return `<tr><td>${r.sd}</td><td><strong>${r.n || '—'}</strong></td><td>${r.d}</td><td>${r.c}</td>` +
