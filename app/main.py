@@ -2828,10 +2828,16 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             item_number = expand_code(find_column(row, "Item Num", "Item Number", "Number", "Item #", "ItemNumber"))
             desc = find_column(row, "Full Description", "Description", "Desc")
             date_raw = find_column(row, "Business Date Sold", "Date Sold", "Sold Date", "Date")
-            price_raw = find_column(row, "Price Sold", "Sale Price", "Sold Price", "Price")
+            # Final price the item actually sold for (what we collected).
+            price_raw = find_column(row, "Last Price Sold", "Price Sold", "Final Price",
+                                    "Sale Price", "Sold Price", "Amount Sold")
+            # What the item was listed/tagged at (before negotiation).
+            list_raw = find_column(row, "Price", "Listed Price", "List Price", "Tag Price", "Retail Price")
             cost_raw = find_column(row, "Cost", "Item Cost")
             chan_raw = find_column(row, "Omni-Channel", "Omni Channel", "OmniChannel", "Channel")
             qty_raw = find_column(row, "Quantity", "Qty")
+            cust_raw = find_column(row, "Customer Name", "Customer", "Buyer", "Buyer Name", "Sold To")
+            phone_raw = find_column(row, "Phone", "Phone Number", "Customer Phone", "Cell", "Cell Phone", "Mobile", "Telephone")
 
             d = parse_date_any(date_raw)
             if (item_number or "").upper().startswith(("TOTAL", "SUBTOTAL", "GRAND")):
@@ -2856,7 +2862,11 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             qty = max(1, qty)
             price = clean_money(price_raw)
             cost = clean_money(cost_raw)
-            parsed.append((item_number, desc, qty, price, cost, d.isoformat(), _map_channel(chan_raw)))
+            list_price = clean_money(list_raw) if list_raw else None
+            customer = (cust_raw or "").strip()
+            phone = (phone_raw or "").strip()
+            parsed.append((item_number, desc, qty, price, cost, list_price, customer, phone,
+                           d.isoformat(), _map_channel(chan_raw)))
             dates.append(d.isoformat())
 
         if not parsed:
@@ -2875,7 +2885,7 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
         # Multiple lines for the same bulk item can share a day — keep their
         # synthetic keys unique (…~0, …~1, …).
         seq = {}
-        for (item_number, desc, qty, price, cost, date_iso, channel) in parsed:
+        for (item_number, desc, qty, price, cost, list_price, customer, phone, date_iso, channel) in parsed:
             units_sold += qty
             transactions += 1
             item_number_u = item_number.upper() if item_number else None
@@ -2895,8 +2905,9 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                     if str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
                         await db.execute(
                             "UPDATE items SET sold=1, sold_at=?, retail_price=?, cost=?, "
-                            "sold_channel=?, quantity=?, for_sale=0, missing=0 WHERE item_number=?",
-                            (date_iso, price, cost, channel, str(qty), item_number_u))
+                            "sold_channel=?, quantity=?, list_price=COALESCE(?, list_price), "
+                            "customer_name=?, customer_phone=?, for_sale=0, missing=0 WHERE item_number=?",
+                            (date_iso, price, cost, channel, str(qty), list_price, customer, phone, item_number_u))
                         matched += 1
                         continue
             k = f"{item_number or 'SOLD'}~S~{date_iso}"
@@ -2906,12 +2917,14 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             await db.execute(
                 "INSERT INTO items (item_number, description, category, product_type, "
                 "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
-                "quantity, for_sale, missing) "
-                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, 0, 0) "
+                "quantity, list_price, customer_name, customer_phone, for_sale, missing) "
+                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) "
                 "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
                 "retail_price=excluded.retail_price, cost=excluded.cost, "
-                "sold_channel=excluded.sold_channel, quantity=excluded.quantity",
-                (key, desc, date_iso, price, cost, channel, str(qty)))
+                "sold_channel=excluded.sold_channel, quantity=excluded.quantity, "
+                "list_price=excluded.list_price, customer_name=excluded.customer_name, "
+                "customer_phone=excluded.customer_phone",
+                (key, desc, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
             created += 1
 
         await db.commit()

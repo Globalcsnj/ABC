@@ -230,6 +230,9 @@ async def init_db():
             "inventory_age": "TEXT DEFAULT ''",
             "date_to_inventory": "TEXT DEFAULT ''",
             "stage": "TEXT DEFAULT ''",   # Inventory / Scrap / Refined / Polish / Sold
+            "list_price": "REAL",              # the price the item was listed at
+            "customer_name": "TEXT DEFAULT ''",   # buyer name (from sold report)
+            "customer_phone": "TEXT DEFAULT ''",  # buyer phone (for follow-up SMS)
         }
         for col, decl in add_item_cols.items():
             if col not in item_cols:
