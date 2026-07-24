@@ -369,7 +369,10 @@
     if (leg) leg.innerHTML = legend(false);
   }
   function renderStatus() {
-    const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
+    // Current inventory only — exclude sold-through units so this is a true
+    // snapshot of what's on hand by status (not mixed with sales).
+    const m = {};
+    base().filter(it => it.sold === 0).forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
     donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
   }
   // Statuses that removed inventory WITHOUT a sale/payment (a loss) — show the
