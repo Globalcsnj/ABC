@@ -111,11 +111,11 @@
         <div class="card-header">
             <h2>Inventory &amp; sales detail</h2>
             <div class="seg" id="grpToggle">
-                <button class="seg-btn active" data-grp="c">By category</button>
-                <button class="seg-btn" data-grp="d">By product</button>
+                <button class="seg-btn" data-grp="c">By category</button>
+                <button class="seg-btn active" data-grp="d">By product</button>
             </div>
         </div>
-        <p class="card-subtitle">Cells are shaded by value — deeper = higher. “Months of stock remaining” turns orange when a fast seller is running low. Click a header to sort.</p>
+        <p class="card-subtitle">Cells are shaded by value — deeper = higher. <strong>Days sitting</strong> = how long, on average, stock has sat in its current status without selling (orange = older); “Months of stock left” turns orange when a fast seller is running low. Click a header to sort.</p>
         <details open>
             <summary class="collapse-summary">📊 Show / hide the detail table</summary>
             <div style="overflow-x:auto">
@@ -123,6 +123,7 @@
                     <thead><tr>
                         <th data-sort="name">Name</th>
                         <th data-sort="avail" class="num">Available</th>
+                        <th data-sort="dsit" class="num">Days sitting</th>
                         <th data-sort="sold" class="num">Units sold</th>
                         <th data-sort="permo" class="num">Avg monthly sales</th>
                         <th data-sort="months" class="num">Months of stock left</th>
@@ -199,7 +200,7 @@
 
   const F = {frm: presetRange('ytd')[0], to: presetRange('ytd')[1],
              ptype: '', cat: '', channel: '', status: '', search: '',
-             heatGrp: 'c', heatSort: 'sold', heatDir: -1, txnSort: 'sd', txnDir: -1,
+             heatGrp: 'd', heatSort: 'dsit', heatDir: -1, txnSort: 'sd', txnDir: -1,
              topSort: 'cnt', preset: 'ytd'};
   // Each period keeps its own target (a monthly goal differs from a yearly one).
   const PRESET_LABELS = {today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days',
@@ -405,9 +406,15 @@
   // Fixed channel order → stable donut colours matching the goal rows.
   const CHAN_LIST = ['Store', 'Online', 'eBay'];
   const chanKey = ch => 'abc_chan_target_' + F.preset + '_' + ch;
+  const normChan = ch => {
+    const s = (ch || '').toLowerCase();
+    if (s.includes('ebay')) return 'eBay';
+    if (s.includes('online') || s.includes('web')) return 'Online';
+    return 'Store';   // anything else (incl. "Store/Unspecified", blank) counts as Store
+  };
   function chanRevenue() {
     const m = {Store: 0, Online: 0, eBay: 0};
-    sellsOf(base()).forEach(it => { if (m[it.ch] == null) m[it.ch] = 0; m[it.ch] += it.r; });
+    sellsOf(base()).forEach(it => { m[normChan(it.ch)] += it.r; });
     return m;
   }
   function buildChanGoals() {
@@ -495,12 +502,18 @@
   }
 
   // ---------- heatmap detail ----------
+  const daysSince = iso => iso ? Math.max(0, Math.floor((new Date(today) - new Date(iso)) / 86400000)) : null;
   function heatRows() {
     const b = base(), key = F.heatGrp, months = rangeMonths(), g = {};
     b.forEach(it => {
       const name = key === 'c' ? it.c : it.d;
-      const row = g[name] = g[name] || {name, avail: 0, sold: 0, stockval: 0, psum: 0, pcnt: 0};
-      if (it.sold === 0) { row.avail += it.q; row.stockval += it.r; if (it.r) { row.psum += it.r; row.pcnt++; } }
+      const row = g[name] = g[name] || {name, avail: 0, sold: 0, stockval: 0, psum: 0, pcnt: 0, dsum: 0, dcnt: 0};
+      if (it.sold === 0) {
+        row.avail += it.q; row.stockval += it.r;
+        if (it.r) { row.psum += it.r; row.pcnt++; }
+        const ds = daysSince(it.idt);   // how long this unit has sat in its current status
+        if (ds != null) { row.dsum += ds; row.dcnt++; }
+      }
       if (it.sold === 1 && inRange(it.sd)) row.sold += it.q;
     });
     return Object.values(g).map(r => {
@@ -508,6 +521,7 @@
       r.months = r.permo > 0 ? r.avail / r.permo : (r.avail > 0 ? Infinity : 0);
       r.price = r.pcnt ? r.psum / r.pcnt : 0;
       r.sellthru = (r.sold + r.avail) > 0 ? r.sold / (r.sold + r.avail) : 0;
+      r.dsit = r.dcnt ? Math.round(r.dsum / r.dcnt) : 0;   // avg days sitting unsold
       return r;
     }).filter(r => r.avail || r.sold);
   }
@@ -518,11 +532,12 @@
       const u = 1 - t;
       return `background:rgba(235,104,52,${(0.08 + 0.5 * u).toFixed(3)})`;
     }
+    if (kind === 'stale') return `background:rgba(235,104,52,${(0.06 + 0.55 * t).toFixed(3)})`; // high = stale = orange
     return `background:rgba(42,120,214,${(0.08 + 0.5 * t).toFixed(3)})`; // sequential blue
   }
   function renderHeat() {
     let rows = heatRows();
-    const cols = ['avail', 'sold', 'permo', 'months', 'price', 'stockval', 'sellthru'];
+    const cols = ['avail', 'dsit', 'sold', 'permo', 'months', 'price', 'stockval', 'sellthru'];
     const rng = {};
     cols.forEach(c => {
       const vals = rows.map(r => isFinite(r[c]) ? r[c] : 0);
@@ -542,6 +557,7 @@
       return `<tr>
         <td class="heat-name" title="${r.name}">${r.name}</td>
         <td class="num" style="${shade(norm(r.avail, 'avail'), 'seq')}">${r.avail.toLocaleString()}</td>
+        <td class="num" style="${r.avail ? shade(norm(r.dsit, 'dsit'), 'stale') : ''}">${r.avail ? r.dsit.toLocaleString() : '—'}</td>
         <td class="num" style="${shade(norm(r.sold, 'sold'), 'seq')}">${r.sold.toLocaleString()}</td>
         <td class="num" style="${shade(norm(r.permo, 'permo'), 'seq')}">${r.permo.toFixed(1)}</td>
         <td class="num" style="${monthsShade}">${monthsTxt}</td>
@@ -549,7 +565,7 @@
         <td class="num" style="${shade(norm(r.stockval, 'stockval'), 'seq')}">${usd(r.stockval)}</td>
         <td class="num" style="${shade(r.sellthru, 'good')}">${pct(r.sellthru)}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty-state">No items match these filters.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty-state">No items match these filters.</td></tr>';
     document.querySelectorAll('#heatTable th[data-sort]').forEach(th => {
       th.classList.toggle('sorted', th.dataset.sort === F.heatSort);
       th.dataset.dir = th.dataset.sort === F.heatSort ? (F.heatDir < 0 ? '▼' : '▲') : '';
