@@ -2760,6 +2760,145 @@ async def import_items(
     })
 
 
+@app.post("/api/import-sold")
+async def import_sold(file: UploadFile = File(...), db=Depends(get_db)):
+    """Import Bravo's 'Sold Inventory' report — the authoritative record of each
+    sold unit (date, item, actual price sold, cost). Captures sales the inventory
+    export misses (bulk / UPC items whose lot never flips to SOLD) and records
+    the real sale price so sold count, sell amount and margin match Bravo.
+
+    Each report line becomes one or more per-unit sold rows: a "Quantity N" line
+    explodes into N units, each with per-unit price/cost. Re-import is idempotent
+    (previously imported sold-report units in the same date range are cleared
+    first). Items already marked sold by the inventory export are skipped so
+    nothing is double-counted."""
+    try:
+        content = await file.read()
+    except Exception as e:
+        return JSONResponse({"error": f"Could not read file: {e}"}, status_code=400)
+    if content[:5] == b"%PDF-":
+        return JSONResponse({"error": "That's a PDF. Export the Sold Inventory report as CSV and upload that."}, status_code=400)
+    if content[:2] == b"PK":
+        return JSONResponse({"error": "That's an Excel file. Save As CSV in Excel and upload the .csv."}, status_code=400)
+
+    text = None
+    for enc in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            text = content.decode(enc); break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = content.decode("utf-8", errors="replace")
+    first_line = text.split("\n", 1)[0]
+    delimiter = "\t" if "\t" in first_line else (
+        ";" if (";" in first_line and first_line.count(";") >= first_line.count(",")) else ",")
+
+    def _map_channel(v):
+        s = (v or "").strip().lower()
+        if "ebay" in s:
+            return "eBay"
+        if "web" in s or "online" in s:
+            return "Online"
+        return "Store"
+
+    try:
+        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        columns_found = reader.fieldnames or []
+        parsed, dates, skipped = [], [], 0
+        for row in reader:
+            item_number = expand_code(find_column(row, "Item Num", "Item Number", "Number", "Item #", "ItemNumber"))
+            desc = find_column(row, "Full Description", "Description", "Desc")
+            date_raw = find_column(row, "Business Date Sold", "Date Sold", "Sold Date", "Date")
+            price_raw = find_column(row, "Price Sold", "Sale Price", "Sold Price", "Price")
+            cost_raw = find_column(row, "Cost", "Item Cost")
+            chan_raw = find_column(row, "Omni-Channel", "Omni Channel", "OmniChannel", "Channel")
+            qty_raw = find_column(row, "Quantity", "Qty")
+
+            d = parse_date_any(date_raw)
+            if (item_number or "").upper().startswith(("TOTAL", "SUBTOTAL", "GRAND")):
+                skipped += 1
+                continue
+            if not d or (not item_number and not desc):
+                skipped += 1
+                continue
+
+            qty = 0
+            try:
+                qty = int(float(str(qty_raw).strip()))
+            except (TypeError, ValueError):
+                qty = 0
+            if qty <= 0:
+                m = re.match(r"\s*quantity\s*(\d+)", str(desc or ""), re.I)
+                qty = int(m.group(1)) if m else 1
+            qty = max(1, qty)
+
+            price_total = clean_money(price_raw)
+            cost_total = clean_money(cost_raw)
+            per_price = round(price_total / qty, 2) if qty else price_total
+            per_cost = round(cost_total / qty, 2) if qty else cost_total
+            parsed.append((item_number, desc, qty, per_price, per_cost, d.isoformat(), _map_channel(chan_raw)))
+            dates.append(d.isoformat())
+
+        if not parsed:
+            return JSONResponse({
+                "error": "No sold rows found. Make sure this is the Bravo 'Sold Inventory' "
+                         "report (CSV) with Item Num, Price Sold and Business Date Sold columns.",
+                "columns_found": columns_found,
+            }, status_code=400)
+
+        dmin, dmax = min(dates), max(dates)
+        # Idempotent re-import: drop previously imported sold-report units in range.
+        await db.execute(
+            "DELETE FROM items WHERE source='sold_report' AND date(sold_at) BETWEEN ? AND ?", (dmin, dmax))
+
+        units_sold, matched, created = 0, 0, 0
+        for (item_number, desc, qty, per_price, per_cost, date_iso, channel) in parsed:
+            item_number_u = item_number.upper() if item_number else None
+            remaining = qty
+            if item_number_u:
+                async with db.execute(
+                    "SELECT COUNT(*) FROM items WHERE item_number=? AND sold=1 "
+                    "AND COALESCE(source,'')!='sold_report'", (item_number_u,)) as cur:
+                    already = (await cur.fetchone())[0]
+                if already:
+                    remaining -= already
+                    matched += min(already, qty)
+                else:
+                    async with db.execute(
+                        "SELECT quantity, COALESCE(sold,0) sold FROM items "
+                        "WHERE item_number=? AND COALESCE(source,'')!='sold_report'", (item_number_u,)) as cur:
+                        ex = await cur.fetchone()
+                    if ex is not None and int(ex["sold"] or 0) == 0 and str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
+                        await db.execute(
+                            "UPDATE items SET sold=1, sold_at=?, retail_price=?, cost=?, "
+                            "sold_channel=?, for_sale=0, missing=0 WHERE item_number=?",
+                            (date_iso, per_price, per_cost, channel, item_number_u))
+                        remaining -= 1
+                        matched += 1
+            for i in range(max(0, remaining)):
+                key = f"{item_number or 'SOLD'}~S~{date_iso}~{i}".upper()
+                await db.execute(
+                    "INSERT INTO items (item_number, description, category, product_type, "
+                    "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
+                    "quantity, for_sale, missing) "
+                    "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, '1', 0, 0) "
+                    "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
+                    "retail_price=excluded.retail_price, cost=excluded.cost, sold_channel=excluded.sold_channel",
+                    (key, desc, date_iso, per_price, per_cost, channel))
+                created += 1
+            units_sold += qty
+
+        await db.commit()
+    except Exception as e:
+        return JSONResponse({"error": f"Could not read this as the Sold Inventory report. Details: {e}"}, status_code=400)
+
+    make_daily_backup()
+    return JSONResponse({
+        "units_sold": units_sold, "matched_existing": matched, "created_new": created,
+        "date_min": dmin, "date_max": dmax, "columns_found": columns_found,
+    })
+
+
 @app.get("/barcode/{code}")
 async def generate_barcode(code: str, height: int = 40, text: int = 1, mw: float = 0.0):
     """Return an SVG barcode image for any code string.
