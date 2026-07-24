@@ -14,7 +14,13 @@
 
     <div class="card">
         <h2>Import Bravo Data</h2>
-        <p>Upload a CSV export from Bravo (Retail, Loan, or Layaway report).</p>
+        {% if last_update %}
+        <p class="last-update-badge">🕒 Last updated: <strong>{{ last_update[:16] }}</strong></p>
+        {% else %}
+        <p class="last-update-badge">No uploads yet</p>
+        {% endif %}
+        <p>Upload a CSV export from Bravo (Retail, Loan, or Layaway report).
+        Every upload <strong>updates existing items and adds new ones</strong> — do this once a day.</p>
         <form id="importForm" enctype="multipart/form-data">
             <div class="form-group">
                 <label>Report Type</label>
@@ -155,7 +161,7 @@ if (soldForm) soldForm.addEventListener('submit', async (e) => {
             el.className = 'import-result error';
             return;
         }
-        el.innerHTML = `✅ ${json.units_sold} sold units recorded (${json.date_min} → ${json.date_max})`
+        el.innerHTML = `✅ ${json.transactions} transactions · ${json.units_sold} units sold (${json.date_min} → ${json.date_max})`
             + `<br><small>${json.matched_existing} matched existing items · ${json.created_new} added from the report</small>`;
         el.className = 'import-result success';
     } catch (err) {

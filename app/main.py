@@ -389,10 +389,14 @@ async def home(request: Request, db=Depends(get_db)):
         FROM imports GROUP BY source ORDER BY uploaded_at DESC
     """) as cur:
         last_uploads = await cur.fetchall()
+    async with db.execute("SELECT MAX(uploaded_at) FROM imports") as cur:
+        row = await cur.fetchone()
+        last_update = row[0] if row else None
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sessions": sessions,
         "last_uploads": last_uploads,
+        "last_update": last_update,
         "item_count": item_count,
         "lan_url": f"{'https' if os.path.exists(os.path.join(BASE_DIR, 'data', 'certs', 'cert.pem')) else 'http'}://{get_lan_ip()}:8000",
     })
@@ -2827,6 +2831,7 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             price_raw = find_column(row, "Price Sold", "Sale Price", "Sold Price", "Price")
             cost_raw = find_column(row, "Cost", "Item Cost")
             chan_raw = find_column(row, "Omni-Channel", "Omni Channel", "OmniChannel", "Channel")
+            qty_raw = find_column(row, "Quantity", "Qty")
 
             d = parse_date_any(date_raw)
             if (item_number or "").upper().startswith(("TOTAL", "SUBTOTAL", "GRAND")):
@@ -2836,12 +2841,22 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 skipped += 1
                 continue
 
-            # Each report line is ONE sold unit (Bravo lists every sold unit as
-            # its own line). A "Quantity N" in the description is part of the
-            # product name, not the number sold — do NOT split on it.
+            # Each report LINE is one transaction; its quantity (a "Quantity N"
+            # prefix in the description, or a Quantity column) is the number of
+            # UNITS sold on that line. We keep one row per line and store the
+            # quantity — Price Sold / Cost are the line totals for those units.
+            qty = 0
+            try:
+                qty = int(float(str(qty_raw).strip()))
+            except (TypeError, ValueError):
+                qty = 0
+            if qty <= 0:
+                mq = re.match(r"\s*quantity\s*(\d+)", str(desc or ""), re.I)
+                qty = int(mq.group(1)) if mq else 1
+            qty = max(1, qty)
             price = clean_money(price_raw)
             cost = clean_money(cost_raw)
-            parsed.append((item_number, desc, price, cost, d.isoformat(), _map_channel(chan_raw)))
+            parsed.append((item_number, desc, qty, price, cost, d.isoformat(), _map_channel(chan_raw)))
             dates.append(d.isoformat())
 
         if not parsed:
@@ -2856,17 +2871,17 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
         await db.execute(
             "DELETE FROM items WHERE source='sold_report' AND date(sold_at) BETWEEN ? AND ?", (dmin, dmax))
 
-        units_sold, matched, created = 0, 0, 0
-        # Multiple units of the same bulk item can sell on the same day, each as
-        # its own line — track how many we've already placed so their synthetic
-        # keys stay unique (…~0, …~1, …).
+        units_sold, transactions, matched, created = 0, 0, 0, 0
+        # Multiple lines for the same bulk item can share a day — keep their
+        # synthetic keys unique (…~0, …~1, …).
         seq = {}
-        for (item_number, desc, price, cost, date_iso, channel) in parsed:
-            units_sold += 1
+        for (item_number, desc, qty, price, cost, date_iso, channel) in parsed:
+            units_sold += qty
+            transactions += 1
             item_number_u = item_number.upper() if item_number else None
             # If a single stock item with this number exists and isn't sold yet,
             # flip it in place (real price/date/cost). Otherwise record the sold
-            # unit as its own row (bulk/UPC units, or already-sold matches).
+            # line as its own row (bulk/UPC lines, or already-sold matches).
             if item_number_u:
                 async with db.execute(
                     "SELECT quantity, COALESCE(sold,0) sold, COALESCE(source,'') source "
@@ -2880,8 +2895,8 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                     if str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
                         await db.execute(
                             "UPDATE items SET sold=1, sold_at=?, retail_price=?, cost=?, "
-                            "sold_channel=?, for_sale=0, missing=0 WHERE item_number=?",
-                            (date_iso, price, cost, channel, item_number_u))
+                            "sold_channel=?, quantity=?, for_sale=0, missing=0 WHERE item_number=?",
+                            (date_iso, price, cost, channel, str(qty), item_number_u))
                         matched += 1
                         continue
             k = f"{item_number or 'SOLD'}~S~{date_iso}"
@@ -2892,10 +2907,11 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 "INSERT INTO items (item_number, description, category, product_type, "
                 "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
                 "quantity, for_sale, missing) "
-                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, '1', 0, 0) "
+                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, 0, 0) "
                 "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
-                "retail_price=excluded.retail_price, cost=excluded.cost, sold_channel=excluded.sold_channel",
-                (key, desc, date_iso, price, cost, channel))
+                "retail_price=excluded.retail_price, cost=excluded.cost, "
+                "sold_channel=excluded.sold_channel, quantity=excluded.quantity",
+                (key, desc, date_iso, price, cost, channel, str(qty)))
             created += 1
 
         await db.commit()
@@ -2904,7 +2920,8 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
 
     make_daily_backup()
     return JSONResponse({
-        "units_sold": units_sold, "matched_existing": matched, "created_new": created,
+        "units_sold": units_sold, "transactions": transactions,
+        "matched_existing": matched, "created_new": created,
         "date_min": dmin, "date_max": dmax, "columns_found": columns_found,
     })
 

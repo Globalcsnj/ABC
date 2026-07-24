@@ -34,6 +34,9 @@
         </div>
     </div>
 
+    <!-- Status quick-chips: click one to filter everything to that status -->
+    <div class="card status-strip" id="statusStrip"></div>
+
     <!-- KPI tiles (target tile is manual + auto-calculated) -->
     <div class="kpi-row">
         <div class="kpi kpi-target" id="targetTile">
@@ -235,10 +238,11 @@
     const sCost = sells.reduce((a, r) => a + r.co, 0);
     const bCost = buys.reduce((a, r) => a + r.co, 0);
     const margin = rev - sCost, net = rev - bCost;
-    // Sold/Buys count the units that ACTUALLY changed hands (one sold/bought
-    // line = one unit). We must NOT sum the quantity field here: on bulk items
-    // that field is the lot total, so summing it would count all stock as sold.
-    const soldU = sells.length;
+    // Sold = UNITS actually sold (sum of each line's quantity — reliable on the
+    // Sold report, 1 for single items); txns = number of sale lines. Buys count
+    // lines (buy quantity isn't reliable on the inventory export).
+    const soldU = sells.reduce((a, r) => a + r.q, 0);
+    const soldTxn = sells.length;
     const buyU = buys.length;
     // On-hand inventory base (matches Bravo): unsold minus loss/exit statuses.
     const onHand = onHandOf(b);
@@ -247,7 +251,7 @@
     const invCost = onHand.reduce((a, r) => a + r.co, 0);
     const st = soldU + invU > 0 ? soldU / (soldU + invU) : 0;
     const tiles = [
-      {l: 'Sold', big: soldU.toLocaleString(), sub: usd(rev) + ' sell amount', cls: 'k-sell'},
+      {l: 'Sold', big: soldU.toLocaleString() + ' units', sub: soldTxn.toLocaleString() + ' txns · ' + usd(rev) + ' sell amount', cls: 'k-sell'},
       {l: 'Buys', big: buyU.toLocaleString(), sub: usd(bCost) + ' cost', cls: 'k-buy'},
       {l: 'Gross margin', big: usd(margin), sub: (rev ? pct(margin / rev) : '—') + ' of sell amount', cls: margin >= 0 ? 'k-good' : 'k-bad'},
       {l: 'Net cash flow', big: usd(net), sub: 'sales − buy cost', cls: net >= 0 ? 'k-good' : 'k-bad'},
@@ -365,6 +369,22 @@
     const m = {}; base().forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
     donut('statusDonut', 'statusLegend', Object.entries(m).sort((a, b) => b[1] - a[1]), n => n.toLocaleString());
   }
+  // Quick status chips at the top — click to filter the whole dashboard.
+  function renderStatusStrip() {
+    const m = {};
+    // Count over dimension filters but ignore the status filter itself, so all
+    // statuses stay visible/clickable even when one is selected.
+    ITEMS.filter(it => (!F.ptype || it.p === F.ptype) && (!F.cat || it.c === F.cat) && (!F.channel || it.ch === F.channel))
+      .forEach(it => m[it.s] = (m[it.s] || 0) + it.q);
+    const rows = Object.entries(m).sort((a, b) => b[1] - a[1]);
+    const el = document.getElementById('statusStrip');
+    if (!rows.length) { el.innerHTML = '<span class="muted-sm">No items.</span>'; return; }
+    el.innerHTML = rows.map(([name, cnt], i) =>
+      `<button class="status-chip${F.status === name ? ' active' : ''}" data-status="${name.replace(/"/g, '&quot;')}">
+        <span class="sc-dot" style="background:${PAL[i % PAL.length]}"></span>
+        <span class="sc-name">${name}</span><span class="sc-count">${cnt.toLocaleString()}</span>
+      </button>`).join('');
+  }
   // Fixed channel order → stable donut colours matching the goal rows.
   const CHAN_LIST = ['Store', 'Online', 'eBay'];
   const chanKey = ch => 'abc_chan_target_' + F.preset + '_' + ch;
@@ -407,7 +427,7 @@
   // ---------- top products ----------
   function renderTop() {
     const m = {};
-    sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt++; m[k].rev += it.r; });
+    sellsOf(base()).forEach(it => { const k = it.d || '—'; m[k] = m[k] || {cnt: 0, rev: 0}; m[k].cnt += it.q; m[k].rev += it.r; });
     const sk = F.topSort;
     const rows = Object.entries(m).sort((a, b) => b[1][sk] - a[1][sk]).slice(0, 10);
     const el = document.getElementById('topProducts');
@@ -432,8 +452,8 @@
       const avail = it.filter(x => x.sold === 0).reduce((a, r) => a + r.q, 0);
       const buys = it.filter(x => inRange(x.bd));
       const sells = it.filter(x => x.sold === 1 && inRange(x.sd));
-      const buU = buys.length;   // units that actually changed hands (one line = one unit)
-      const soU = sells.length;
+      const buU = buys.length;
+      const soU = sells.reduce((a, r) => a + r.q, 0);   // units sold (sum quantity)
       const buCost = buys.reduce((a, r) => a + r.co, 0);
       const soCost = sells.reduce((a, r) => a + r.co, 0);
       const rev = sells.reduce((a, r) => a + r.r, 0), mg = rev - soCost;
@@ -464,7 +484,7 @@
       const name = key === 'c' ? it.c : it.d;
       const row = g[name] = g[name] || {name, avail: 0, sold: 0, stockval: 0, psum: 0, pcnt: 0};
       if (it.sold === 0) { row.avail += it.q; row.stockval += it.r; if (it.r) { row.psum += it.r; row.pcnt++; } }
-      if (it.sold === 1 && inRange(it.sd)) row.sold += 1;
+      if (it.sold === 1 && inRange(it.sd)) row.sold += it.q;
     });
     return Object.values(g).map(r => {
       r.permo = r.sold / months;
@@ -559,12 +579,14 @@
   function renderTxn() {
     const rows = txnRows();
     document.getElementById('txnCount').textContent =
-      rows.length.toLocaleString() + ' units sold · ' +
+      rows.length.toLocaleString() + ' transactions · ' +
+      rows.reduce((a, r) => a + r.q, 0).toLocaleString() + ' units · ' +
       usd(rows.reduce((a, r) => a + r.r, 0)) + ' sell amount';
     document.getElementById('txnBody').innerHTML = rows.slice(0, 500).map(r => {
       const mg = r.r - r.co;
       return `<tr><td>${r.sd}</td><td><strong>${r.n || '—'}</strong></td><td>${r.d}</td><td>${r.c}</td>` +
-        `<td>${r.p}</td><td>${r.s}</td><td>${r.ch}</td><td class="num">${r.q}</td>` +
+        `<td>${r.p}</td><td>${r.s}</td><td>${r.ch}</td>` +
+        `<td class="num${r.q > 1 ? ' qty-multi' : ''}">${r.q > 1 ? '×' + r.q : r.q}</td>` +
         `<td class="num">${usd2(r.co)}</td><td class="num">${usd2(r.r)}</td>` +
         `<td class="num ${mg < 0 ? 'missing-text' : 'found-text'}">${usd2(mg)}</td><td>${r.bd || '—'}</td></tr>`;
     }).join('') || '<tr><td colspan="12" class="empty-state">No transactions match these filters.</td></tr>';
@@ -578,7 +600,7 @@
 
   function renderAll() {
     document.getElementById('rangeNote').textContent = F.frm === '0000-01-01' ? 'All time' : `${F.frm} → ${F.to}`;
-    renderKpis(); updateTarget(); renderTime(); renderStatus(); renderChannel(); renderTop();
+    renderStatusStrip(); renderKpis(); updateTarget(); renderTime(); renderStatus(); renderChannel(); renderTop();
     renderTypes(); renderHeat(); renderChips(); renderTxn();
   }
 
@@ -658,6 +680,13 @@
     const ch = inp.closest('.cg-row').dataset.ch, v = inp.value.trim();
     if (v) localStorage.setItem(chanKey(ch), v); else localStorage.removeItem(chanKey(ch));
     renderChannel();
+  });
+  document.getElementById('statusStrip').addEventListener('click', e => {
+    const b = e.target.closest('.status-chip'); if (!b) return;
+    F.status = F.status === b.dataset.status ? '' : b.dataset.status;
+    document.getElementById('fStatus').value = F.status;
+    renderAll();
+    document.getElementById('heatTable').scrollIntoView({behavior: 'smooth', block: 'start'});
   });
   document.getElementById('topSort').addEventListener('change', e => { F.topSort = e.target.value; renderTop(); });
   document.getElementById('txnExport').addEventListener('click', exportTxnCsv);

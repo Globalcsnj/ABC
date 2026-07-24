@@ -1020,6 +1020,26 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 #txnTable th[data-sort]:hover { color: var(--primary); }
 #txnTable th.sorted::after { content: attr(data-dir); font-size: 10px; margin-left: 4px; }
 
+.last-update-badge { display: inline-block; background: #eef4ff; color: var(--primary);
+    border-radius: 8px; padding: 5px 10px; font-size: 13px; margin: 0 0 8px; }
+
+/* qty highlight in transactions (multi-unit lines) */
+.qty-multi { color: #fff; background: var(--sw-buy); font-weight: 700; border-radius: 5px; }
+
+/* status quick-chips strip */
+.status-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.status-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 9px;
+    border: 1px solid var(--gray-200); background: #fff; cursor: pointer; font-size: 13px; }
+.status-chip:hover { border-color: var(--primary); }
+.status-chip.active { border-color: var(--primary); background: #eef4ff; }
+.status-chip .sc-dot { width: 10px; height: 10px; border-radius: 3px; }
+.status-chip .sc-name { font-weight: 600; color: var(--gray-700); }
+.status-chip .sc-count { font-variant-numeric: tabular-nums; color: var(--gray-500); }
+
+/* frozen (sticky) filter bar so you can keep filtering while scrolling */
+.viz-root .filter-bar { position: sticky; top: 0; z-index: 30;
+    box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+
 /* global filter bar */
 .filter-bar { display: flex; flex-direction: column; gap: 12px; }
 .filter-line { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
