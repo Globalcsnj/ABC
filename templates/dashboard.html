@@ -225,7 +225,9 @@
   function rangeMonths() {
     let f = F.frm, t = F.to;
     if (f === '0000-01-01') {
-      const ds = ITEMS.map(x => x.bd).filter(Boolean).sort();
+      // All-time span must cover both sales and buys (sold-report rows have no
+      // buy date), else per-month rates are overstated.
+      const ds = ITEMS.map(x => x.sd || x.bd).filter(Boolean).sort();
       f = ds.length ? ds[0] : t; t = today;
     }
     const days = Math.max(1, (new Date(t) - new Date(f)) / 86400000 + 1);
