@@ -2580,8 +2580,16 @@ async def import_items(
             date_to_inventory = find_column(row, "Date to Inventory", "Date In", "Received")
 
             if not item_number and not barcode and not upc:
-                skipped += 1
-                continue
+                # No identifier — but still allow sparse CSVs (columns mostly
+                # empty). If the row has a description, key it deterministically
+                # off that so re-imports merge instead of duplicating. Only a
+                # truly empty row is skipped.
+                basis = (description or "").strip()
+                if basis:
+                    item_number = "AUTO-" + re.sub(r"[^A-Z0-9]+", "", basis.upper())[:40]
+                else:
+                    skipped += 1
+                    continue
 
             # Skip report footer/header junk rows (e.g. "REPORT PRINTED ON ...",
             # "Page 1 of 13"). Real item numbers have no spaces and aren't sentences.
