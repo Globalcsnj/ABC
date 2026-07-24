@@ -2867,9 +2867,10 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             item_number = expand_code(find_column(row, "Item Num", "Item Number", "Number", "Item #", "ItemNumber"))
             desc = find_column(row, "Full Description", "Description", "Desc")
             date_raw = find_column(row, "Business Date Sold", "Date Sold", "Sold Date", "Date")
-            # Final price the item actually sold for (what we collected).
-            price_raw = find_column(row, "Last Price Sold", "Price Sold", "Final Price",
-                                    "Sale Price", "Sold Price", "Amount Sold")
+            # Final price the item actually sold for, after discounts (what we
+            # collected) — the Bravo "Last Sold Price" column.
+            price_raw = find_column(row, "Last Sold Price", "Last Price Sold", "Price Sold",
+                                    "Final Price", "Sale Price", "Sold Price", "Amount Sold")
             # What the item was listed/tagged at (before negotiation).
             list_raw = find_column(row, "Price", "Listed Price", "List Price", "Tag Price", "Retail Price")
             cost_raw = find_column(row, "Cost", "Item Cost")
