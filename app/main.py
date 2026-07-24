@@ -1215,7 +1215,8 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
         "CASE WHEN sold=1 THEN 'SOLD' ELSE UPPER(COALESCE(NULLIF(item_status,''),'UNSPECIFIED')) END status, "
         "COALESCE(NULLIF(sold_channel,''),'Store') channel, "
         "COALESCE(sold,0) sold, sold_at, date_to_inventory, item_date, imported_at, "
-        "COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, quantity "
+        "COALESCE(cost,0) cost, COALESCE(retail_price,0) retail, quantity, "
+        "COALESCE(source,'') source "
         "FROM items"
     ) as cur:
         rows = [dict(r) for r in await cur.fetchall()]
@@ -1233,8 +1234,13 @@ async def dashboard_page(request: Request, db=Depends(get_db)):
     items = []
     for r in rows:
         sd = parse_date_any(r["sold_at"]) if r["sold"] else None
-        bd = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
-              or parse_date_any(r["imported_at"]))
+        # Sold-report units have no real acquisition date, so they must NOT get a
+        # buy date (and must not count as buys). Others fall back to imported_at.
+        if r["source"] == "sold_report":
+            bd = None
+        else:
+            bd = (parse_date_any(r["date_to_inventory"]) or parse_date_any(r["item_date"])
+                  or parse_date_any(r["imported_at"]))
         items.append({
             "n": r["item_number"], "d": r["description"] or "—",
             "c": r["category"], "p": r["ptype"], "s": r["status"],
@@ -2821,7 +2827,6 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             price_raw = find_column(row, "Price Sold", "Sale Price", "Sold Price", "Price")
             cost_raw = find_column(row, "Cost", "Item Cost")
             chan_raw = find_column(row, "Omni-Channel", "Omni Channel", "OmniChannel", "Channel")
-            qty_raw = find_column(row, "Quantity", "Qty")
 
             d = parse_date_any(date_raw)
             if (item_number or "").upper().startswith(("TOTAL", "SUBTOTAL", "GRAND")):
@@ -2831,21 +2836,12 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 skipped += 1
                 continue
 
-            qty = 0
-            try:
-                qty = int(float(str(qty_raw).strip()))
-            except (TypeError, ValueError):
-                qty = 0
-            if qty <= 0:
-                m = re.match(r"\s*quantity\s*(\d+)", str(desc or ""), re.I)
-                qty = int(m.group(1)) if m else 1
-            qty = max(1, qty)
-
-            price_total = clean_money(price_raw)
-            cost_total = clean_money(cost_raw)
-            per_price = round(price_total / qty, 2) if qty else price_total
-            per_cost = round(cost_total / qty, 2) if qty else cost_total
-            parsed.append((item_number, desc, qty, per_price, per_cost, d.isoformat(), _map_channel(chan_raw)))
+            # Each report line is ONE sold unit (Bravo lists every sold unit as
+            # its own line). A "Quantity N" in the description is part of the
+            # product name, not the number sold — do NOT split on it.
+            price = clean_money(price_raw)
+            cost = clean_money(cost_raw)
+            parsed.append((item_number, desc, price, cost, d.isoformat(), _map_channel(chan_raw)))
             dates.append(d.isoformat())
 
         if not parsed:
@@ -2861,41 +2857,46 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             "DELETE FROM items WHERE source='sold_report' AND date(sold_at) BETWEEN ? AND ?", (dmin, dmax))
 
         units_sold, matched, created = 0, 0, 0
-        for (item_number, desc, qty, per_price, per_cost, date_iso, channel) in parsed:
+        # Multiple units of the same bulk item can sell on the same day, each as
+        # its own line — track how many we've already placed so their synthetic
+        # keys stay unique (…~0, …~1, …).
+        seq = {}
+        for (item_number, desc, price, cost, date_iso, channel) in parsed:
+            units_sold += 1
             item_number_u = item_number.upper() if item_number else None
-            remaining = qty
+            # If a single stock item with this number exists and isn't sold yet,
+            # flip it in place (real price/date/cost). Otherwise record the sold
+            # unit as its own row (bulk/UPC units, or already-sold matches).
             if item_number_u:
                 async with db.execute(
-                    "SELECT COUNT(*) FROM items WHERE item_number=? AND sold=1 "
-                    "AND COALESCE(source,'')!='sold_report'", (item_number_u,)) as cur:
-                    already = (await cur.fetchone())[0]
-                if already:
-                    remaining -= already
-                    matched += min(already, qty)
-                else:
-                    async with db.execute(
-                        "SELECT quantity, COALESCE(sold,0) sold FROM items "
-                        "WHERE item_number=? AND COALESCE(source,'')!='sold_report'", (item_number_u,)) as cur:
-                        ex = await cur.fetchone()
-                    if ex is not None and int(ex["sold"] or 0) == 0 and str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
+                    "SELECT quantity, COALESCE(sold,0) sold, COALESCE(source,'') source "
+                    "FROM items WHERE item_number=? AND COALESCE(source,'')!='sold_report'",
+                    (item_number_u,)) as cur:
+                    ex = await cur.fetchone()
+                if ex is not None:
+                    if int(ex["sold"] or 0) == 1:
+                        matched += 1          # already counted by the inventory export
+                        continue
+                    if str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
                         await db.execute(
                             "UPDATE items SET sold=1, sold_at=?, retail_price=?, cost=?, "
                             "sold_channel=?, for_sale=0, missing=0 WHERE item_number=?",
-                            (date_iso, per_price, per_cost, channel, item_number_u))
-                        remaining -= 1
+                            (date_iso, price, cost, channel, item_number_u))
                         matched += 1
-            for i in range(max(0, remaining)):
-                key = f"{item_number or 'SOLD'}~S~{date_iso}~{i}".upper()
-                await db.execute(
-                    "INSERT INTO items (item_number, description, category, product_type, "
-                    "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
-                    "quantity, for_sale, missing) "
-                    "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, '1', 0, 0) "
-                    "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
-                    "retail_price=excluded.retail_price, cost=excluded.cost, sold_channel=excluded.sold_channel",
-                    (key, desc, date_iso, per_price, per_cost, channel))
-                created += 1
-            units_sold += qty
+                        continue
+            k = f"{item_number or 'SOLD'}~S~{date_iso}"
+            n = seq.get(k, 0)
+            seq[k] = n + 1
+            key = f"{k}~{n}".upper()
+            await db.execute(
+                "INSERT INTO items (item_number, description, category, product_type, "
+                "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
+                "quantity, for_sale, missing) "
+                "VALUES (?, ?, 'Uncategorized', 'general', 'SOLD', 'sold_report', 1, ?, ?, ?, ?, '1', 0, 0) "
+                "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
+                "retail_price=excluded.retail_price, cost=excluded.cost, sold_channel=excluded.sold_channel",
+                (key, desc, date_iso, price, cost, channel))
+            created += 1
 
         await db.commit()
     except Exception as e:
