@@ -2521,6 +2521,8 @@ async def import_items(
         updated = 0      # existing items refreshed
         skipped = 0
         sold_from_import = 0  # items the file marks as SOLD (status column)
+        _bulk_seq = {}   # running index for bulk numbers with no unique code
+        _auto_seq = {}   # running index for identifier-less (AUTO-) rows
         sold_dates = []       # sale dates detected, to report the range back
         seen_codes = []  # item numbers present in this file
         barcode_conflicts = []  # rows imported without barcode (already taken)
@@ -2589,7 +2591,11 @@ async def import_items(
                 # truly empty row is skipped.
                 basis = (description or "").strip()
                 if basis:
-                    item_number = "AUTO-" + re.sub(r"[^A-Z0-9]+", "", basis.upper())[:40]
+                    # Per-description running index so two distinct no-identifier
+                    # rows with the same description don't overwrite each other.
+                    ak = "AUTO-" + re.sub(r"[^A-Z0-9]+", "", basis.upper())[:40]
+                    _auto_seq[ak] = _auto_seq.get(ak, 0) + 1
+                    item_number = ak if _auto_seq[ak] == 1 else f"{ak}-{_auto_seq[ak]}"
                 else:
                     skipped += 1
                     continue
@@ -2611,10 +2617,15 @@ async def import_items(
             # deterministic fallback from description+cost so re-imports are
             # stable. Single-occurrence numbers are left untouched.
             if item_number and _num_counts.get(item_number, 0) > 1:
-                disamb = barcode or upc or (
-                    ((description or "")[:24] + "|" + (str(cost_raw) or "")).strip("|"))
+                disamb = barcode or upc
                 if disamb and disamb != item_number:
                     item_number = f"{item_number}-{disamb}"
+                else:
+                    # No unique code — use a per-number running index so each unit
+                    # stays distinct (a shared description+cost would otherwise
+                    # collapse them all into one row and undercount).
+                    _bulk_seq[item_number] = _bulk_seq.get(item_number, 0) + 1
+                    item_number = f"{item_number}#{_bulk_seq[item_number]}"
 
             item_number_u = item_number.upper() if item_number else None
             cost_val = clean_money(cost_raw)
@@ -2732,6 +2743,14 @@ async def import_items(
             # else: already sold → the UPSERT skipped it, don't count as updated
             if sold_flag and not was_sold:
                 sold_from_import += 1  # newly marked sold by this file
+
+        # Drop any Sold-report synthetic rows whose base item is now sold in the
+        # real keyspace, so importing the export after the Sold report doesn't
+        # double-count that unit (synthetic key form: "<item_number>~S~<date>~<n>").
+        await db.execute(
+            "DELETE FROM items WHERE source='sold_report' AND instr(item_number,'~S~')>0 "
+            "AND substr(item_number,1,instr(item_number,'~S~')-1) IN "
+            "(SELECT item_number FROM items WHERE COALESCE(source,'')!='sold_report' AND sold=1)")
 
         # Record this upload first so we can tie the reconciliation log to it
         async with db.execute(
@@ -2900,8 +2919,10 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 mq = re.match(r"\s*quantity\s*(\d+)", str(desc or ""), re.I)
                 qty = int(mq.group(1)) if mq else 1
             qty = max(1, qty)
-            price = clean_money(price_raw)
-            cost = clean_money(cost_raw)
+            # None when the cell is blank / column missing, so we never zero out
+            # (and wipe) a known price/cost — a blank keeps the existing value.
+            price = clean_money(price_raw) if price_raw else None
+            cost = clean_money(cost_raw) if cost_raw else None
             list_price = clean_money(list_raw) if list_raw else None
             customer = (cust_raw or "").strip()
             phone = (phone_raw or "").strip()
@@ -2926,7 +2947,6 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
         # synthetic keys unique (…~0, …~1, …).
         seq = {}
         for (item_number, desc, qty, price, cost, list_price, customer, phone, date_iso, channel) in parsed:
-            units_sold += qty
             transactions += 1
             item_number_u = item_number.upper() if item_number else None
             # If a single stock item with this number exists and isn't sold yet,
@@ -2946,14 +2966,16 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                     cat, ptype = ex["category"], ex["product_type"]
                     if int(ex["sold"] or 0) == 1:
                         matched += 1          # already counted by the inventory export
-                        continue
+                        continue              # (don't count its units again)
                     if str(ex["quantity"] or "1").strip() in ("", "1", "1.0"):
                         await db.execute(
-                            "UPDATE items SET sold=1, sold_at=?, retail_price=?, cost=?, "
+                            "UPDATE items SET sold=1, sold_at=?, "
+                            "retail_price=COALESCE(?, retail_price), cost=COALESCE(?, cost), "
                             "sold_channel=?, quantity=?, list_price=COALESCE(?, list_price), "
                             "customer_name=?, customer_phone=?, for_sale=0, missing=0 WHERE item_number=?",
                             (date_iso, price, cost, channel, str(qty), list_price, customer, phone, item_number_u))
                         matched += 1
+                        units_sold += qty
                         continue
             # Fallback: match by description to an existing item for its category/type.
             if not cat and desc:
@@ -2983,6 +3005,7 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 "product_type=excluded.product_type",
                 (key, desc, cat, ptype, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
             created += 1
+            units_sold += qty
 
         # Record the upload so the home page can show its last-update time.
         await db.execute(
