@@ -69,6 +69,15 @@
                 <label>Sold Inventory report (CSV)</label>
                 <input type="file" name="file" accept=".csv,.txt" required>
             </div>
+            <div class="form-group">
+                <label>Sales channel</label>
+                <select name="channel">
+                    <option value="auto">From report (Omni-Channel column)</option>
+                    <option value="Store">Store</option>
+                    <option value="Online">Online</option>
+                    <option value="eBay">eBay</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-secondary">Import Sold</button>
         </form>
         <div id="soldResult" class="import-result"></div>

@@ -1758,10 +1758,13 @@ async def record_sale(code: str = Form(...), db=Depends(get_db)):
 @app.post("/api/items/sold-list")
 async def mark_sold_from_list(
     codes: str = Form(default=""),
+    channel: str = Form(default="Store"),
     file: UploadFile = File(default=None),
     db=Depends(get_db)
 ):
-    """Deduct a list of pre-sold items: match by item number or barcode and mark sold."""
+    """Deduct a list of pre-sold items: match by item number or barcode and mark
+    sold, attributing the sale to the chosen channel (Store / Online / eBay)."""
+    channel = (channel or "Store").strip() or "Store"
     raw = codes or ""
     if file is not None and getattr(file, "filename", ""):
         try:
@@ -1786,8 +1789,8 @@ async def mark_sold_from_list(
             notfound.append(code)
             continue
         await db.execute(
-            "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0 "
-            "WHERE item_number = ?", (row["item_number"],)
+            "UPDATE items SET sold=1, sold_at=CURRENT_TIMESTAMP, missing=0, for_sale=0, "
+            "sold_channel=? WHERE item_number = ?", (channel, row["item_number"])
         )
         sold += 1
     await db.commit()
@@ -2761,7 +2764,7 @@ async def import_items(
 
 
 @app.post("/api/import-sold")
-async def import_sold(file: UploadFile = File(...), db=Depends(get_db)):
+async def import_sold(file: UploadFile = File(...), channel: str = Form(default="auto"), db=Depends(get_db)):
     """Import Bravo's 'Sold Inventory' report — the authoritative record of each
     sold unit (date, item, actual price sold, cost). Captures sales the inventory
     export misses (bulk / UPC items whose lot never flips to SOLD) and records
@@ -2793,7 +2796,13 @@ async def import_sold(file: UploadFile = File(...), db=Depends(get_db)):
     delimiter = "\t" if "\t" in first_line else (
         ";" if (";" in first_line and first_line.count(";") >= first_line.count(",")) else ",")
 
+    chan_override = (channel or "auto").strip()
+
     def _map_channel(v):
+        # An explicit choice (Store/Online/eBay) overrides the report's column;
+        # "auto" reads the Omni-Channel column per row.
+        if chan_override and chan_override.lower() != "auto":
+            return chan_override
         s = (v or "").strip().lower()
         if "ebay" in s:
             return "eBay"
