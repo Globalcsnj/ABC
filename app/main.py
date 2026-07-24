@@ -21,7 +21,12 @@ import socket
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+try:
+    from zoneinfo import ZoneInfo
+    _EASTERN = ZoneInfo("America/New_York")
+except Exception:  # pragma: no cover
+    _EASTERN = None
 from contextlib import asynccontextmanager
 from .database import init_db, get_db, DB_PATH
 
@@ -154,6 +159,25 @@ def _to_num(v):
 # Money filters: comma thousands separators, with ($1,250.00) or without ($1,250) cents
 templates.env.filters["usd"] = lambda v: "${:,.2f}".format(_to_num(v))
 templates.env.filters["usd0"] = lambda v: "${:,.0f}".format(_to_num(v))
+
+
+def _to_eastern(ts):
+    """Format a stored UTC timestamp string as Eastern time (auto EDT/EST)."""
+    if not ts:
+        return ""
+    s = str(ts).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(s[:19] if len(s) >= 19 else s, fmt)
+            if _EASTERN is None:
+                return dt.strftime("%b %d, %Y %I:%M %p")
+            return dt.replace(tzinfo=timezone.utc).astimezone(_EASTERN).strftime("%b %d, %Y %I:%M %p ET")
+        except ValueError:
+            continue
+    return s
+
+
+templates.env.filters["et"] = _to_eastern
 
 
 # ── Auth & backup routes ────────────────────────────────────────────────────
@@ -389,14 +413,18 @@ async def home(request: Request, db=Depends(get_db)):
         FROM imports GROUP BY source ORDER BY uploaded_at DESC
     """) as cur:
         last_uploads = await cur.fetchall()
-    async with db.execute("SELECT MAX(uploaded_at) FROM imports") as cur:
+    async with db.execute("SELECT MAX(uploaded_at) FROM imports WHERE COALESCE(source,'')!='sold_report'") as cur:
         row = await cur.fetchone()
         last_update = row[0] if row else None
+    async with db.execute("SELECT MAX(uploaded_at) FROM imports WHERE source='sold_report'") as cur:
+        row = await cur.fetchone()
+        last_update_sold = row[0] if row else None
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sessions": sessions,
         "last_uploads": last_uploads,
         "last_update": last_update,
+        "last_update_sold": last_update_sold,
         "item_count": item_count,
         "lan_url": f"{'https' if os.path.exists(os.path.join(BASE_DIR, 'data', 'certs', 'cert.pem')) else 'http'}://{get_lan_ip()}:8000",
     })
@@ -2944,6 +2972,10 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                 (key, desc, cat, ptype, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
             created += 1
 
+        # Record the upload so the home page can show its last-update time.
+        await db.execute(
+            "INSERT INTO imports (source, filename, item_count, mode) VALUES (?, ?, ?, ?)",
+            ("sold_report", getattr(file, "filename", "") or "", transactions, "add"))
         await db.commit()
     except Exception as e:
         return JSONResponse({"error": f"Could not read this as the Sold Inventory report. Details: {e}"}, status_code=400)

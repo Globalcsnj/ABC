@@ -15,7 +15,7 @@
     <div class="card">
         <h2>Import Bravo Data</h2>
         {% if last_update %}
-        <p class="last-update-badge">🕒 Last updated: <strong>{{ last_update[:16] }}</strong></p>
+        <p class="last-update-badge">🕒 Last updated: <strong>{{ last_update|et }}</strong></p>
         {% else %}
         <p class="last-update-badge">No uploads yet</p>
         {% endif %}
@@ -58,7 +58,7 @@
             {% for u in last_uploads %}
             <div class="upload-row">
                 <span class="upload-source">{{ (u.source or 'unspecified')|capitalize }}</span>
-                <span class="upload-meta">{{ u.item_count }} items · {{ u.uploaded_at[:16] }}</span>
+                <span class="upload-meta">{{ u.item_count }} items · {{ u.uploaded_at|et }}</span>
             </div>
             {% endfor %}
         </div>
@@ -67,6 +67,11 @@
 
     <div class="card">
         <h2>Import Sold Report</h2>
+        {% if last_update_sold %}
+        <p class="last-update-badge">🕒 Last updated: <strong>{{ last_update_sold|et }}</strong></p>
+        {% else %}
+        <p class="last-update-badge">No sold report uploaded yet</p>
+        {% endif %}
         <p>Upload Bravo's <strong>Sold Inventory</strong> report (CSV). This records each
         sold unit with its real sale price, cost and date — including bulk/UPC items the
         main export misses — so sold count, sell amount and margin match Bravo.</p>
