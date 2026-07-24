@@ -387,11 +387,11 @@
     const allStatuses = [...new Set(ITEMS.map(x => x.s))];
     const m = {};
     allStatuses.forEach(s => m[s] = {cnt: 0, cost: 0, retail: 0});
-    // Count within the selected date range (by status/event date). All-time
-    // includes items even when they have no date on file.
-    const inStatusRange = it => F.frm === '0000-01-01' ? true : inRange(it.idt);
-    ITEMS.filter(it => dimOnly(it) && inStatusRange(it)).forEach(it => {
+    // On-hand (unsold) statuses show CURRENT stock regardless of date — they're
+    // what you have right now. SOLD is an event, so it respects the date range.
+    ITEMS.filter(dimOnly).forEach(it => {
       const g = m[it.s]; if (!g) return;
+      if (it.sold === 1 && !inRange(it.sd)) return;   // sold outside range → skip
       g.cnt += it.q; g.cost += it.co; g.retail += it.r;
     });
     const rows = Object.entries(m).sort((a, b) => b[1].cnt - a[1].cnt);
