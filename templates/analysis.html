@@ -112,7 +112,7 @@
                 <td>{{ c.retail|usd0 }}</td>
                 <td>{% if retail_value %}{{ (c.retail / retail_value * 100)|round(1) }}%{% else %}—{% endif %}</td>
                 <td>{{ c.cost|usd0 }}</td>
-                <td class="found-text">{{ c.retail - c.cost|usd0 }}</td>
+                <td class="found-text">{{ (c.retail - c.cost)|usd0 }}</td>
             </tr>
             {% endfor %}
         </tbody>
