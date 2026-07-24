@@ -2462,6 +2462,17 @@ async def import_items(
     try:
         reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
         columns_found = reader.fieldnames or []
+        all_rows = list(reader)
+        # Bulk items reuse one generic item number (e.g. "1000") across many
+        # distinct physical units. item_number is our primary key, so those rows
+        # would overwrite each other on import. Pre-count item numbers so we can
+        # give each unit of a repeated number its own unique key (by barcode/UPC).
+        _num_counts = {}
+        for _r in all_rows:
+            _n = expand_code(find_column(_r, "Number", "Item #", "Item Number", "ItemNumber"))
+            if _n:
+                _num_counts[_n] = _num_counts.get(_n, 0) + 1
+
         inserted = 0     # new items
         updated = 0      # existing items refreshed
         skipped = 0
@@ -2470,7 +2481,7 @@ async def import_items(
         seen_codes = []  # item numbers present in this file
         barcode_conflicts = []  # rows imported without barcode (already taken)
 
-        for row in reader:
+        for row in all_rows:
             item_number = find_column(row, "Number", "Item #", "Item Number", "ItemNumber")
             barcode = find_column(row, "Barcode", "Barcode Number", "SKU")
             # UPC is a distinct code (bulk-uploaded items may carry a UPC and no
@@ -2540,6 +2551,18 @@ async def import_items(
             if junk:
                 skipped += 1
                 continue
+
+            # Bulk collision fix: if this item number repeats in the file (a
+            # generic bulk number like "1000" shared by many distinct units),
+            # key each unit by its own unique code so they don't overwrite each
+            # other. Barcode first (unique per physical unit), then UPC, then a
+            # deterministic fallback from description+cost so re-imports are
+            # stable. Single-occurrence numbers are left untouched.
+            if item_number and _num_counts.get(item_number, 0) > 1:
+                disamb = barcode or upc or (
+                    ((description or "")[:24] + "|" + (str(cost_raw) or "")).strip("|"))
+                if disamb and disamb != item_number:
+                    item_number = f"{item_number}-{disamb}"
 
             item_number_u = item_number.upper() if item_number else None
             cost_val = clean_money(cost_raw)
