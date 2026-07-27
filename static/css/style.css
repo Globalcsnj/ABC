@@ -1157,6 +1157,12 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 .campaign-form .cf-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .campaign-form .cf-row .form-group { flex: 1; min-width: 140px; }
 .muted-sm { font-size: 12px; color: var(--gray-500); }
+.chip-static { display: inline-block; background: var(--gray-100); border-radius: 999px; padding: 3px 10px;
+    font-size: 12px; margin: 2px 3px 2px 0; color: var(--gray-700); }
+.rec-line { font-size: 13px; padding: 1px 0; }
+.contact-cell { font-size: 13px; white-space: nowrap; }
+.tpl-form .cf-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.tpl-form .cf-row .form-group { flex: 1; min-width: 180px; }
 .campaign-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 14px; margin-top: 12px;

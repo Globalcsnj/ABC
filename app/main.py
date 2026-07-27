@@ -2897,6 +2897,7 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             qty_raw = find_column(row, "Quantity", "Qty")
             cust_raw = find_column(row, "Customer Name", "Customer", "Buyer", "Buyer Name", "Sold To")
             phone_raw = find_column(row, "Phone", "Phone Number", "Customer Phone", "Cell", "Cell Phone", "Mobile", "Telephone")
+            email_raw = find_column(row, "Email", "E-mail", "Email Address", "Customer Email")
 
             d = parse_date_any(date_raw)
             if (item_number or "").upper().startswith(("TOTAL", "SUBTOTAL", "GRAND")):
@@ -2926,7 +2927,8 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             list_price = clean_money(list_raw) if list_raw else None
             customer = (cust_raw or "").strip()
             phone = (phone_raw or "").strip()
-            parsed.append((item_number, desc, qty, price, cost, list_price, customer, phone,
+            email = (email_raw or "").strip()
+            parsed.append((item_number, desc, qty, price, cost, list_price, customer, phone, email,
                            d.isoformat(), _map_channel(chan_raw)))
             dates.append(d.isoformat())
 
@@ -2946,7 +2948,7 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
         # Multiple lines for the same bulk item can share a day — keep their
         # synthetic keys unique (…~0, …~1, …).
         seq = {}
-        for (item_number, desc, qty, price, cost, list_price, customer, phone, date_iso, channel) in parsed:
+        for (item_number, desc, qty, price, cost, list_price, customer, phone, email, date_iso, channel) in parsed:
             transactions += 1
             item_number_u = item_number.upper() if item_number else None
             # If a single stock item with this number exists and isn't sold yet,
@@ -2972,8 +2974,8 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
                             "UPDATE items SET sold=1, sold_at=?, "
                             "retail_price=COALESCE(?, retail_price), cost=COALESCE(?, cost), "
                             "sold_channel=?, quantity=?, list_price=COALESCE(?, list_price), "
-                            "customer_name=?, customer_phone=?, for_sale=0, missing=0 WHERE item_number=?",
-                            (date_iso, price, cost, channel, str(qty), list_price, customer, phone, item_number_u))
+                            "customer_name=?, customer_phone=?, customer_email=?, for_sale=0, missing=0 WHERE item_number=?",
+                            (date_iso, price, cost, channel, str(qty), list_price, customer, phone, email, item_number_u))
                         matched += 1
                         units_sold += qty
                         continue
@@ -2995,15 +2997,15 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
             await db.execute(
                 "INSERT INTO items (item_number, description, category, product_type, "
                 "item_status, source, sold, sold_at, retail_price, cost, sold_channel, "
-                "quantity, list_price, customer_name, customer_phone, for_sale, missing) "
-                "VALUES (?, ?, ?, ?, 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) "
+                "quantity, list_price, customer_name, customer_phone, customer_email, for_sale, missing) "
+                "VALUES (?, ?, ?, ?, 'SOLD', 'sold_report', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) "
                 "ON CONFLICT(item_number) DO UPDATE SET sold=1, sold_at=excluded.sold_at, "
                 "retail_price=excluded.retail_price, cost=excluded.cost, "
                 "sold_channel=excluded.sold_channel, quantity=excluded.quantity, "
                 "list_price=excluded.list_price, customer_name=excluded.customer_name, "
-                "customer_phone=excluded.customer_phone, category=excluded.category, "
-                "product_type=excluded.product_type",
-                (key, desc, cat, ptype, date_iso, price, cost, channel, str(qty), list_price, customer, phone))
+                "customer_phone=excluded.customer_phone, customer_email=excluded.customer_email, "
+                "category=excluded.category, product_type=excluded.product_type",
+                (key, desc, cat, ptype, date_iso, price, cost, channel, str(qty), list_price, customer, phone, email))
             created += 1
             units_sold += qty
 
@@ -3021,6 +3023,133 @@ async def import_sold(file: UploadFile = File(...), channel: str = Form(default=
         "matched_existing": matched, "created_new": created,
         "date_min": dmin, "date_max": dmax, "columns_found": columns_found,
     })
+
+
+DEFAULT_CUST_SETTINGS = {
+    "store_name": "ABC MoneyLoan Pawnshop",
+    "store_phone": "",
+    "store_address": "146 E. State St, Trenton, NJ 08608",
+    "tpl_thank_you": ("Hi {first_name}, thank you for your purchase at {store_name}! "
+                      "We hope you love your {item}. Any questions? Call us at {store_phone}. "
+                      "Reply STOP to opt out."),
+    "tpl_invite": ("Hi {first_name}, it's {store_name}. Our website is coming soon! "
+                   "Remember we buy, pawn & sell jewelry, electronics and more — got something "
+                   "to sell or pawn? Visit us at {store_address}. Reply STOP to opt out."),
+}
+
+
+async def get_cust_settings(db):
+    async with db.execute("SELECT key, value FROM settings") as cur:
+        saved = {r["key"]: r["value"] for r in await cur.fetchall()}
+    return {k: saved.get(k, v) for k, v in DEFAULT_CUST_SETTINGS.items()}
+
+
+@app.get("/customers", response_class=HTMLResponse)
+async def customers_page(request: Request, db=Depends(get_db)):
+    """Customer directory built from sold items that carry a buyer name/phone.
+    Profiles each customer (purchases, spend, interests) and suggests in-stock
+    items in their favourite categories — plus editable message templates."""
+    async with db.execute(
+        "SELECT customer_name, customer_phone, customer_email, "
+        "COALESCE(NULLIF(category,''),'Uncategorized') category, "
+        "COALESCE(retail_price,0) retail, sold_at, description, "
+        "COALESCE(NULLIF(sold_channel,''),'Store') channel "
+        "FROM items WHERE sold=1 AND (TRIM(COALESCE(customer_name,''))!='' "
+        "OR TRIM(COALESCE(customer_phone,''))!='')"
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+
+    # In-stock items per category (for recommendations), oldest first.
+    async with db.execute(
+        "SELECT COALESCE(NULLIF(category,''),'Uncategorized') category, description, "
+        "COALESCE(retail_price,0) retail, COALESCE(inventory_age,'') age "
+        "FROM items WHERE COALESCE(sold,0)=0 AND TRIM(COALESCE(description,''))!=''"
+    ) as cur:
+        stock = [dict(r) for r in await cur.fetchall()]
+    stock_by_cat = {}
+    for s in stock:
+        stock_by_cat.setdefault(s["category"], []).append(s)
+
+    def _agenum(v):
+        m = re.sub(r"[^0-9]", "", v or "")
+        return int(m) if m else 0
+    for lst in stock_by_cat.values():
+        lst.sort(key=lambda x: _agenum(x["age"]), reverse=True)   # aged stock first
+
+    # Group purchases into customers, keyed by phone when present, else name.
+    custs = {}
+    for r in rows:
+        name = (r["customer_name"] or "").strip()
+        phone = (r["customer_phone"] or "").strip()
+        key = phone or name.upper()
+        if not key:
+            continue
+        c = custs.setdefault(key, {
+            "name": name, "phone": phone, "email": (r["customer_email"] or "").strip(),
+            "purchases": 0, "spent": 0.0, "cats": {}, "channels": set(),
+            "last": "", "last_item": "",
+        })
+        if name and not c["name"]:
+            c["name"] = name
+        if not c["email"] and (r["customer_email"] or "").strip():
+            c["email"] = r["customer_email"].strip()
+        c["purchases"] += 1
+        c["spent"] += float(r["retail"] or 0)
+        c["cats"][r["category"]] = c["cats"].get(r["category"], 0) + 1
+        c["channels"].add(r["channel"])
+        d = parse_date_any(r["sold_at"])
+        di = d.isoformat() if d else ""
+        if di and di >= c["last"]:
+            c["last"] = di
+            c["last_item"] = r["description"] or ""
+
+    customers = []
+    for c in custs.values():
+        top_cats = sorted(c["cats"].items(), key=lambda kv: kv[1], reverse=True)
+        interests = [name for name, _ in top_cats[:3]]
+        recs = []
+        seen = set()
+        for cat in interests:
+            for s in stock_by_cat.get(cat, []):
+                d = (s["description"] or "").strip()
+                if d and d not in seen:
+                    seen.add(d)
+                    recs.append({"cat": cat, "description": d, "retail": s["retail"]})
+                if len(recs) >= 4:
+                    break
+            if len(recs) >= 4:
+                break
+        customers.append({
+            "name": c["name"] or "(no name)", "phone": c["phone"], "email": c["email"],
+            "purchases": c["purchases"], "spent": c["spent"],
+            "last": c["last"], "last_item": c["last_item"],
+            "interests": interests, "channels": sorted(c["channels"]),
+            "recs": recs,
+            "tier": "VIP" if c["spent"] >= 500 or c["purchases"] >= 5 else
+                    ("Regular" if c["purchases"] >= 2 else "One-time"),
+        })
+    customers.sort(key=lambda x: x["spent"], reverse=True)
+
+    settings = await get_cust_settings(db)
+    return templates.TemplateResponse("customers.html", {
+        "request": request, "customers": customers, "settings": settings,
+        "total_customers": len(customers),
+    })
+
+
+@app.post("/api/customer-templates")
+async def save_customer_templates(
+    store_name: str = Form(""), store_phone: str = Form(""), store_address: str = Form(""),
+    tpl_thank_you: str = Form(""), tpl_invite: str = Form(""), db=Depends(get_db),
+):
+    vals = {"store_name": store_name, "store_phone": store_phone, "store_address": store_address,
+            "tpl_thank_you": tpl_thank_you, "tpl_invite": tpl_invite}
+    for k, v in vals.items():
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+    await db.commit()
+    return RedirectResponse("/customers", status_code=303)
 
 
 @app.get("/barcode/{code}")

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Customers – ABC{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Customers <span class="count-pill">{{ total_customers }}</span></h1>
+</div>
+
+<p class="card-subtitle">Built from sold items that carry a buyer name or phone. Use these to thank
+customers, invite them back, and see what each one likes so you can line up the right offer next time.
+This is one-to-one communication — not a bulk campaign.</p>
+
+<!-- Message templates -->
+<div class="card mt">
+    <div class="card-header"><h2>✉️ Message templates</h2></div>
+    <p class="card-subtitle">Edit the wording once. Placeholders fill in per customer:
+        <code>{first_name}</code>, <code>{item}</code>, <code>{store_name}</code>,
+        <code>{store_phone}</code>, <code>{store_address}</code>.
+        Always keep <strong>“Reply STOP to opt out.”</strong> if you text.</p>
+    <form method="POST" action="/api/customer-templates" class="tpl-form">
+        <div class="cf-row">
+            <div class="form-group"><label>Store name</label>
+                <input type="text" name="store_name" value="{{ settings.store_name }}"></div>
+            <div class="form-group"><label>Store phone</label>
+                <input type="text" name="store_phone" value="{{ settings.store_phone }}" placeholder="(609) …"></div>
+            <div class="form-group"><label>Store address</label>
+                <input type="text" name="store_address" value="{{ settings.store_address }}"></div>
+        </div>
+        <div class="form-group"><label>Thank-you message</label>
+            <textarea name="tpl_thank_you" rows="3" class="search-input">{{ settings.tpl_thank_you }}</textarea></div>
+        <div class="form-group"><label>Website invite / come-back message</label>
+            <textarea name="tpl_invite" rows="3" class="search-input">{{ settings.tpl_invite }}</textarea></div>
+        <button type="submit" class="btn btn-primary">Save templates</button>
+    </form>
+</div>
+
+<div class="card mt">
+    <div class="card-header"><h2>Customer directory</h2>
+        <input type="text" id="custSearch" class="search-input" placeholder="Search name, phone, email, interest…" style="max-width:320px">
+    </div>
+    {% if customers %}
+    <div style="overflow-x:auto">
+        <table class="table" id="custTable">
+            <thead><tr>
+                <th>Customer</th><th>Contact</th><th class="num">Visits</th><th class="num">Spent</th>
+                <th>Last purchase</th><th>Interests</th><th>Suggest next</th><th>Message</th>
+            </tr></thead>
+            <tbody>
+            {% for c in customers %}
+            <tr class="cust-row"
+                data-search="{{ (c.name ~ ' ' ~ c.phone ~ ' ' ~ c.email ~ ' ' ~ c.interests|join(' '))|lower }}"
+                data-first="{{ c.name.split(' ')[0] if c.name and c.name != '(no name)' else 'there' }}"
+                data-item="{{ c.last_item or 'purchase' }}">
+                <td><strong>{{ c.name }}</strong>
+                    <span class="badge {% if c.tier=='VIP' %}badge-old{% elif c.tier=='Regular' %}badge-unknown{% else %}muted-sm{% endif %}">{{ c.tier }}</span></td>
+                <td class="contact-cell">
+                    {% if c.phone %}<div>📞 <a href="tel:{{ c.phone }}">{{ c.phone }}</a></div>{% endif %}
+                    {% if c.email %}<div>✉️ <a href="mailto:{{ c.email }}">{{ c.email }}</a></div>{% endif %}
+                    {% if not c.phone and not c.email %}<span class="muted-sm">—</span>{% endif %}
+                </td>
+                <td class="num">{{ c.purchases }}</td>
+                <td class="num">{{ c.spent|usd0 }}</td>
+                <td>{% if c.last %}{{ c.last }}<br><span class="muted-sm">{{ c.last_item }}</span>{% else %}—{% endif %}</td>
+                <td>{% for i in c.interests %}<span class="chip-static">{{ i }}</span>{% endfor %}</td>
+                <td>
+                    {% for r in c.recs %}<div class="rec-line" title="{{ r.cat }}">{{ r.description }} <span class="muted-sm">{{ r.retail|usd0 }}</span></div>{% endfor %}
+                    {% if not c.recs %}<span class="muted-sm">—</span>{% endif %}
+                </td>
+                <td class="col-action">
+                    {% if c.phone or c.email %}
+                    <button class="btn btn-sm btn-outline" onclick="copyMsg(this,'thank')">Thank-you</button>
+                    <button class="btn btn-sm btn-outline" onclick="copyMsg(this,'invite')">Invite</button>
+                    {% else %}<span class="muted-sm">no contact</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No customers yet. Upload a Sold Inventory report that includes a Customer Name / Phone column.</div>
+    {% endif %}
+</div>
+
+<script type="application/json" id="tplData">
+{ "thank": {{ settings.tpl_thank_you|tojson }}, "invite": {{ settings.tpl_invite|tojson }},
+  "store_name": {{ settings.store_name|tojson }}, "store_phone": {{ settings.store_phone|tojson }},
+  "store_address": {{ settings.store_address|tojson }} }
+</script>
+<div class="viz-tooltip" id="copyToast" hidden>Copied to clipboard ✓</div>
+<script>
+(function () {
+  const T = JSON.parse(document.getElementById('tplData').textContent);
+  window.copyMsg = function (btn, which) {
+    const row = btn.closest('.cust-row');
+    const msg = (T[which] || '')
+      .replaceAll('{first_name}', row.dataset.first || 'there')
+      .replaceAll('{item}', row.dataset.item || 'purchase')
+      .replaceAll('{store_name}', T.store_name || '')
+      .replaceAll('{store_phone}', T.store_phone || '')
+      .replaceAll('{store_address}', T.store_address || '');
+    navigator.clipboard.writeText(msg).then(() => {
+      const t = document.getElementById('copyToast');
+      t.hidden = false; t.style.left = '50%'; t.style.top = '20px'; t.style.transform = 'translateX(-50%)';
+      setTimeout(() => { t.hidden = true; }, 1500);
+    }, () => { prompt('Copy this message:', msg); });
+  };
+  const s = document.getElementById('custSearch');
+  s.addEventListener('input', () => {
+    const q = s.value.toLowerCase().trim();
+    document.querySelectorAll('.cust-row').forEach(r => {
+      r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

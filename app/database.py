@@ -110,6 +110,11 @@ async def init_db():
                 big_group TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS reconcile_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 import_id INTEGER,
@@ -233,6 +238,7 @@ async def init_db():
             "list_price": "REAL",              # the price the item was listed at
             "customer_name": "TEXT DEFAULT ''",   # buyer name (from sold report)
             "customer_phone": "TEXT DEFAULT ''",  # buyer phone (for follow-up SMS)
+            "customer_email": "TEXT DEFAULT ''",  # buyer email (for follow-up)
         }
         for col, decl in add_item_cols.items():
             if col not in item_cols:
