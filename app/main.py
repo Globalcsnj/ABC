@@ -2560,6 +2560,12 @@ async def import_items(
                 "Retail", "List Price", "List", "Sell Price", "Asking Price",
                 "Ask", "Tag Price", "Price Each"
             )
+            # Actual amount collected on a sale, after discounts (separate from
+            # the listed "Price"). Used as the revenue for SOLD items.
+            last_sold_raw = find_column(row, "Last Sold Price", "Last Price Sold", "Final Price")
+            cust_raw = find_column(row, "Customer Name", "Customer", "Buyer", "Sold To")
+            phone_raw = find_column(row, "Phone", "Phone Number", "Customer Phone", "Cell", "Cell Phone", "Mobile", "Telephone")
+            email_raw = find_column(row, "Email", "E-mail", "Email Address", "Customer Email")
             item_date = find_column(row, "Date", "Date In", "Created")
 
             # Jewelry fields (match exact Bravo headers)
@@ -2629,9 +2635,10 @@ async def import_items(
 
             item_number_u = item_number.upper() if item_number else None
             cost_val = clean_money(cost_raw)
-            # Sale price comes from the CSV "Price" column; None if blank so a
-            # manually-set price is preserved on re-upload.
-            retail_val = clean_money(price_raw) if price_raw else None
+            # "Price" is the listed price; None if blank so a manually-set price
+            # is preserved on re-upload. retail_val (revenue) is set below.
+            list_val = clean_money(price_raw) if price_raw else None
+            retail_val = list_val
             diamond_authentic = parse_bool(diamond_auth_raw)
             authentic_stone = parse_bool(stone_auth_raw)
 
@@ -2661,6 +2668,14 @@ async def import_items(
                        or parse_date_any(date_to_inventory))
                 sold_at_val = _sd.isoformat() if _sd else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 sold_dates.append(sold_at_val[:10])
+                # Revenue for a sold item is the actual amount collected
+                # (Last Sold Price), not the listed price.
+                if last_sold_raw:
+                    retail_val = clean_money(last_sold_raw)
+
+            cust_val = (cust_raw or "").strip()
+            phone_val = (phone_raw or "").strip()
+            email_val = (email_raw or "").strip()
 
             # Does it already exist? (decides new vs updated, and preserves admin fields)
             async with db.execute("SELECT sold FROM items WHERE item_number = ?", (item_number_u,)) as cur:
@@ -2691,8 +2706,9 @@ async def import_items(
                    metal_color, total_stone_size, condition, diamond_authentic,
                    serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                    metal_weight, quality, authentic_stone, quantity, vendor,
-                   inventory_age, date_to_inventory, sold, sold_at, missing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                   inventory_age, date_to_inventory, sold, sold_at,
+                   list_price, customer_name, customer_phone, customer_email, missing)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(item_number) DO UPDATE SET
                    barcode=COALESCE(NULLIF(excluded.barcode,''), items.barcode),
                    upc=COALESCE(NULLIF(excluded.upc,''), items.upc),
@@ -2725,6 +2741,10 @@ async def import_items(
                    date_to_inventory=COALESCE(NULLIF(excluded.date_to_inventory,''), items.date_to_inventory),
                    sold=excluded.sold,
                    sold_at=COALESCE(items.sold_at, excluded.sold_at),
+                   list_price=COALESCE(excluded.list_price, items.list_price),
+                   customer_name=COALESCE(NULLIF(excluded.customer_name,''), items.customer_name),
+                   customer_phone=COALESCE(NULLIF(excluded.customer_phone,''), items.customer_phone),
+                   customer_email=COALESCE(NULLIF(excluded.customer_email,''), items.customer_email),
                    for_sale=CASE WHEN excluded.sold=1 THEN 0 ELSE items.for_sale END,
                    missing=0
                 WHERE COALESCE(items.sold,0)=0
@@ -2735,6 +2755,7 @@ async def import_items(
                 serial_number, manufacturer, model, metal_purity, total_jewelry_weight,
                 metal_weight, quality, stone_auth_in, quantity, vendor,
                 inventory_age, date_to_inventory, sold_flag, sold_at_val,
+                list_val, cust_val, phone_val, email_val,
             ))
             if not exists:
                 inserted += 1
