@@ -49,7 +49,8 @@ This is one-to-one communication — not a bulk campaign.</p>
             <tr class="cust-row"
                 data-search="{{ (c.name ~ ' ' ~ c.phone ~ ' ' ~ c.email ~ ' ' ~ c.interests|join(' '))|lower }}"
                 data-first="{{ c.name.split(' ')[0] if c.name and c.name != '(no name)' else 'there' }}"
-                data-item="{{ c.last_item or 'purchase' }}">
+                data-item="{{ c.last_item or 'purchase' }}"
+                data-phone="{{ c.phone }}" data-email="{{ c.email }}">
                 <td><strong>{{ c.name }}</strong>
                     <span class="badge {% if c.tier=='VIP' %}badge-old{% elif c.tier=='Regular' %}badge-unknown{% else %}muted-sm{% endif %}">{{ c.tier }}</span></td>
                 <td class="contact-cell">
@@ -67,8 +68,8 @@ This is one-to-one communication — not a bulk campaign.</p>
                 </td>
                 <td class="col-action">
                     {% if c.phone or c.email %}
-                    <button class="btn btn-sm btn-outline" onclick="copyMsg(this,'thank')">Thank-you</button>
-                    <button class="btn btn-sm btn-outline" onclick="copyMsg(this,'invite')">Invite</button>
+                    <button class="btn btn-sm btn-outline" onclick="sendMsg(this,'thank')">Thank-you</button>
+                    <button class="btn btn-sm btn-outline" onclick="sendMsg(this,'invite')">Invite</button>
                     {% else %}<span class="muted-sm">no contact</span>{% endif %}
                 </td>
             </tr>
@@ -90,7 +91,13 @@ This is one-to-one communication — not a bulk campaign.</p>
 <script>
 (function () {
   const T = JSON.parse(document.getElementById('tplData').textContent);
-  window.copyMsg = function (btn, which) {
+  function toast(text) {
+    const t = document.getElementById('copyToast');
+    t.textContent = text; t.hidden = false;
+    t.style.left = '50%'; t.style.top = '20px'; t.style.transform = 'translateX(-50%)';
+    setTimeout(() => { t.hidden = true; }, 1800);
+  }
+  window.sendMsg = function (btn, which) {
     const row = btn.closest('.cust-row');
     const msg = (T[which] || '')
       .replaceAll('{first_name}', row.dataset.first || 'there')
@@ -98,11 +105,20 @@ This is one-to-one communication — not a bulk campaign.</p>
       .replaceAll('{store_name}', T.store_name || '')
       .replaceAll('{store_phone}', T.store_phone || '')
       .replaceAll('{store_address}', T.store_address || '');
-    navigator.clipboard.writeText(msg).then(() => {
-      const t = document.getElementById('copyToast');
-      t.hidden = false; t.style.left = '50%'; t.style.top = '20px'; t.style.transform = 'translateX(-50%)';
-      setTimeout(() => { t.hidden = true; }, 1500);
-    }, () => { prompt('Copy this message:', msg); });
+    const phone = (row.dataset.phone || '').trim();
+    const email = (row.dataset.email || '').trim();
+    const subject = which === 'thank' ? ('Thank you from ' + (T.store_name || 'us'))
+                                      : ((T.store_name || 'We') + ' — come see us');
+    if (phone) {
+      // Open the messaging app with the text pre-filled, ready to send.
+      const tel = phone.replace(/[^0-9+]/g, '');
+      window.location.href = `sms:${tel}?&body=${encodeURIComponent(msg)}`;
+    } else if (email) {
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
+    }
+    // Also copy to clipboard as a fallback (some desktops can't open sms:).
+    if (navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
+    toast(phone ? 'Opening text message…' : 'Opening email…');
   };
   const s = document.getElementById('custSearch');
   s.addEventListener('input', () => {
