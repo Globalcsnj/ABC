@@ -55,6 +55,22 @@ body {
 .topbar-user:hover { color: var(--primary); }
 .side-toggle { display: none; background: none; border: none; font-size: 22px; cursor: pointer; color: var(--gray-700); }
 .side-scrim { display: none; }
+.sl { white-space: nowrap; overflow: hidden; }
+.side-collapse { background: none; border: none; color: #94a3b8; display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; cursor: pointer; font-size: 13px; font-family: inherit;
+    border-top: 1px solid rgba(255,255,255,.08); }
+.side-collapse:hover { color: #fff; }
+.sidebar, .app-main { transition: width .15s ease, margin-left .15s ease; }
+
+/* Collapsed → icons only */
+body.side-collapsed { --sidebar-w: 66px; }
+body.side-collapsed .sl,
+body.side-collapsed .side-section { display: none; }
+body.side-collapsed .side-link,
+body.side-collapsed .side-collapse { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+body.side-collapsed .side-brand { padding: 12px 6px; text-align: center; }
+body.side-collapsed .brand-logo { height: 26px; padding: 2px 4px; }
+body.side-collapsed .side-collapse .si { transform: rotate(180deg); }
 
 /* Layout */
 .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; width: 100%; }

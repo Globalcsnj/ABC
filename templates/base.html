@@ -10,38 +10,45 @@
 {% set path = request.url.path %}
 <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-        <a href="/" class="side-brand">
+        <a href="/dashboard" class="side-brand">
             <img src="/static/media/logo.png?v=2" class="brand-logo"
                  onerror="this.onerror=null;this.src='/static/media/logo.svg?v=2'" alt="ABC MoneyLoan">
         </a>
 
         <nav class="side-nav">
-            <a href="/" class="side-link {% if path == '/' %}active{% endif %}"><span class="si">🏠</span>Home</a>
+            <a href="/dashboard" title="Home" class="side-link {% if path == '/dashboard' %}active{% endif %}"><span class="si">🏠</span><span class="sl">Home</span></a>
 
-            <div class="side-section">Inventory</div>
-            <a href="/inventory" class="side-link {% if path == '/inventory' %}active{% endif %}"><span class="si">📦</span>All Items</a>
-            <a href="/analysis" class="side-link {% if path == '/analysis' %}active{% endif %}"><span class="si">📊</span>Inventory Analysis</a>
-            <a href="/categories" class="side-link {% if path == '/categories' %}active{% endif %}"><span class="si">🗂️</span>Categories &amp; Groups</a>
-            <a href="/new-count" class="side-link {% if path == '/new-count' %}active{% endif %}"><span class="si">🔢</span>Start a Count</a>
-            <a href="/reconcile" class="side-link {% if path == '/reconcile' %}active{% endif %}"><span class="si">✅</span>Sold / Reconcile</a>
+            <div class="side-section">Inventory management</div>
+            <a href="/inventory" title="All Items" class="side-link {% if path == '/inventory' %}active{% endif %}"><span class="si">📦</span><span class="sl">All Items</span></a>
+            <a href="/categories" title="Categories &amp; Groups" class="side-link {% if path == '/categories' %}active{% endif %}"><span class="si">🗂️</span><span class="sl">Categories &amp; Groups</span></a>
+            <a href="/" title="Import Data" class="side-link {% if path == '/' %}active{% endif %}"><span class="si">⬆️</span><span class="sl">Import Data</span></a>
+            <a href="/new-count" title="Start a Count" class="side-link {% if path == '/new-count' %}active{% endif %}"><span class="si">🔢</span><span class="sl">Start a Count</span></a>
+            <a href="/reconcile" title="Sold / Reconcile" class="side-link {% if path == '/reconcile' %}active{% endif %}"><span class="si">✅</span><span class="sl">Sold / Reconcile</span></a>
 
-            <div class="side-section">Store &amp; Sales</div>
-            <a href="/dashboard" class="side-link {% if path == '/dashboard' %}active{% endif %}"><span class="si">📈</span>Sales Dashboard</a>
-            <a href="/sell" class="side-link {% if path == '/sell' %}active{% endif %}"><span class="si">🧾</span>Record a Sale</a>
-            <a href="/customers" class="side-link {% if path == '/customers' %}active{% endif %}"><span class="si">👥</span>Customers</a>
-            <a href="/campaigns" class="side-link {% if path == '/campaigns' %}active{% endif %}"><span class="si">🎯</span>Campaigns &amp; Offers</a>
-            <a href="/inquiries" class="side-link {% if path == '/inquiries' %}active{% endif %}"><span class="si">🙋</span>Hold Requests</a>
-            <a href="/welcome" target="_blank" class="side-link"><span class="si">🌐</span>Landing Page <span class="ext">↗</span></a>
-            <a href="/shop" target="_blank" class="side-link"><span class="si">🛍️</span>Customer Shop <span class="ext">↗</span></a>
+            <div class="side-section">Reports</div>
+            <a href="/analysis" title="Inventory Analysis" class="side-link {% if path == '/analysis' %}active{% endif %}"><span class="si">📊</span><span class="sl">Inventory Analysis</span></a>
 
-            <div class="side-section">Setup</div>
-            <a href="/locations" class="side-link {% if path == '/locations' %}active{% endif %}"><span class="si">📍</span>Locations &amp; Labels</a>
-            <a href="/stores" class="side-link {% if path == '/stores' %}active{% endif %}"><span class="si">🏬</span>Stores</a>
-            <a href="/backup" class="side-link {% if path == '/backup' %}active{% endif %}"><span class="si">⬇️</span>Backup Data</a>
-            <a href="/diagnostics" class="side-link {% if path == '/diagnostics' %}active{% endif %}"><span class="si">🩺</span>Diagnostics</a>
+            <div class="side-section">Sales</div>
+            <a href="/sell" title="Record a Sale" class="side-link {% if path == '/sell' %}active{% endif %}"><span class="si">🧾</span><span class="sl">Record a Sale</span></a>
+
+            <div class="side-section">Customers</div>
+            <a href="/customers" title="Customers" class="side-link {% if path == '/customers' %}active{% endif %}"><span class="si">👥</span><span class="sl">Customers</span></a>
+            <a href="/campaigns" title="Campaigns &amp; Offers" class="side-link {% if path == '/campaigns' %}active{% endif %}"><span class="si">🎯</span><span class="sl">Campaigns &amp; Offers</span></a>
+            <a href="/inquiries" title="Hold Requests" class="side-link {% if path == '/inquiries' %}active{% endif %}"><span class="si">🙋</span><span class="sl">Hold Requests</span></a>
+
+            <div class="side-section">Integration</div>
+            <a href="/welcome" target="_blank" title="Landing Page" class="side-link"><span class="si">🌐</span><span class="sl">Landing Page <span class="ext">↗</span></span></a>
+            <a href="/shop" target="_blank" title="Customer Shop" class="side-link"><span class="si">🛍️</span><span class="sl">Customer Shop <span class="ext">↗</span></span></a>
+
+            <div class="side-section">Configuration</div>
+            <a href="/locations" title="Locations &amp; Labels" class="side-link {% if path == '/locations' %}active{% endif %}"><span class="si">📍</span><span class="sl">Locations &amp; Labels</span></a>
+            <a href="/stores" title="Stores" class="side-link {% if path == '/stores' %}active{% endif %}"><span class="si">🏬</span><span class="sl">Stores</span></a>
+            <a href="/backup" title="Backup Data" class="side-link {% if path == '/backup' %}active{% endif %}"><span class="si">⬇️</span><span class="sl">Backup Data</span></a>
+            <a href="/diagnostics" title="Diagnostics" class="side-link {% if path == '/diagnostics' %}active{% endif %}"><span class="si">🩺</span><span class="sl">Diagnostics</span></a>
         </nav>
 
-        <a href="/logout" class="side-link side-signout"><span class="si">🚪</span>Sign Out</a>
+        <button class="side-collapse" id="sideCollapse" title="Collapse menu"><span class="si">«</span><span class="sl">Collapse</span></button>
+        <a href="/logout" title="Sign Out" class="side-link side-signout"><span class="si">🚪</span><span class="sl">Sign Out</span></a>
     </aside>
 
     <div class="app-main">
@@ -63,11 +70,16 @@
 <script>
 (function () {
     var t = document.getElementById('sideToggle'),
-        sb = document.getElementById('sidebar'),
-        sc = document.getElementById('sideScrim');
-    function close() { document.body.classList.remove('side-open'); }
+        sc = document.getElementById('sideScrim'),
+        col = document.getElementById('sideCollapse');
     if (t) t.addEventListener('click', function () { document.body.classList.toggle('side-open'); });
-    if (sc) sc.addEventListener('click', close);
+    if (sc) sc.addEventListener('click', function () { document.body.classList.remove('side-open'); });
+    // Collapse to icons-only, remembered across visits.
+    if (localStorage.getItem('abc_side_collapsed') === '1') document.body.classList.add('side-collapsed');
+    if (col) col.addEventListener('click', function () {
+        var on = document.body.classList.toggle('side-collapsed');
+        localStorage.setItem('abc_side_collapsed', on ? '1' : '0');
+    });
 })();
 </script>
 {% block scripts %}{% endblock %}
