@@ -23,57 +23,51 @@ body {
 }
 
 /* Nav */
-.navbar {
-    background: var(--primary);
-    color: white;
-    padding: 0 24px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 4px rgba(0,0,0,.15);
+/* ── Lightspeed-style app shell: fixed left sidebar + top bar ─────────────── */
+:root { --sidebar-w: 240px; --topbar-h: 56px; --sidebar-bg: #1f2937; }
+.app-shell { min-height: 100vh; }
+.sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+    background: var(--sidebar-bg); color: #cbd5e1; display: flex; flex-direction: column;
+    overflow-y: auto; z-index: 200;
 }
-.nav-brand { font-size: 18px; font-weight: 700; color: white; text-decoration: none; display: flex; align-items: center; }
+.side-brand { display: block; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .brand-logo { height: 34px; width: auto; background: white; padding: 3px 8px; border-radius: 6px; }
 .shop-logo .brand-logo, .shop-logo img { height: 30px; }
-.nav-links { display: flex; align-items: center; gap: 6px; }
-.nav-links > a {
-    color: rgba(255,255,255,.9);
-    text-decoration: none;
-    padding: 8px 12px;
-    font-size: 14px;
-    border-radius: 6px;
-}
-.nav-links > a:hover { background: rgba(255,255,255,.12); color: white; }
+.side-nav { flex: 1; padding: 8px 0; }
+.side-section { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: #64748b; font-weight: 700; padding: 14px 18px 5px; }
+.side-link { display: flex; align-items: center; gap: 10px; padding: 9px 18px;
+    color: #cbd5e1; text-decoration: none; font-size: 14px; border-left: 3px solid transparent; }
+.side-link:hover { background: rgba(255,255,255,.06); color: #fff; }
+.side-link.active { background: rgba(59,130,246,.16); color: #fff; border-left-color: var(--primary); font-weight: 600; }
+.side-link .si { width: 20px; text-align: center; font-size: 15px; }
+.side-link .ext { color: #64748b; font-size: 12px; }
+.side-signout { border-top: 1px solid rgba(255,255,255,.08); color: #f0a3a3; }
 
-/* Nav dropdown groups */
-.nav-group { position: relative; }
-.nav-group-btn {
-    background: none; border: none; color: rgba(255,255,255,.9);
-    font-size: 14px; padding: 8px 12px; cursor: pointer; border-radius: 6px;
-    font-family: inherit;
-}
-.nav-group-btn:hover, .nav-group:hover .nav-group-btn { background: rgba(255,255,255,.12); color: white; }
-.nav-menu {
-    display: none; position: absolute; right: 0; top: 100%;
-    background: white; min-width: 210px; border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px; z-index: 200;
-}
-.nav-group:hover .nav-menu, .nav-menu:hover { display: block; }
-.nav-menu a {
-    display: block; color: var(--gray-800); text-decoration: none;
-    padding: 9px 12px; border-radius: 6px; font-size: 14px;
-}
-.nav-menu a:hover { background: var(--gray-100); color: var(--primary); }
+.app-main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
+.topbar { position: sticky; top: 0; z-index: 100; height: var(--topbar-h);
+    background: #fff; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center;
+    gap: 12px; padding: 0 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.topbar-title { font-weight: 700; color: var(--gray-800); font-size: 16px; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--gray-500); }
+.topbar-user { color: var(--gray-600); text-decoration: none; }
+.topbar-user:hover { color: var(--primary); }
+.side-toggle { display: none; background: none; border: none; font-size: 22px; cursor: pointer; color: var(--gray-700); }
+.side-scrim { display: none; }
 
 /* Layout */
-.container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-/* The Inventory Analysis page is data-dense — let it use the full screen so
-   the Matching Items table can show every column. */
-main.container:has(.analysis-layout) { max-width: min(1800px, 97vw); }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; width: 100%; }
+main.container:has(.analysis-layout) { max-width: min(1800px, 100%); }
+
+/* Mobile: sidebar slides in over content */
+@media (max-width: 900px) {
+    .sidebar { transform: translateX(-100%); transition: transform .2s; }
+    body.side-open .sidebar { transform: translateX(0); }
+    .app-main { margin-left: 0; }
+    .side-toggle { display: block; }
+    body.side-open .side-scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 150; }
+}
 .mt { margin-top: 20px; }
 .page-header {
     display: flex;
@@ -951,7 +945,7 @@ html { scroll-behavior: smooth; }
 
 /* ── Sales Dashboard (client-rendered viz) ──────────────────────────────── */
 /* Landscape: use the full window width so there's little vertical scrolling. */
-main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
+main.container:has(.viz-root) { max-width: min(1840px, 100%); }
 .viz-root {
     /* validated categorical/status palette (dataviz skill, light surface) */
     --sw-sell: #1baf7a;   /* aqua — sells/revenue */
@@ -1040,7 +1034,7 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 .status-chip.loss .sc-name { color: var(--v-bad); }
 
 /* frozen (sticky) filter bar so you can keep filtering while scrolling */
-.viz-root .filter-bar { position: sticky; top: 0; z-index: 30;
+.viz-root .filter-bar { position: sticky; top: var(--topbar-h, 56px); z-index: 30;
     box-shadow: 0 4px 14px rgba(0,0,0,.06); }
 
 /* global filter bar */
@@ -1212,7 +1206,8 @@ main.container:has(.viz-root) { max-width: min(1840px, 98vw); }
 
 /* Print */
 @media print {
-    .navbar, .btn, .page-header form { display: none; }
+    .navbar, .sidebar, .topbar, .btn, .page-header form { display: none; }
+    .app-main { margin-left: 0; }
     .analysis-rail { display: none; }
     .card { border: 1px solid #ccc; break-inside: avoid; }
     .row-found td { background: #f0fdf4 !important; }

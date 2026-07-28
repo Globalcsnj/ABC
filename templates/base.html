@@ -7,54 +7,69 @@
     <link rel="stylesheet" href="/static/css/style.css?v={{ asset_v }}">
 </head>
 <body>
-    <nav class="navbar">
-        <a href="/" class="nav-brand">
+{% set path = request.url.path %}
+<div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+        <a href="/" class="side-brand">
             <img src="/static/media/logo.png?v=2" class="brand-logo"
                  onerror="this.onerror=null;this.src='/static/media/logo.svg?v=2'" alt="ABC MoneyLoan">
         </a>
-        <div class="nav-links">
-            <a href="/">Home</a>
 
-            <div class="nav-group">
-                <button class="nav-group-btn">Inventory ▾</button>
-                <div class="nav-menu">
-                    <a href="/inventory">All Items</a>
-                    <a href="/analysis">Inventory Analysis</a>
-                    <a href="/categories">Categories &amp; Groups</a>
-                    <a href="/new-count">Start a Count</a>
-                    <a href="/reconcile">Sold / Reconcile</a>
-                </div>
-            </div>
+        <nav class="side-nav">
+            <a href="/" class="side-link {% if path == '/' %}active{% endif %}"><span class="si">🏠</span>Home</a>
 
-            <div class="nav-group">
-                <button class="nav-group-btn">Store &amp; Sales ▾</button>
-                <div class="nav-menu">
-                    <a href="/sell">Record a Sale</a>
-                    <a href="/dashboard">Sales Dashboard</a>
-                    <a href="/customers">Customers</a>
-                    <a href="/campaigns">Campaigns &amp; Offers</a>
-                    <a href="/inquiries">Hold Requests</a>
-                    <a href="/welcome" target="_blank">Landing Page ↗</a>
-                    <a href="/shop" target="_blank">Customer Shop ↗</a>
-                </div>
-            </div>
+            <div class="side-section">Inventory</div>
+            <a href="/inventory" class="side-link {% if path == '/inventory' %}active{% endif %}"><span class="si">📦</span>All Items</a>
+            <a href="/analysis" class="side-link {% if path == '/analysis' %}active{% endif %}"><span class="si">📊</span>Inventory Analysis</a>
+            <a href="/categories" class="side-link {% if path == '/categories' %}active{% endif %}"><span class="si">🗂️</span>Categories &amp; Groups</a>
+            <a href="/new-count" class="side-link {% if path == '/new-count' %}active{% endif %}"><span class="si">🔢</span>Start a Count</a>
+            <a href="/reconcile" class="side-link {% if path == '/reconcile' %}active{% endif %}"><span class="si">✅</span>Sold / Reconcile</a>
 
-            <div class="nav-group">
-                <button class="nav-group-btn">Setup ▾</button>
-                <div class="nav-menu">
-                    <a href="/locations">Locations &amp; Labels</a>
-                    <a href="/stores">Stores</a>
-                    <a href="/backup">⬇ Backup Data</a>
-                    <a href="/diagnostics">🩺 Diagnostics</a>
-                    <a href="/logout">Sign Out</a>
-                </div>
+            <div class="side-section">Store &amp; Sales</div>
+            <a href="/dashboard" class="side-link {% if path == '/dashboard' %}active{% endif %}"><span class="si">📈</span>Sales Dashboard</a>
+            <a href="/sell" class="side-link {% if path == '/sell' %}active{% endif %}"><span class="si">🧾</span>Record a Sale</a>
+            <a href="/customers" class="side-link {% if path == '/customers' %}active{% endif %}"><span class="si">👥</span>Customers</a>
+            <a href="/campaigns" class="side-link {% if path == '/campaigns' %}active{% endif %}"><span class="si">🎯</span>Campaigns &amp; Offers</a>
+            <a href="/inquiries" class="side-link {% if path == '/inquiries' %}active{% endif %}"><span class="si">🙋</span>Hold Requests</a>
+            <a href="/welcome" target="_blank" class="side-link"><span class="si">🌐</span>Landing Page <span class="ext">↗</span></a>
+            <a href="/shop" target="_blank" class="side-link"><span class="si">🛍️</span>Customer Shop <span class="ext">↗</span></a>
+
+            <div class="side-section">Setup</div>
+            <a href="/locations" class="side-link {% if path == '/locations' %}active{% endif %}"><span class="si">📍</span>Locations &amp; Labels</a>
+            <a href="/stores" class="side-link {% if path == '/stores' %}active{% endif %}"><span class="si">🏬</span>Stores</a>
+            <a href="/backup" class="side-link {% if path == '/backup' %}active{% endif %}"><span class="si">⬇️</span>Backup Data</a>
+            <a href="/diagnostics" class="side-link {% if path == '/diagnostics' %}active{% endif %}"><span class="si">🩺</span>Diagnostics</a>
+        </nav>
+
+        <a href="/logout" class="side-link side-signout"><span class="si">🚪</span>Sign Out</a>
+    </aside>
+
+    <div class="app-main">
+        <header class="topbar">
+            <button class="side-toggle" id="sideToggle" aria-label="Menu">☰</button>
+            <div class="topbar-title">{% block topbar_title %}ABC MoneyLoan Pawnshop{% endblock %}</div>
+            <div class="topbar-right">
+                <span class="topbar-store">146 E. State St, Trenton</span>
+                <a href="/logout" class="topbar-user">👤 Sign out</a>
             </div>
-        </div>
-    </nav>
-    <main class="container">
-        {% block content %}{% endblock %}
-    </main>
-    <script src="/static/js/camera.js"></script>
-    {% block scripts %}{% endblock %}
+        </header>
+        <main class="container">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <div class="side-scrim" id="sideScrim"></div>
+</div>
+<script src="/static/js/camera.js"></script>
+<script>
+(function () {
+    var t = document.getElementById('sideToggle'),
+        sb = document.getElementById('sidebar'),
+        sc = document.getElementById('sideScrim');
+    function close() { document.body.classList.remove('side-open'); }
+    if (t) t.addEventListener('click', function () { document.body.classList.toggle('side-open'); });
+    if (sc) sc.addEventListener('click', close);
+})();
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
