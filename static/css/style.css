@@ -31,7 +31,7 @@ body {
     background: var(--sidebar-bg); color: #cbd5e1; display: flex; flex-direction: column;
     overflow-y: auto; z-index: 200;
 }
-.side-brand { display: block; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.side-brand { display: block; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: center; }
 .brand-logo { height: 34px; width: auto; background: white; padding: 3px 8px; border-radius: 6px; }
 .shop-logo .brand-logo, .shop-logo img { height: 30px; }
 .side-nav { flex: 1; padding: 8px 0; }
