@@ -45,6 +45,33 @@ body {
 .side-link .ext { color: #64748b; font-size: 12px; }
 .side-signout { border-top: 1px solid rgba(255,255,255,.08); color: #f0a3a3; }
 
+/* Collapsible groups (accordion) */
+.side-group-hd { width: 100%; background: none; border: none; cursor: pointer; font-family: inherit;
+    color: #cbd5e1; display: flex; align-items: center; gap: 10px; padding: 10px 18px; font-size: 14px;
+    border-left: 3px solid transparent; }
+.side-group-hd:hover { background: rgba(255,255,255,.06); color: #fff; }
+.side-group-hd .si { width: 20px; text-align: center; font-size: 15px; }
+.side-group-hd .sl { flex: 1; text-align: left; }
+.side-group-hd .caret { color: #64748b; font-size: 11px; transition: transform .15s; }
+.side-group.open > .side-group-hd .caret { transform: rotate(90deg); }
+.side-sub { display: none; padding: 2px 0 6px; }
+.side-group.open > .side-sub { display: block; }
+.side-sub .side-link { padding-left: 48px; font-size: 13.5px; }
+.side-sub .sub-head { display: none; }
+
+/* Collapsed sidebar → icons only, group opens as a hover flyout to the right */
+body.side-collapsed .side-group-hd .sl,
+body.side-collapsed .side-group-hd .caret { display: none; }
+body.side-collapsed .side-group-hd { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+body.side-collapsed .side-group { position: relative; }
+body.side-collapsed .side-group > .side-sub { display: none; position: absolute; left: var(--sidebar-w);
+    top: 0; min-width: 210px; background: var(--sidebar-bg); border-radius: 0 8px 8px 0;
+    box-shadow: 6px 8px 24px rgba(0,0,0,.35); padding: 6px 0 8px; z-index: 300; }
+body.side-collapsed .side-group:hover > .side-sub { display: block; }
+body.side-collapsed .side-sub .side-link { padding-left: 16px; }
+body.side-collapsed .side-sub .sub-head { display: block; color: #94a3b8; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em; font-weight: 700; padding: 8px 16px 4px; }
+
 .app-main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
 .topbar { position: sticky; top: 0; z-index: 100; height: var(--topbar-h);
     background: #fff; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center;
@@ -71,6 +98,9 @@ body.side-collapsed .side-collapse { justify-content: center; gap: 0; padding-le
 body.side-collapsed .side-brand { padding: 12px 6px; text-align: center; }
 body.side-collapsed .brand-logo { height: 26px; padding: 2px 4px; }
 body.side-collapsed .side-collapse .si { transform: rotate(180deg); }
+/* let hover flyouts escape the sidebar (collapsed menu is short, no scroll) */
+body.side-collapsed .sidebar { overflow: visible; }
+body.side-collapsed .side-nav { overflow: visible; }
 
 /* Layout */
 .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; width: 100%; }
