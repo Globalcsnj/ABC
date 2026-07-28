@@ -1,18 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 90" width="440" height="90">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 64" width="430" height="64">
   <style>
-    .abc { font: 800 46px 'Segoe UI', Arial, sans-serif; fill: #17365d; }
-    .money { font: 800 46px 'Segoe UI', Arial, sans-serif; fill: #8cc63f; }
-    .tm { font: 700 12px 'Segoe UI', Arial, sans-serif; fill: #17365d; }
-    .tag { font: italic 700 14px 'Segoe UI', Arial, sans-serif; fill: #17365d; letter-spacing: .5px; }
+    .abc   { font: 800 46px 'Segoe UI', Arial, sans-serif; fill: #17365d; }
+    .money { font: 800 46px 'Segoe UI', Arial, sans-serif; fill: #6cb33f; }
+    .tm    { font: 700 12px 'Segoe UI', Arial, sans-serif; fill: #17365d; }
   </style>
-  <!-- headphones mark -->
-  <g transform="translate(96,20)">
-    <path d="M4 20 A20 20 0 0 1 44 20" fill="none" stroke="#17365d" stroke-width="5" stroke-linecap="round"/>
-    <rect x="0" y="18" width="12" height="20" rx="5" fill="#17365d"/>
-    <rect x="36" y="18" width="12" height="20" rx="5" fill="#8cc63f"/>
+  <text x="0" y="50" class="abc">abc</text>
+  <!-- headphones-over-circle mark -->
+  <g transform="translate(98,8)">
+    <circle cx="24" cy="26" r="23" fill="none" stroke="#6cb33f" stroke-width="4"/>
+    <path d="M4 28 A20 20 0 0 1 44 28" fill="none" stroke="#17365d" stroke-width="5" stroke-linecap="round"/>
+    <rect x="0" y="24" width="12" height="22" rx="6" fill="#17365d"/>
+    <rect x="36" y="24" width="12" height="22" rx="6" fill="#6cb33f"/>
   </g>
-  <text x="0" y="56" class="abc">abc</text>
-  <text x="150" y="56" class="money">moneyloan</text>
-  <text x="415" y="30" class="tm">™</text>
-  <text x="152" y="78" class="tag">"AMERICA'S PAWNSHOP"</text>
+  <text x="152" y="50" class="money">moneyloan</text>
+  <text x="415" y="24" class="tm">™</text>
 </svg>
