@@ -31,6 +31,24 @@
 </div>
 
 <div class="card mt">
+    <h2>✅ Mark Items as Found</h2>
+    <p class="card-subtitle">Paste item numbers or barcodes (one per line) — or upload a CSV — of items you
+        <strong>physically found</strong>. They stay in inventory (not sold) and are cleared from the
+        possibly-missing list.</p>
+    <form id="foundListForm" enctype="multipart/form-data">
+        <div class="form-group">
+            <textarea name="codes" rows="4" placeholder="AB1007081&#10;2000012659&#10;AB1011639" class="search-input" style="font-family:monospace"></textarea>
+        </div>
+        <div class="form-group">
+            <label>…or upload a CSV list</label>
+            <input type="file" name="file" accept=".csv,.txt">
+        </div>
+        <button type="submit" class="btn btn-primary">Mark These Found</button>
+        <span id="foundListResult" class="import-result"></span>
+    </form>
+</div>
+
+<div class="card mt">
     <h2>🔄 Set Lifecycle Stage from a List</h2>
     <p class="card-subtitle">Paste item numbers or barcodes (one per line), pick a stage, and apply
         — for moving batches to Scrap, Refined, Polish, etc.</p>
@@ -245,6 +263,26 @@ document.getElementById('soldListForm').addEventListener('submit', async (e) => 
         const j = await res.json();
         if (!res.ok || j.type === 'error') { throw new Error(j.message || 'Server error'); }
         let msg = `✅ Marked ${j.sold} item(s) sold.`;
+        if (j.not_found && j.not_found.length) msg += ` ⚠️ ${j.not_found.length} not found: ${j.not_found.slice(0,10).join(', ')}${j.not_found.length>10?'…':''}`;
+        el.textContent = msg;
+        el.className = 'import-result success';
+        setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+        el.textContent = '❌ ' + err.message;
+        el.className = 'import-result error';
+    }
+});
+
+document.getElementById('foundListForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const el = document.getElementById('foundListResult');
+    el.textContent = '⏳ Processing...';
+    el.className = 'import-result';
+    try {
+        const res = await fetch('/api/items/found-list', { method: 'POST', body: new FormData(e.target) });
+        const j = await res.json();
+        if (!res.ok || j.type === 'error') { throw new Error(j.message || 'Server error'); }
+        let msg = `✅ Marked ${j.found} item(s) found.`;
         if (j.not_found && j.not_found.length) msg += ` ⚠️ ${j.not_found.length} not found: ${j.not_found.slice(0,10).join(', ')}${j.not_found.length>10?'…':''}`;
         el.textContent = msg;
         el.className = 'import-result success';

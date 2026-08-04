@@ -1838,6 +1838,47 @@ async def mark_sold_from_list(
     return JSONResponse({"ok": True, "sold": sold, "not_found": notfound})
 
 
+@app.post("/api/items/found-list")
+async def mark_found_from_list(
+    codes: str = Form(default=""),
+    file: UploadFile = File(default=None),
+    db=Depends(get_db)
+):
+    """Mark a list of items as FOUND (present in inventory) — clears the
+    possibly-missing flag without selling them. Match by item number, barcode
+    or UPC. Codes with no match are reported back."""
+    raw = codes or ""
+    if file is not None and getattr(file, "filename", ""):
+        try:
+            content = await file.read()
+            text = content.decode("utf-8-sig", errors="replace")
+            for line in text.splitlines():
+                raw += "\n" + line.split(",")[0]
+        except Exception:
+            pass
+    tokens = [t.strip().upper() for t in re.split(r"[\s,;]+", raw) if t.strip()]
+
+    found, notfound = 0, []
+    for code in tokens:
+        # Prefer an unsold match; a found item stays in inventory (not sold).
+        async with db.execute(
+            "SELECT item_number FROM items WHERE (item_number = ? OR barcode = ? OR upc = ?) "
+            "AND COALESCE(sold,0)=0 ORDER BY missing DESC, item_number LIMIT 1", (code, code, code)
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            notfound.append(code)
+            continue
+        await db.execute(
+            "UPDATE items SET missing=0 WHERE item_number = ?", (row["item_number"],))
+        await db.execute(
+            "UPDATE reconcile_log SET status='found', resolved_at=CURRENT_TIMESTAMP "
+            "WHERE item_number=? AND status='missing'", (row["item_number"],))
+        found += 1
+    await db.commit()
+    return JSONResponse({"ok": True, "found": found, "not_found": notfound})
+
+
 @app.post("/api/items/{item_number}/keep")
 async def mark_keep(item_number: str, db=Depends(get_db)):
     await db.execute("UPDATE items SET missing=0 WHERE item_number=?", (item_number,))
