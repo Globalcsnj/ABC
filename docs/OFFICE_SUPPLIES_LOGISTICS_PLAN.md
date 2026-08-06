@@ -26,6 +26,11 @@ foundation but **adjusted for consumable, replenishable, multi-location stock**.
    units). Users can scan/issue whole boxes or loose units; the system converts.
 5. **Devices:** must work on **computer, tablet, and cellphone** (responsive,
    camera scanning on mobile).
+6. **Store Card (scan to start):** each store has a printed **QR "store card."**
+   From a phone/tablet you **scan the store card to open the app already scoped
+   to that store**, then add supplies to a **cart** and confirm — the quantities
+   are **deducted from the Office warehouse** and added to that store. No manual
+   store-picking or login needed at the counter.
 
 ---
 
@@ -119,6 +124,33 @@ Store sends a REQUEST (choose items+qty)  │
 
 ---
 
+## 3a. Store Card — scan to start a pick (preferred flow)
+
+Each **store** has a printed **QR "store card."** It encodes a link like
+`/scan?store=<store_token>` that opens the app on a phone/tablet **already set to
+that store**. This becomes the everyday flow:
+
+```
+1. Scan the STORE CARD QR  ──▶  app opens, scoped to that store (a "cart" starts)
+2. ADD SUPPLIES to the cart ──▶  scan each item's QR/barcode, enter qty (box/unit)
+3. Review the cart (items + quantities for this store)
+4. CONFIRM  ──▶  each line deducts from the OFFICE WAREHOUSE and adds to the STORE
+                 one movement per line, logged (who/device/time)
+```
+
+- The store card is a **launcher + identity**: no manual store-picking, no login
+  at the counter (it carries a store token; the host session still authorizes).
+- The **cart / pick session** holds the lines until **Confirm**, so a whole pick
+  commits at once (and can be abandoned before confirming).
+- A store card can also be tied to an **open request** so scanning it pre-loads
+  the requested items to check off.
+- Rotate/revoke a store's token to invalidate a lost card.
+
+**Data for this:** `pick_sessions` (`id`, `store_id`, `user`, `device`,
+`status: open|committed|void`, `created_at`) and `pick_lines` (`session_id`,
+`item_id`, `qty_units`, `entered_as`, `qty_entered`). On **Confirm**, each
+`pick_line` becomes an `issue` movement (Office warehouse → store).
+
 ## 4. Scanning on computer / tablet / phone
 
 - A responsive **/scan** screen: big touch targets on mobile, keyboard/USB
@@ -181,9 +213,16 @@ Store sends a REQUEST (choose items+qty)  │
 - Stock: `GET /api/stock?location=&item=`
 - Requests: `POST /api/requests` `{store_id, lines[]}`,
   `GET /api/requests?store=&status=`
-- Scan: `POST /api/scan` `{code, mode: receive|transfer|issue, qty, unit: box|each,
-  from_location?, to_location, request_id?}` → convert to base units, write
-  movement, update both locations' stock, return updated on-hand.
+- **Store card / pick session:**
+  `GET /scan?store=<token>` → resolve store, open (or resume) a `pick_session`,
+  render the mobile cart scoped to that store.
+  `POST /api/pick/{session}/add` `{code, qty, unit: box|each}` → add a line.
+  `POST /api/pick/{session}/commit` → turn every line into an `issue` movement
+  (Office warehouse → store), update stock, close the session.
+  `GET /store-card/{store}` → printable QR store card.
+- Scan (single move, no cart): `POST /api/scan` `{code, mode:
+  receive|transfer|issue, qty, unit: box|each, from_location?, to_location,
+  request_id?}` → convert to base units, write movement, update stock.
 - Reports: `GET /api/reports/reorder`, `GET /api/reports/usage?store=&from=&to=`
 
 **Unit conversion (single rule):** everything is stored in **base units**;
@@ -194,11 +233,13 @@ Store sends a REQUEST (choose items+qty)  │
 ## 9. Build phases
 
 1. **Catalog + labels** — items with `units_per_box`, categories, QR/barcode
-   labels, CSV import.
+   labels, CSV import; printable **store cards**.
 2. **Locations + stock** — 2 warehouses + stores, per-location on-hand.
-3. **Scan** — Receive / Transfer / Issue on computer/tablet/phone; movement log;
-   live on-hand; box/unit entry.
-4. **Requests** — store requests, warehouse fulfills directly against a request.
+3. **Store-card scan → cart → commit** — scan the store card to open a session
+   scoped to that store, add items (box/unit), confirm to deduct from the Office
+   warehouse into the store. Plus single Receive / Transfer moves.
+4. **Requests** — store requests, warehouse fulfills directly (a card can
+   pre-load a request).
 5. **Reports & reorder** — dashboards, reorder alerts, usage & spend by store.
 6. **Polish** — offline scan queue, supplier receiving, exports.
 
