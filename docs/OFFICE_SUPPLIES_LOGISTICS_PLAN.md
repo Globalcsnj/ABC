@@ -1,15 +1,31 @@
 # Office Supplies Logistics System — Design Document
 
 **Purpose:** a shareable system to control office/store **supplies** across
-multiple stores. A central catalog (the "universe of items"), stores that
-**request** supplies, and a **scan-to-issue** flow on a phone/tablet that records
-the quantity taken and the store it's for. Built on the proven ABC inventory
-foundation but **adjusted for consumable, replenishable stock** rather than
-unique retail/pawn items.
+multiple locations. A central catalog (the "universe of items"), stock held at
+**warehouses and at each store**, store **requests**, and a **scan-to-issue**
+flow on a computer / tablet / phone that records the quantity taken (by **box and
+by unit**) and the destination store. Built on the proven ABC inventory
+foundation but **adjusted for consumable, replenishable, multi-location stock**.
 
-> This document is written to stand alone so it can be handed off and built as a
-> module of another system. It defines the data model, workflows, screens,
-> scanning, roles, APIs, and what is reused from ABC vs. what is new.
+> This document stands alone so it can be handed off and built as a **module
+> embedded inside another system** (sharing that system's database and login).
+
+---
+
+## Confirmed decisions
+
+1. **Locations & stock:** each **store holds its own stock**. There are **two
+   warehouses** — the **Office warehouse** (the source that **fulfills** stores)
+   and a **Receiving warehouse** (whose job is to **receive** incoming supplies).
+   Stock is tracked **per location** (each warehouse and each store).
+2. **No approval step:** the **warehouse fulfills directly** — a request goes
+   straight to scan-to-issue; requests are a convenience/queue, not a gate.
+3. **Embedded:** this is a **module of another system** and uses that system's
+   **database and authentication** (not a standalone login).
+4. **Units:** every item is tracked by **box and by unit** (a box contains N
+   units). Users can scan/issue whole boxes or loose units; the system converts.
+5. **Devices:** must work on **computer, tablet, and cellphone** (responsive,
+   camera scanning on mobile).
 
 ---
 
@@ -17,162 +33,181 @@ unique retail/pawn items.
 
 | ABC retail/pawn inventory | Office supplies logistics |
 |---|---|
-| Each item is **unique** (one row = one physical item, sold once) | Each item is a **stocked product** with an **on-hand quantity** that is replenished |
-| Lifecycle: In stock → **Sold** | Lifecycle: In stock → **Issued to a store** → replenished; consumables recur |
-| Single store's own inventory | **Central store** issues to **many branch stores** |
-| "Sold report" drives out-movement | **Supply requests + scan-to-issue** drive out-movement |
-| Value = retail price | Value = unit cost; focus on **usage & reorder**, not margin |
+| Each item is **unique** (one row = one physical item, sold once) | Each item is a **stocked product** with an **on-hand quantity per location**, replenished |
+| Lifecycle: In stock → **Sold** | Flow: **Received** → warehouse → **Issued/transferred** to a store → consumed |
+| Single store's own inventory | **Two warehouses + every store**, each with its own stock |
+| "Sold report" drives out-movement | **Requests + scan-to-issue transfers** drive movement |
+| Counted in single units | Counted in **boxes and units** (pack conversion) |
 
-**Reused from ABC (proven):** barcode/UPC/QR generation & scanning, camera scan
-page, CSV import, categories, per-store concept, counts/reconcile, the FastAPI +
-SQLite + Jinja stack, and the login/roles pattern.
+**Reused from ABC (proven):** barcode/UPC/QR generation & scanning, the camera
+scan page, CSV import, categories, the multi-store concept, counts/reconcile,
+and the FastAPI + SQLite + Jinja patterns.
 
 ---
 
-## 2. Core concepts / data model
+## 2. Data model
+
+**Location** (`locations`) — warehouses and stores in one table
+- `id`, `name`, `code`, `type` (`office_warehouse` / `receiving_warehouse` /
+  `store`), `address`, `contact`, `active`.
+- Exactly one `office_warehouse` (fulfills) and one `receiving_warehouse`
+  (receives) plus N `store` locations.
 
 **Catalog item** (`supply_items`) — the universe of supplies
-- `id`, `sku`, `name`, `description`, `category`, `unit` (each / box / ream…),
-  `pack_size`, `barcode`, `qr_code`, `image`, `unit_cost`,
-  `on_hand_qty` (central stock), `reorder_level`, `active`.
+- `id`, `sku`, `name`, `description`, `category`, `barcode`, `qr_code`, `image`,
+  `unit_cost`, **`units_per_box`** (pack size), `reorder_level`, `active`.
+- No single on-hand field — stock lives per location (below).
 
-**Store / branch** (reuse ABC `stores`)
-- `id`, `name`, `code`, `address`, `contact`, `active`.
+**Stock by location** (`stock`) — the on-hand table
+- `item_id`, `location_id`, `qty_units` (always stored in **base units**).
+- Boxes are display/entry only: `boxes = qty_units // units_per_box`,
+  `loose = qty_units % units_per_box`. Reorder level compares in units.
 
 **Supply request** (`requests`)
-- `id`, `store_id`, `requested_by`, `status`
-  (`requested → approved → picking → fulfilled → received`),
-  `created_at`, `needed_by`, `notes`.
+- `id`, `store_id` (the requesting store/location), `requested_by`, `status`
+  (`open → fulfilled → received`; **no approval state**), `created_at`,
+  `needed_by`, `notes`.
 
 **Request line** (`request_lines`)
-- `request_id`, `item_id`, `qty_requested`, `qty_fulfilled`.
+- `request_id`, `item_id`, `qty_units_requested`, `qty_units_fulfilled`.
 
-**Stock movement / issue** (`movements`) — the audit trail (every scan lands here)
-- `id`, `item_id`, `store_id`, `request_id` (nullable),
-  `direction` (`issue` out to store / `receive` restock in / `adjust`),
-  `qty`, `scanned_by` (user), `device`, `created_at`, `note`.
+**Movement** (`movements`) — the audit trail; every scan lands here
+- `id`, `item_id`, `from_location_id`, `to_location_id`,
+  `direction` (`receive` / `transfer` / `issue` / `adjust`),
+  `qty_units`, `entered_as` (`box` | `unit`), `qty_entered`, `request_id?`,
+  `user`, `device`, `created_at`, `note`.
+- On-hand per location = opening + Σ(in) − Σ(out) from movements; `stock` is the
+  cached running total, reconciled against the log.
 
-**User / role** (`users`)
-- `id`, `name`, `role` (`admin` / `warehouse` / `store`), `store_id` (for store
-  users), `pin_or_token`.
-
-`on_hand_qty` is always **derived from / reconciled against** the sum of
-movements, so the scan log is the source of truth.
+**Users/roles** come from the **host system** (embedded). We only add a role tag
+(`admin` / `warehouse` / `store`) and, for store users, their `location_id`.
 
 ---
 
-## 3. The main workflow (exactly the flow requested)
+## 3. Movement flows
 
 ```
-Universe of items (catalog)                     ← admin maintains
+SUPPLIER
+   │  (a) RECEIVE — scan items into the Receiving warehouse
+   ▼
+RECEIVING WAREHOUSE ──(b) TRANSFER──▶ OFFICE WAREHOUSE
+                                          │
+Store sends a REQUEST (choose items+qty)  │
+        │                                 │
+        ▼                                 ▼
+   assign the STORE ───────▶ (c) SCAN-TO-ISSUE  (warehouse fulfills directly)
+                                 • scan item QR/barcode
+                                 • enter qty by BOX or UNIT
+                                 • confirm destination STORE (from request)
+                                 • Office warehouse stock ↓, Store stock ↑
+                                 • movement logged, request → fulfilled
         │
-1. A store SENDS A REQUEST for supplies         ← store user (or phone)
-        │   picks items + quantities
         ▼
-2. CHOOSE / ASSIGN THE STORE                    ← the request is tied to that store
-        │   request appears in the warehouse queue
-        ▼
-3. SCAN TO ISSUE on tablet / cellphone          ← warehouse user
-        │   • scan the item's QR/barcode
-        │   • enter the QUANTITY being taken
-        │   • confirm the STORE it's going to (from the request)
-        ▼
-4. STOCK DEDUCTS from central, ALLOCATES to store
-        │   movement row logged (who, what, qty, store, time, device)
-        ▼
-5. Request status → fulfilled → store marks RECEIVED
+   Store marks RECEIVED  (its own stock is now official)
+   Store CONSUMES supplies over time (adjust/usage)
 ```
 
-**Ad-hoc issue (no request):** the warehouse can also just scan → enter qty →
-**pick the store** → issue, without a formal request. Same movement log.
+- **(a) Receive:** scan supplier deliveries into the **Receiving warehouse**
+  (by box or unit).
+- **(b) Transfer:** move stock Receiving → Office warehouse (scan or bulk).
+- **(c) Issue:** the **Office warehouse fulfills a store request directly** (no
+  approval) — scan → qty (box/unit) → store → done. Stock leaves the office
+  warehouse and lands in that store's stock.
+- **Ad-hoc issue** without a request is allowed: scan → qty → pick store → issue.
+- **Store consumption:** stores draw down their own stock (a simple "use"/adjust
+  or their own scan), so each store's on-hand stays real.
 
 ---
 
-## 4. Scanning on phone / tablet (mobile-first)
+## 4. Scanning on computer / tablet / phone
 
-- A **/scan** page optimized for touch. Big buttons, one item at a time.
+- A responsive **/scan** screen: big touch targets on mobile, keyboard/USB
+  scanner friendly on the computer.
 - **Scan** the item's **QR or barcode** with the device camera (reuse ABC's
-  `camera.js` + barcode decode). Manual code entry as fallback.
-- On a hit: show item name + image + current on-hand → **enter quantity** →
-  **choose store** (pre-selected if working a specific request) → **Confirm**.
-- Each confirm writes a `movement` and decrements `on_hand_qty` live.
-- Works offline-tolerant: queue scans and sync when back online (phase 2).
-- **Labels:** generate printable **QR/barcode labels** per item (reuse ABC's
-  `/barcode` and `/qr` endpoints) so every shelf/bin is scannable.
+  `camera.js` + decode); manual code entry as fallback.
+- On a hit: show item + image + on-hand at the working location → pick **mode**
+  (Receive / Transfer / Issue) → **enter quantity as boxes or units** →
+  **confirm the store/location** → **Confirm**.
+- Each confirm writes a `movement` and updates both locations' `stock` live.
+- **Labels:** print **QR/barcode labels** per item for shelves/bins (reuse ABC's
+  `/barcode` and `/qr`).
+- Phase 2: offline scan queue that syncs when back online.
 
 ---
 
 ## 5. Screens
 
-1. **Catalog** — the universe of items; search, filter by category, on-hand,
-   reorder flags; add/edit item; print labels; CSV import (reuse ABC import).
-2. **Requests** — list by store & status; create a request (store picks items +
-   qty); approve; open a request to fulfill.
-3. **Scan-to-Issue** (phone/tablet) — the flow in §4.
-4. **Stores** — branches, their open requests and consumption.
+1. **Catalog** — the universe of items; search/filter; add/edit; `units_per_box`;
+   print labels; CSV import (reuse ABC import).
+2. **Requests** — by store & status; store creates a request; warehouse opens it
+   and fulfills (scan-to-issue). No approval gate.
+3. **Scan** (computer/tablet/phone) — Receive / Transfer / Issue (§4).
+4. **Locations** — the 2 warehouses + stores, each with its on-hand and history.
 5. **Reports / Dashboard** — usage by store, by item, by period; reorder list
-   (on-hand ≤ reorder level); movement history; cost of supplies per store.
-   (Reuse the ABC dashboard patterns: date range, chips, drill-down tables.)
-6. **Receiving** — restock central stock (scan in / import a supplier invoice).
+   (any location where units ≤ reorder level); movement audit; supply spend
+   (unit_cost × units) per store. Reuse ABC dashboard patterns (date range,
+   chips, drill-down).
 
 ---
 
-## 6. Roles & sharing
+## 6. Roles & sharing (via the host system)
 
-- **Admin:** manage catalog, stores, users, reorder levels, see everything.
-- **Warehouse:** fulfill requests, scan-to-issue, receive stock.
-- **Store user:** create requests for their store, mark received, see their own
-  history only.
-- **Shareable access:** each store gets a login (or a per-store share link/QR)
-  so staff can request from any device. Central sees all stores. Same
-  cookie-auth pattern as ABC; add role + `store_id` scoping.
+- **Admin:** catalog, locations, reorder levels, everything.
+- **Warehouse:** receive, transfer, fulfill/issue.
+- **Store:** create requests for their location, mark received, see their own
+  stock & history only.
+- Authentication/users come from **the host system**; we scope views by role +
+  `location_id`. Any device (computer/tablet/phone) with a valid host session.
 
 ---
 
 ## 7. Reporting & control
 
-- **Reorder alerts:** items where `on_hand_qty ≤ reorder_level`.
-- **Consumption by store:** who's using the most of what, per period.
-- **Item velocity:** fast-moving supplies → order more.
-- **Full audit:** every unit that left, when, to which store, scanned by whom.
-- **Cost tracking:** unit_cost × issued qty = supply spend per store/period.
+- **Reorder alerts** per location (units ≤ reorder level; office warehouse and
+  stores).
+- **Consumption by store** (what each store draws, per period) → right-size
+  future orders.
+- **Item velocity** across the network → what to buy more of.
+- **Full audit:** every unit/box moved, from/to which location, by whom, when,
+  on which device.
+- **Cost:** unit_cost × issued units = supply spend per store/period.
 
 ---
 
-## 8. Suggested API (FastAPI, mirrors ABC style)
+## 8. Suggested API (mirrors ABC style; uses host DB/auth)
 
-- `GET /api/supply-items` · `POST /api/supply-items` · CSV `POST /api/supply-import`
-- `POST /api/requests` (store_id, lines) · `GET /api/requests?store=&status=`
-- `POST /api/requests/{id}/approve`
-- `POST /api/scan-issue` `{code, qty, store_id, request_id?}` → look up item,
-  write movement, decrement on-hand, return updated item
-- `POST /api/receive` `{code, qty}` → restock
-- `GET /api/reports/reorder` · `GET /api/reports/usage?store=&from=&to=`
-- `GET /barcode/{code}` · `GET /qr/{code}` (reuse ABC label generators)
+- Catalog: `GET/POST /api/supply-items`, CSV `POST /api/supply-import`,
+  `GET /barcode/{code}`, `GET /qr/{code}`
+- Stock: `GET /api/stock?location=&item=`
+- Requests: `POST /api/requests` `{store_id, lines[]}`,
+  `GET /api/requests?store=&status=`
+- Scan: `POST /api/scan` `{code, mode: receive|transfer|issue, qty, unit: box|each,
+  from_location?, to_location, request_id?}` → convert to base units, write
+  movement, update both locations' stock, return updated on-hand.
+- Reports: `GET /api/reports/reorder`, `GET /api/reports/usage?store=&from=&to=`
 
-Data store: SQLite (same as ABC) or the DB of the "other system" it plugs into.
+**Unit conversion (single rule):** everything is stored in **base units**;
+`box → units = qty × units_per_box`. Display shows both (`3 boxes + 5`).
 
 ---
 
 ## 9. Build phases
 
-1. **Catalog + labels** — items, categories, on-hand, QR/barcode labels, CSV import.
-2. **Scan-to-Issue** — the phone/tablet flow, movement log, live on-hand, store pick.
-3. **Requests** — store requests, approve, fulfill against a request.
-4. **Roles & sharing** — store logins/links, scoping.
-5. **Reports & reorder** — dashboards, reorder alerts, usage by store.
-6. **Polish** — offline scan queue, receiving/supplier invoices, exports.
+1. **Catalog + labels** — items with `units_per_box`, categories, QR/barcode
+   labels, CSV import.
+2. **Locations + stock** — 2 warehouses + stores, per-location on-hand.
+3. **Scan** — Receive / Transfer / Issue on computer/tablet/phone; movement log;
+   live on-hand; box/unit entry.
+4. **Requests** — store requests, warehouse fulfills directly against a request.
+5. **Reports & reorder** — dashboards, reorder alerts, usage & spend by store.
+6. **Polish** — offline scan queue, supplier receiving, exports.
 
 ---
 
-## 10. Open questions (to confirm before building)
+## 10. Embedding notes (for the host system)
 
-1. **Central model:** one central supply room issuing to all stores, or does each
-   store also hold its own stock (store-to-store transfers)?
-2. **Approvals:** do store requests need approval, or can warehouse fulfill
-   directly?
-3. **Units/packs:** track by each, or by box/pack with conversions?
-4. **Where it lives:** a standalone module, or embedded in "the other system"
-   (which DB/auth does it share)?
-5. **Devices:** company tablets/phones only, or personal phones via a share link?
-6. **Costing:** do you need supply spend per store, or just quantities?
+- Uses the **host system's database** (add the tables above) and its
+  **authentication/session** — no separate login.
+- Ships as a set of **routes + templates + a `/scan` mobile view** that mount
+  under the host app, plus the shared barcode/QR label endpoints from ABC.
+- Keep the **movement log** as the single source of truth; `stock` is a cache.
