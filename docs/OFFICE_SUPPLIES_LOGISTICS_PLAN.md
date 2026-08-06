@@ -247,6 +247,25 @@ that store**. This becomes the everyday flow:
 
 ## 10. Embedding notes (for the host system)
 
+- **Host system = GCS Portal.** It currently has **no Logistics/Supplies
+  module**; this is that new module. The GCS Portal code lives locally on the
+  store PC (e.g. a backup zip / working folder) and is **not yet in a repo the
+  build environment can reach** — see "Getting GCS Portal to the builder" below.
+- To shape this module to fit, we need the GCS Portal's **stack** (language &
+  framework — e.g. PHP/Laravel, Python/Django/Flask, Node, .NET), its
+  **database** (MySQL/SQLite/Postgres/etc.), and how it **adds a page/module**
+  and does **auth/roles**.
+
+### Getting GCS Portal to the builder (pick one)
+1. **Push it to a private GitHub repo** under `Globalcsnj` (e.g.
+   `Globalcsnj/GCS-Portal`); then it can be added to the session and the module
+   built directly inside it. *(Recommended.)*
+2. **Share the stack details + a few key files** (router/index, DB config, an
+   example existing module) and the module is delivered as a **drop-in package**
+   to integrate locally.
+3. **Prototype first in ABC** (Python/FastAPI): build the Store-Card scan→cart
+   flow here to try on a phone, then port it to the GCS Portal stack.
+
 - Uses the **host system's database** (add the tables above) and its
   **authentication/session** — no separate login.
 - Ships as a set of **routes + templates + a `/scan` mobile view** that mount
