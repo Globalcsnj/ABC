@@ -1,0 +1,443 @@
+<title>Amazon Reseller Pricing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground: #FBF9F5;
+    --surface: #FFFFFF;
+    --surface-2: #F3EFE7;
+    --ink: #1B1F2A;
+    --ink-soft: #4B4B45;
+    --muted: #7C776B;
+    --line: #E4DED2;
+    --line-strong: #CFC7B6;
+    --accent: #B26A16;
+    --accent-soft: #F5E7D2;
+    --good: #2F7A54;
+    --good-soft: #E1F0E7;
+    --warn: #B8791A;
+    --bad: #B23A48;
+    --bad-soft: #F6E1E3;
+    --shadow: 0 1px 2px rgba(27,31,42,.05), 0 8px 30px rgba(27,31,42,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #12141B;
+      --surface: #1A1D26;
+      --surface-2: #22252F;
+      --ink: #F1EEE6;
+      --ink-soft: #C7C3B8;
+      --muted: #8E897C;
+      --line: #2C303B;
+      --line-strong: #3C4150;
+      --accent: #E1953C;
+      --accent-soft: #3A2E1C;
+      --good: #63C08C;
+      --good-soft: #1E3328;
+      --warn: #E1A63C;
+      --bad: #E5798A;
+      --bad-soft: #3A2027;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #12141B;
+    --surface: #1A1D26;
+    --surface-2: #22252F;
+    --ink: #F1EEE6;
+    --ink-soft: #C7C3B8;
+    --muted: #8E897C;
+    --line: #2C303B;
+    --line-strong: #3C4150;
+    --accent: #E1953C;
+    --accent-soft: #3A2E1C;
+    --good: #63C08C;
+    --good-soft: #1E3328;
+    --warn: #E1A63C;
+    --bad: #E5798A;
+    --bad-soft: #3A2027;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: clamp(20px, 4vw, 48px); }
+
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+  h1 { font-family: "Fraunces", Georgia, serif; font-weight: 900; font-size: clamp(28px, 5vw, 44px); line-height: 1.02; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 15px; margin: 8px 0 0; max-width: 52ch; }
+
+  .theme-btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-soft); font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; letter-spacing: .04em; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(18px, 3vw, 26px); box-shadow: var(--shadow); }
+  .card h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 18px; margin: 0 0 18px; letter-spacing: -.01em; }
+
+  label.field { display: block; margin-bottom: 18px; }
+  label.field:last-child { margin-bottom: 0; }
+  .field .lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 500; margin-bottom: 7px; }
+  .field .hint { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+
+  .money-input { position: relative; }
+  .money-input .cur { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 15px; }
+  input[type="number"] {
+    width: 100%; font-family: "IBM Plex Mono", monospace; font-size: 15px; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 9px;
+    padding: 11px 13px 11px 26px; -moz-appearance: textfield;
+  }
+  input.no-cur { padding-left: 13px; }
+  input[type="number"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+  input[type="range"] { width: 100%; accent-color: var(--accent); margin: 6px 0 0; }
+  .range-val { font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--accent); }
+
+  .toggle { display: flex; gap: 0; border: 1px solid var(--line-strong); border-radius: 9px; overflow: hidden; }
+  .toggle button { flex: 1; border: none; background: var(--surface-2); color: var(--ink-soft); font-family: "IBM Plex Sans", sans-serif; font-size: 13px; font-weight: 500; padding: 10px 8px; cursor: pointer; line-height: 1.25; }
+  .toggle button .tsub { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; }
+  .toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .toggle button[aria-pressed="true"] .tsub { color: rgba(255,255,255,.85); }
+
+  /* Result */
+  .result-hero { text-align: center; padding: 6px 0 20px; border-bottom: 1px dashed var(--line-strong); margin-bottom: 20px; }
+  .result-hero .cap { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .result-hero .price { font-family: "Fraunces", Georgia, serif; font-weight: 900; font-size: clamp(46px, 11vw, 68px); line-height: 1; margin: 6px 0 4px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .result-hero .rounded { font-size: 14px; color: var(--ink-soft); }
+  .result-hero .rounded b { color: var(--accent); font-family: "IBM Plex Mono", monospace; }
+
+  .waterfall { display: flex; flex-direction: column; gap: 2px; }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .row:last-child { border-bottom: none; }
+  .row .name { color: var(--ink-soft); display: flex; align-items: center; gap: 9px; }
+  .row .amt { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .row .amt.neg { color: var(--bad); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .row.total { border-top: 2px solid var(--line-strong); border-bottom: none; margin-top: 4px; padding-top: 13px; }
+  .row.total .name { font-weight: 600; color: var(--ink); font-family: "Fraunces", serif; }
+  .row.total .amt { font-size: 18px; font-weight: 600; color: var(--good); }
+
+  .marginbar { margin-top: 18px; }
+  .marginbar .track { height: 30px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; display: flex; }
+  .marginbar .seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+
+  .flag { margin-top: 18px; border-radius: 10px; padding: 13px 15px; font-size: 13.5px; display: flex; gap: 10px; align-items: flex-start; }
+  .flag .ic { font-size: 16px; line-height: 1.2; }
+  .flag.ok { background: var(--good-soft); color: var(--good); }
+  .flag.bad { background: var(--bad-soft); color: var(--bad); }
+  .flag.warn { background: var(--accent-soft); color: var(--warn); }
+  .flag b { font-weight: 600; }
+
+  .monthly { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+  .stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 13px; }
+  .stat .k { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .stat .v { font-family: "IBM Plex Mono", monospace; font-size: 19px; font-weight: 600; margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+  /* comparison */
+  .compare { margin-top: 22px; }
+  .compare h2 { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; }
+  .compare p.note { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 14px; }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  td.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  td .price-cell { font-weight: 600; color: var(--accent); }
+  tr.here { background: var(--accent-soft); }
+  tr.here td:first-child::before { content: "▸ "; color: var(--accent); }
+
+  footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+  footer code { font-family: "IBM Plex Mono", monospace; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">ABC MoneyLoan · Amazon channel</p>
+      <h1>Amazon Reseller Pricing</h1>
+      <p class="sub">Work the price backwards from Amazon's fees. Enter what an item costs you, and this finds the lowest price that still clears your target margin.</p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">◐ Theme</button>
+  </header>
+
+  <div class="grid">
+    <!-- INPUTS -->
+    <section class="card">
+      <h2>Your numbers</h2>
+
+      <label class="field">
+        <span class="lbl">Product cost <span class="hint">what the item costs you</span></span>
+        <span class="money-input"><span class="cur">$</span><input type="number" id="cost" value="10" min="0" step="0.5"></span>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Transportation / shipping <span class="hint">per item (postage, box, inbound)</span></span>
+        <span class="money-input"><span class="cur">$</span><input type="number" id="transport" value="2" min="0" step="0.5"></span>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Amazon monthly plan <span class="hint">Professional = $40 flat</span></span>
+        <span class="money-input"><span class="cur">$</span><input type="number" id="monthly" value="40" min="0" step="1"></span>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Items sold per month <span class="hint">spreads the monthly fee</span></span>
+        <input class="no-cur" type="number" id="units" value="100" min="1" step="1">
+      </label>
+
+      <label class="field">
+        <span class="lbl">Referral commission <span class="range-val" id="refVal">15%</span></span>
+        <input type="range" id="referral" min="8" max="15" value="15" step="1">
+        <span class="hint">Electronics ≈ 8% · most goods ≈ 15%</span>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Fulfillment</span>
+        <div class="toggle" id="fulfill" role="group" aria-label="Fulfillment method">
+          <button type="button" data-f="fba" aria-pressed="true">FBA <span class="tsub">Amazon ships · +10%</span></button>
+          <button type="button" data-f="fbm" aria-pressed="false">FBM <span class="tsub">You ship · no 10%</span></button>
+        </div>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Target margin <span class="range-val" id="marVal">30%</span></span>
+        <input type="range" id="margin" min="10" max="60" value="30" step="1">
+        <span class="hint">Profit as a share of the sale price. Your minimum is 30%.</span>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Market price check <span class="hint">optional — what it really sells for</span></span>
+        <span class="money-input"><span class="cur">$</span><input type="number" id="market" value="" min="0" step="0.5" placeholder="leave blank to skip"></span>
+      </label>
+    </section>
+
+    <!-- RESULT -->
+    <section class="card">
+      <h2>Minimum Amazon price</h2>
+      <div class="result-hero">
+        <div class="cap">List at least</div>
+        <div class="price" id="price">$27.56</div>
+        <div class="rounded">round up to <b id="rounded">$27.99</b> at the register</div>
+      </div>
+
+      <div class="waterfall" id="waterfall"></div>
+
+      <div class="marginbar">
+        <div class="track" id="track"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div id="flag" class="flag ok"><span class="ic">✓</span><span id="flagText"></span></div>
+
+      <div class="monthly">
+        <div class="stat"><div class="k">Profit / item</div><div class="v" id="mProfit">—</div></div>
+        <div class="stat"><div class="k">Profit / month</div><div class="v" id="mMonth">—</div></div>
+        <div class="stat"><div class="k">Revenue / month</div><div class="v" id="mRev">—</div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- COMPARISON -->
+  <section class="card compare">
+    <h2>Same item, every scenario</h2>
+    <p class="note">Minimum price for your current cost / transport / volume / margin, across referral rate and fulfillment. Your current setting is highlighted.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Scenario</th><th>Referral</th><th>Fulfillment</th><th style="text-align:right">Min price</th><th style="text-align:right">Profit/item</th></tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <b>Formula:</b> <code>min price = (cost + transport + monthly÷units) ÷ (1 − referral% − fulfillment% − margin%)</code><br>
+    The 10% FBA fee is an approximation of Amazon's real per-item fulfillment fee (which depends on size &amp; weight). For FBM, put your own postage &amp; packaging into "transportation." Returns and storage aren't modeled — pad the margin on fragile or slow items. Numbers stay on this device only.
+  </footer>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  let fulfillment = "fba";
+
+  // ---- theme toggle (per-viewer convenience) ----
+  (function () {
+    let saved = null;
+    try { saved = localStorage.getItem("azpc-theme"); } catch (e) {}
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+    $("themeBtn").addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      const isDark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      const next = isDark ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("azpc-theme", next); } catch (e) {}
+    });
+  })();
+
+  // ---- persist inputs ----
+  const INPUTS = ["cost", "transport", "monthly", "units", "referral", "margin", "market"];
+  function saveState() {
+    try {
+      const s = {}; INPUTS.forEach(i => s[i] = $(i).value); s.fulfillment = fulfillment;
+      localStorage.setItem("azpc-state", JSON.stringify(s));
+    } catch (e) {}
+  }
+  (function loadState() {
+    try {
+      const s = JSON.parse(localStorage.getItem("azpc-state") || "null");
+      if (!s) return;
+      INPUTS.forEach(i => { if (s[i] !== undefined && s[i] !== null) $(i).value = s[i]; });
+      if (s.fulfillment) fulfillment = s.fulfillment;
+    } catch (e) {}
+  })();
+
+  // fulfillment toggle
+  $("fulfill").querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => {
+      fulfillment = b.dataset.f;
+      $("fulfill").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === fulfillment));
+      render();
+    });
+  });
+
+  function priceFor(cost, transport, fixedPer, ref, ful, mar) {
+    const denom = 1 - ref - ful - mar;
+    if (denom <= 0) return null;
+    return (cost + transport + fixedPer) / denom;
+  }
+
+  function render() {
+    const cost = +$("cost").value || 0;
+    const transport = +$("transport").value || 0;
+    const monthly = +$("monthly").value || 0;
+    const units = Math.max(1, +$("units").value || 1);
+    const ref = (+$("referral").value || 0) / 100;
+    const mar = (+$("margin").value || 0) / 100;
+    const ful = fulfillment === "fba" ? 0.10 : 0;
+    const fixedPer = monthly / units;
+
+    $("refVal").textContent = (ref * 100).toFixed(0) + "%";
+    $("marVal").textContent = (mar * 100).toFixed(0) + "%";
+    // sync FBA/FBM pressed states
+    $("fulfill").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === fulfillment));
+
+    const price = priceFor(cost, transport, fixedPer, ref, ful, mar);
+
+    if (price === null) {
+      $("price").textContent = "—";
+      $("rounded").textContent = "not achievable";
+      $("waterfall").innerHTML = "";
+      $("track").innerHTML = "";
+      $("legend").innerHTML = "";
+      $("flag").className = "flag bad";
+      $("flagText").innerHTML = "<b>Impossible target.</b> Referral + fulfillment + margin add up to 100% or more — there's no price that works. Lower the target margin or pick a lower-fee scenario.";
+      $("mProfit").textContent = $("mMonth").textContent = $("mRev").textContent = "—";
+      buildCompare(cost, transport, fixedPer, mar);
+      saveState();
+      return;
+    }
+
+    const referralFee = price * ref;
+    const fulFee = price * ful;
+    const profit = price - cost - transport - fixedPer - referralFee - fulFee;
+
+    $("price").textContent = money(price);
+    const roundUp = Math.ceil(price) - 0.01;
+    $("rounded").textContent = money(roundUp);
+
+    // waterfall
+    const rows = [
+      { name: "Sale price", amt: price, dot: "var(--accent)", cls: "" },
+      { name: "Referral fee (" + (ref * 100).toFixed(0) + "%)", amt: -referralFee, dot: "var(--bad)", cls: "neg" },
+      { name: "FBA fulfillment (10%)", amt: -fulFee, dot: "var(--warn)", cls: "neg", hide: ful === 0 },
+      { name: "Monthly fee share ($" + monthly + " ÷ " + units + ")", amt: -fixedPer, dot: "var(--muted)", cls: "neg" },
+      { name: "Product cost", amt: -cost, dot: "var(--ink-soft)", cls: "neg" },
+      { name: "Transportation", amt: -transport, dot: "var(--line-strong)", cls: "neg" },
+    ];
+    $("waterfall").innerHTML = rows.filter(r => !r.hide).map(r =>
+      '<div class="row"><span class="name"><span class="dot" style="background:' + r.dot + '"></span>' + r.name + '</span>' +
+      '<span class="amt ' + r.cls + '">' + money(r.amt) + '</span></div>'
+    ).join("") +
+      '<div class="row total"><span class="name">Your profit</span><span class="amt">' + money(profit) + '</span></div>';
+
+    // margin bar (as % of price): profit | amazon | costs
+    const amazonPct = ref + ful;
+    const fixedPct = fixedPer / price;
+    const costsPct = (cost + transport) / price + fixedPct;
+    const profitPct = Math.max(0, profit / price);
+    const segs = [
+      { pct: profitPct, color: "var(--good)", label: "Profit " + (profitPct * 100).toFixed(0) + "%" },
+      { pct: amazonPct, color: "var(--bad)", label: "Amazon " + (amazonPct * 100).toFixed(0) + "%" },
+      { pct: Math.max(0, 1 - profitPct - amazonPct), color: "var(--muted)", label: "Costs " + ((1 - profitPct - amazonPct) * 100).toFixed(0) + "%" },
+    ];
+    $("track").innerHTML = segs.map(s =>
+      '<div class="seg" style="width:' + (s.pct * 100) + '%;background:' + s.color + '">' + (s.pct > 0.12 ? s.label : "") + '</div>'
+    ).join("");
+    $("legend").innerHTML = segs.map(s =>
+      '<span><span class="dot" style="background:' + s.color + '"></span>' + s.label + '</span>'
+    ).join("");
+
+    // monthly
+    $("mProfit").textContent = money(profit);
+    $("mMonth").textContent = money(profit * units);
+    $("mRev").textContent = money(price * units);
+
+    // market check
+    const market = $("market").value === "" ? null : +$("market").value;
+    if (market === null || isNaN(market)) {
+      $("flag").className = "flag ok";
+      $("flagText").innerHTML = "<b>You're set.</b> Listing at " + money(roundUp) + " clears a " + (mar * 100).toFixed(0) + "% margin (" + money(profit) + " profit per item). Enter a market price above to check it's competitive.";
+    } else if (market >= price) {
+      const mProfit = market - cost - transport - fixedPer - market * ref - market * ful;
+      const mMar = mProfit / market;
+      $("flag").className = "flag ok";
+      $("flagText").innerHTML = "<b>Profitable.</b> At the market price " + money(market) + " you'd make " + money(mProfit) + "/item — a " + (mMar * 100).toFixed(0) + "% margin, above your " + (mar * 100).toFixed(0) + "% floor. List it.";
+    } else {
+      const shortfall = price - market;
+      $("flag").className = "flag bad";
+      $("flagText").innerHTML = "<b>Don't list on Amazon.</b> The market price " + money(market) + " is " + money(shortfall) + " below your break-even floor of " + money(price) + ". You'd miss your margin. Sell it in-store or on eBay instead.";
+    }
+
+    buildCompare(cost, transport, fixedPer, mar);
+    saveState();
+  }
+
+  function buildCompare(cost, transport, fixedPer, mar) {
+    const scenarios = [
+      { label: "Low fee · you ship", ref: 0.08, ful: 0, key: "8-fbm" },
+      { label: "Low fee · Amazon ships", ref: 0.08, ful: 0.10, key: "8-fba" },
+      { label: "Typical · you ship", ref: 0.15, ful: 0, key: "15-fbm" },
+      { label: "Typical · Amazon ships", ref: 0.15, ful: 0.10, key: "15-fba" },
+    ];
+    const curRef = Math.round((+$("referral").value || 0));
+    const curKey = curRef + "-" + fulfillment;
+    $("cmpBody").innerHTML = scenarios.map(s => {
+      const p = priceFor(cost, transport, fixedPer, s.ref, s.ful, mar);
+      const here = s.key === curKey ? " class=\"here\"" : "";
+      if (p === null) {
+        return "<tr" + here + "><td>" + s.label + "</td><td>" + (s.ref * 100) + "%</td><td>" + (s.ful ? "FBA" : "FBM") + "</td><td class=\"num\">n/a</td><td class=\"num\">n/a</td></tr>";
+      }
+      const profit = p * mar;
+      return "<tr" + here + "><td>" + s.label + "</td><td>" + (s.ref * 100) + "%</td><td>" +
+        (s.ful ? "FBA +10%" : "FBM") + "</td><td class=\"num\"><span class=\"price-cell\">" + money(p) + "</span></td>" +
+        "<td class=\"num\">" + money(profit) + "</td></tr>";
+    }).join("");
+  }
+
+  INPUTS.forEach(id => { $(id).addEventListener("input", render); });
+  render();
+</script>
