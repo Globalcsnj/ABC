@@ -84,12 +84,13 @@
   @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
 
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(18px, 3vw, 26px); box-shadow: var(--shadow); }
-  .card h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 18px; margin: 0 0 18px; letter-spacing: -.01em; }
+  .card h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .card .card-note { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
 
-  label.field { display: block; margin-bottom: 18px; }
+  label.field { display: block; margin-bottom: 16px; }
   label.field:last-child { margin-bottom: 0; }
-  .field .lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 500; margin-bottom: 7px; }
-  .field .hint { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+  .field .lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; font-weight: 500; margin-bottom: 7px; }
+  .field .hint { color: var(--muted); font-size: 11.5px; font-weight: 400; text-align: right; }
 
   .money-input { position: relative; }
   .money-input .cur { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 15px; }
@@ -106,9 +107,15 @@
 
   .toggle { display: flex; gap: 0; border: 1px solid var(--line-strong); border-radius: 9px; overflow: hidden; }
   .toggle button { flex: 1; border: none; background: var(--surface-2); color: var(--ink-soft); font-family: "IBM Plex Sans", sans-serif; font-size: 13px; font-weight: 500; padding: 10px 8px; cursor: pointer; line-height: 1.25; }
-  .toggle button .tsub { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; }
+  .toggle button .tsub { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; margin-top: 1px; }
   .toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .toggle button[aria-pressed="true"] .tsub { color: rgba(255,255,255,.85); }
+  .toggle.mini button { padding: 7px 6px; font-size: 12px; }
+
+  .fba-only { transition: opacity .15s; }
+  .fba-only.off { display: none; }
+
+  .fee-mode-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; align-items: end; }
 
   /* Result */
   .result-hero { text-align: center; padding: 6px 0 20px; border-bottom: 1px dashed var(--line-strong); margin-bottom: 20px; }
@@ -160,8 +167,20 @@
   tr.here { background: var(--accent-soft); }
   tr.here td:first-child::before { content: "▸ "; color: var(--accent); }
 
+  .policy { margin-top: 22px; }
+  .policy h2 { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; margin: 0 0 14px; }
+  .policy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 680px) { .policy-grid { grid-template-columns: 1fr; } }
+  .pol { border: 1px solid var(--line); border-radius: 10px; padding: 14px 15px; background: var(--surface-2); }
+  .pol .ph { font-weight: 600; font-size: 13.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; }
+  .pol .badge { font-family: "IBM Plex Mono", monospace; font-size: 10px; padding: 2px 7px; border-radius: 20px; letter-spacing: .03em; }
+  .pol.no .badge { background: var(--bad-soft); color: var(--bad); }
+  .pol.yes .badge { background: var(--good-soft); color: var(--good); }
+  .pol ul { margin: 0; padding-left: 17px; font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+
   footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.6; }
   footer code { font-family: "IBM Plex Mono", monospace; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  footer b { color: var(--ink-soft); }
 </style>
 
 <div class="wrap">
@@ -178,6 +197,7 @@
     <!-- INPUTS -->
     <section class="card">
       <h2>Your numbers</h2>
+      <p class="card-note">Everything is <b>per item</b>. The $40 plan is separate monthly overhead — it's shown below as a break-even, not baked into each item's price.</p>
 
       <label class="field">
         <span class="lbl">Product cost <span class="hint">what the item costs you</span></span>
@@ -185,38 +205,57 @@
       </label>
 
       <label class="field">
-        <span class="lbl">Transportation / shipping <span class="hint">per item (postage, box, inbound)</span></span>
+        <span class="lbl">Shipping you pay <span class="hint">FBA: inbound to Amazon · FBM: postage to buyer</span></span>
         <span class="money-input"><span class="cur">$</span><input type="number" id="transport" value="2" min="0" step="0.5"></span>
       </label>
 
       <label class="field">
-        <span class="lbl">Amazon monthly plan <span class="hint">Professional = $40 flat</span></span>
+        <span class="lbl">Fulfillment</span>
+        <div class="toggle" id="fulfill" role="group" aria-label="Fulfillment method">
+          <button type="button" data-f="fba" aria-pressed="true">FBA <span class="tsub">Amazon stores &amp; ships</span></button>
+          <button type="button" data-f="fbm" aria-pressed="false">FBM <span class="tsub">You store &amp; ship</span></button>
+        </div>
+      </label>
+
+      <div class="fba-only" id="fbaBlock">
+        <label class="field">
+          <span class="lbl">FBA fulfillment fee <span class="hint">Amazon's pick/pack/ship charge</span></span>
+          <div class="fee-mode-row">
+            <div class="toggle mini" id="feeMode" role="group" aria-label="FBA fee mode">
+              <button type="button" data-m="pct" aria-pressed="true">% of price</button>
+              <button type="button" data-m="flat" aria-pressed="false">$ / item</button>
+            </div>
+            <div class="money-input" id="feePctWrap"><input class="no-cur" type="number" id="fbaPct" value="10" min="0" step="1" style="padding-right:26px"><span class="cur" style="left:auto;right:13px">%</span></div>
+            <div class="money-input" id="feeFlatWrap" style="display:none"><span class="cur">$</span><input type="number" id="fbaFlat" value="4.50" min="0" step="0.25"></div>
+          </div>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Storage cost <span class="hint">per item, while it waits to sell</span></span>
+          <span class="money-input"><span class="cur">$</span><input type="number" id="storage" value="0" min="0" step="0.25"></span>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="lbl">Amazon monthly plan <span class="hint">Professional = $40 / month flat overhead</span></span>
         <span class="money-input"><span class="cur">$</span><input type="number" id="monthly" value="40" min="0" step="1"></span>
       </label>
 
       <label class="field">
-        <span class="lbl">Items sold per month <span class="hint">spreads the monthly fee</span></span>
+        <span class="lbl">Items sold per month <span class="hint">for monthly totals &amp; break-even</span></span>
         <input class="no-cur" type="number" id="units" value="100" min="1" step="1">
       </label>
 
       <label class="field">
         <span class="lbl">Referral commission <span class="range-val" id="refVal">15%</span></span>
         <input type="range" id="referral" min="8" max="15" value="15" step="1">
-        <span class="hint">Electronics ≈ 8% · most goods ≈ 15%</span>
-      </label>
-
-      <label class="field">
-        <span class="lbl">Fulfillment</span>
-        <div class="toggle" id="fulfill" role="group" aria-label="Fulfillment method">
-          <button type="button" data-f="fba" aria-pressed="true">FBA <span class="tsub">Amazon ships · +10%</span></button>
-          <button type="button" data-f="fbm" aria-pressed="false">FBM <span class="tsub">You ship · no 10%</span></button>
-        </div>
+        <span class="hint" style="text-align:left">Per item · electronics ≈ 8% · most goods ≈ 15%</span>
       </label>
 
       <label class="field">
         <span class="lbl">Target margin <span class="range-val" id="marVal">30%</span></span>
-        <input type="range" id="margin" min="10" max="60" value="30" step="1">
-        <span class="hint">Profit as a share of the sale price. Your minimum is 30%.</span>
+        <input type="range" id="margin" min="30" max="70" value="30" step="1">
+        <span class="hint" style="text-align:left">Your floor is 30% — drag right to aim higher.</span>
       </label>
 
       <label class="field">
@@ -228,6 +267,7 @@
     <!-- RESULT -->
     <section class="card">
       <h2>Minimum Amazon price</h2>
+      <p class="card-note">The lowest you can list at and still keep your margin. Round it up.</p>
       <div class="result-hero">
         <div class="cap">List at least</div>
         <div class="price" id="price">$27.56</div>
@@ -245,8 +285,8 @@
 
       <div class="monthly">
         <div class="stat"><div class="k">Profit / item</div><div class="v" id="mProfit">—</div></div>
-        <div class="stat"><div class="k">Profit / month</div><div class="v" id="mMonth">—</div></div>
-        <div class="stat"><div class="k">Revenue / month</div><div class="v" id="mRev">—</div></div>
+        <div class="stat"><div class="k">Items to cover $40 plan</div><div class="v" id="mBreak">—</div></div>
+        <div class="stat"><div class="k">Net profit / month</div><div class="v" id="mMonth">—</div></div>
       </div>
     </section>
   </div>
@@ -254,7 +294,7 @@
   <!-- COMPARISON -->
   <section class="card compare">
     <h2>Same item, every scenario</h2>
-    <p class="note">Minimum price for your current cost / transport / volume / margin, across referral rate and fulfillment. Your current setting is highlighted.</p>
+    <p class="note">Minimum per-item price for your current cost, shipping, storage &amp; margin — across referral rate and fulfillment. Your current setting is highlighted. (FBA rows use your fulfillment-fee setting; FBM rows drop the FBA fee &amp; storage.)</p>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Scenario</th><th>Referral</th><th>Fulfillment</th><th style="text-align:right">Min price</th><th style="text-align:right">Profit/item</th></tr></thead>
@@ -263,9 +303,36 @@
     </div>
   </section>
 
+  <!-- POLICY -->
+  <section class="card policy">
+    <h2>Pawnshop reality check — what Amazon lets you sell used</h2>
+    <div class="policy-grid">
+      <div class="pol no">
+        <div class="ph"><span class="badge">NEW ONLY</span> Don't bother listing used</div>
+        <ul>
+          <li><b>Jewelry</b> (fine &amp; fashion) — must be new</li>
+          <li><b>Watches</b> — new only; narrow Certified Pre-Owned exception needs 3rd-party certification</li>
+          <li>Beauty, Health &amp; personal care, Grocery</li>
+          <li>Baby (except apparel), Toys &amp; Games</li>
+        </ul>
+      </div>
+      <div class="pol yes">
+        <div class="ph"><span class="badge">USED OK</span> Good fit for Amazon</div>
+        <ul>
+          <li><b>Electronics, cameras, PC</b> — allowed used (may be "gated" — need approval first)</li>
+          <li><b>Tools, musical instruments</b></li>
+          <li><b>Video games, books, movies, music</b></li>
+          <li>Most general merchandise — grade condition honestly</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">Amazon has no rule against pawnshops. But jewelry &amp; watches — core pawn stock — are new-only, so keep those in-store or on eBay. Sell your allowed, fast-moving used goods here. Grade condition accurately (Like New / Very Good / Good / Acceptable) and keep proof of purchase for branded items.</p>
+  </section>
+
   <footer>
-    <b>Formula:</b> <code>min price = (cost + transport + monthly÷units) ÷ (1 − referral% − fulfillment% − margin%)</code><br>
-    The 10% FBA fee is an approximation of Amazon's real per-item fulfillment fee (which depends on size &amp; weight). For FBM, put your own postage &amp; packaging into "transportation." Returns and storage aren't modeled — pad the margin on fragile or slow items. Numbers stay on this device only.
+    <b>Formula (% fee):</b> <code>price = (cost + shipping + storage) ÷ (1 − referral% − FBA% − margin%)</code><br>
+    <b>Formula ($ fee):</b> <code>price = (cost + shipping + storage + FBA$) ÷ (1 − referral% − margin%)</code><br>
+    The per-item price is worked out from that item's own costs and margin. The <b>$40/month plan is separate overhead</b> — it doesn't change the price of any single item; instead the panel shows how many items you must sell to cover it, and your net monthly profit after it. Real FBA fulfillment is a flat per-item fee (~$3–5 for small items in 2026) that already covers shipping to the buyer — switch the fee to "$ / item" and enter Amazon's number for accuracy. Storage is billed monthly (~$0.87/ft³, ~$2.40 in Q4) plus an aged-inventory surcharge after 180 days — estimate a per-item figure for how long you expect it to sit. Returns aren't modeled; pad the margin on fragile or slow items. Numbers stay on this device only.
   </footer>
 </div>
 
@@ -273,6 +340,7 @@
   const $ = id => document.getElementById(id);
   const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
   let fulfillment = "fba";
+  let feeMode = "pct";
 
   // ---- theme toggle (per-viewer convenience) ----
   (function () {
@@ -289,53 +357,69 @@
   })();
 
   // ---- persist inputs ----
-  const INPUTS = ["cost", "transport", "monthly", "units", "referral", "margin", "market"];
+  const INPUTS = ["cost", "transport", "fbaPct", "fbaFlat", "storage", "monthly", "units", "referral", "margin", "market"];
   function saveState() {
     try {
-      const s = {}; INPUTS.forEach(i => s[i] = $(i).value); s.fulfillment = fulfillment;
-      localStorage.setItem("azpc-state", JSON.stringify(s));
+      const s = {}; INPUTS.forEach(i => s[i] = $(i).value);
+      s.fulfillment = fulfillment; s.feeMode = feeMode;
+      localStorage.setItem("azpc-state-v2", JSON.stringify(s));
     } catch (e) {}
   }
   (function loadState() {
     try {
-      const s = JSON.parse(localStorage.getItem("azpc-state") || "null");
+      const s = JSON.parse(localStorage.getItem("azpc-state-v2") || "null");
       if (!s) return;
       INPUTS.forEach(i => { if (s[i] !== undefined && s[i] !== null) $(i).value = s[i]; });
       if (s.fulfillment) fulfillment = s.fulfillment;
+      if (s.feeMode) feeMode = s.feeMode;
     } catch (e) {}
   })();
 
   // fulfillment toggle
   $("fulfill").querySelectorAll("button").forEach(b => {
-    b.addEventListener("click", () => {
-      fulfillment = b.dataset.f;
-      $("fulfill").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === fulfillment));
-      render();
-    });
+    b.addEventListener("click", () => { fulfillment = b.dataset.f; render(); });
+  });
+  // fee-mode toggle
+  $("feeMode").querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => { feeMode = b.dataset.m; render(); });
   });
 
-  function priceFor(cost, transport, fixedPer, ref, ful, mar) {
-    const denom = 1 - ref - ful - mar;
+  // Solve for min price.
+  // If FBA fee is a % (fbaPct) it's proportional to price; a flat $ fee (fbaFlat) is added to fixed costs.
+  function priceFor(fixed, ref, fbaPct, mar) {
+    const denom = 1 - ref - fbaPct - mar;
     if (denom <= 0) return null;
-    return (cost + transport + fixedPer) / denom;
+    return fixed / denom;
   }
 
   function render() {
+    const isFba = fulfillment === "fba";
     const cost = +$("cost").value || 0;
     const transport = +$("transport").value || 0;
+    const storage = isFba ? (+$("storage").value || 0) : 0;
     const monthly = +$("monthly").value || 0;
     const units = Math.max(1, +$("units").value || 1);
     const ref = (+$("referral").value || 0) / 100;
     const mar = (+$("margin").value || 0) / 100;
-    const ful = fulfillment === "fba" ? 0.10 : 0;
-    const fixedPer = monthly / units;
 
+    // FBA fee: percentage or flat, only when FBA
+    let fbaPctRate = 0, fbaFlat = 0;
+    if (isFba) {
+      if (feeMode === "pct") fbaPctRate = (+$("fbaPct").value || 0) / 100;
+      else fbaFlat = +$("fbaFlat").value || 0;
+    }
+
+    // reflect UI state
     $("refVal").textContent = (ref * 100).toFixed(0) + "%";
     $("marVal").textContent = (mar * 100).toFixed(0) + "%";
-    // sync FBA/FBM pressed states
     $("fulfill").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === fulfillment));
+    $("feeMode").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.m === feeMode));
+    $("fbaBlock").classList.toggle("off", !isFba);
+    $("feePctWrap").style.display = feeMode === "pct" ? "" : "none";
+    $("feeFlatWrap").style.display = feeMode === "flat" ? "" : "none";
 
-    const price = priceFor(cost, transport, fixedPer, ref, ful, mar);
+    const fixed = cost + transport + storage + fbaFlat;
+    const price = priceFor(fixed, ref, fbaPctRate, mar);
 
     if (price === null) {
       $("price").textContent = "—";
@@ -344,16 +428,16 @@
       $("track").innerHTML = "";
       $("legend").innerHTML = "";
       $("flag").className = "flag bad";
-      $("flagText").innerHTML = "<b>Impossible target.</b> Referral + fulfillment + margin add up to 100% or more — there's no price that works. Lower the target margin or pick a lower-fee scenario.";
-      $("mProfit").textContent = $("mMonth").textContent = $("mRev").textContent = "—";
-      buildCompare(cost, transport, fixedPer, mar);
+      $("flagText").innerHTML = "<b>Impossible target.</b> Referral + FBA% + margin add up to 100% or more — no price works. Lower the target margin, switch the FBA fee to a flat $, or pick a lower-fee scenario.";
+      $("mProfit").textContent = $("mBreak").textContent = $("mMonth").textContent = "—";
+      buildCompare(cost, transport, storage, fbaFlat, fbaPctRate, mar, isFba);
       saveState();
       return;
     }
 
     const referralFee = price * ref;
-    const fulFee = price * ful;
-    const profit = price - cost - transport - fixedPer - referralFee - fulFee;
+    const fbaFee = isFba ? (feeMode === "pct" ? price * fbaPctRate : fbaFlat) : 0;
+    const profit = price - cost - transport - storage - fbaFee - referralFee;
 
     $("price").textContent = money(price);
     const roundUp = Math.ceil(price) - 0.01;
@@ -363,10 +447,10 @@
     const rows = [
       { name: "Sale price", amt: price, dot: "var(--accent)", cls: "" },
       { name: "Referral fee (" + (ref * 100).toFixed(0) + "%)", amt: -referralFee, dot: "var(--bad)", cls: "neg" },
-      { name: "FBA fulfillment (10%)", amt: -fulFee, dot: "var(--warn)", cls: "neg", hide: ful === 0 },
-      { name: "Monthly fee share ($" + monthly + " ÷ " + units + ")", amt: -fixedPer, dot: "var(--muted)", cls: "neg" },
+      { name: feeMode === "pct" ? "FBA fee (" + (fbaPctRate * 100).toFixed(0) + "%)" : "FBA fee (flat)", amt: -fbaFee, dot: "var(--warn)", cls: "neg", hide: !isFba },
+      { name: "Storage (per item)", amt: -storage, dot: "var(--warn)", cls: "neg", hide: !isFba || storage === 0 },
       { name: "Product cost", amt: -cost, dot: "var(--ink-soft)", cls: "neg" },
-      { name: "Transportation", amt: -transport, dot: "var(--line-strong)", cls: "neg" },
+      { name: isFba ? "Inbound shipping" : "Shipping to buyer", amt: -transport, dot: "var(--line-strong)", cls: "neg" },
     ];
     $("waterfall").innerHTML = rows.filter(r => !r.hide).map(r =>
       '<div class="row"><span class="name"><span class="dot" style="background:' + r.dot + '"></span>' + r.name + '</span>' +
@@ -374,35 +458,38 @@
     ).join("") +
       '<div class="row total"><span class="name">Your profit</span><span class="amt">' + money(profit) + '</span></div>';
 
-    // margin bar (as % of price): profit | amazon | costs
-    const amazonPct = ref + ful;
-    const fixedPct = fixedPer / price;
-    const costsPct = (cost + transport) / price + fixedPct;
+    // margin bar: profit | amazon (referral + FBA) | your costs (cost + shipping + storage + monthly)
+    const amazonCut = referralFee + fbaFee;
     const profitPct = Math.max(0, profit / price);
+    const amazonPct = amazonCut / price;
+    const costsPct = Math.max(0, 1 - profitPct - amazonPct);
     const segs = [
       { pct: profitPct, color: "var(--good)", label: "Profit " + (profitPct * 100).toFixed(0) + "%" },
       { pct: amazonPct, color: "var(--bad)", label: "Amazon " + (amazonPct * 100).toFixed(0) + "%" },
-      { pct: Math.max(0, 1 - profitPct - amazonPct), color: "var(--muted)", label: "Costs " + ((1 - profitPct - amazonPct) * 100).toFixed(0) + "%" },
+      { pct: costsPct, color: "var(--muted)", label: "Your costs " + (costsPct * 100).toFixed(0) + "%" },
     ];
     $("track").innerHTML = segs.map(s =>
-      '<div class="seg" style="width:' + (s.pct * 100) + '%;background:' + s.color + '">' + (s.pct > 0.12 ? s.label : "") + '</div>'
+      '<div class="seg" style="width:' + (s.pct * 100) + '%;background:' + s.color + '">' + (s.pct > 0.14 ? s.label : "") + '</div>'
     ).join("");
     $("legend").innerHTML = segs.map(s =>
       '<span><span class="dot" style="background:' + s.color + '"></span>' + s.label + '</span>'
     ).join("");
 
-    // monthly
+    // monthly overhead: the $40 plan is separate, covered by aggregate profit
+    const breakeven = profit > 0 ? Math.ceil(monthly / profit) : Infinity;
+    const netMonth = profit * units - monthly;
     $("mProfit").textContent = money(profit);
-    $("mMonth").textContent = money(profit * units);
-    $("mRev").textContent = money(price * units);
+    $("mBreak").textContent = profit > 0 ? breakeven + (breakeven === 1 ? " item" : " items") : "never";
+    $("mMonth").textContent = money(netMonth);
 
     // market check
     const market = $("market").value === "" ? null : +$("market").value;
     if (market === null || isNaN(market)) {
       $("flag").className = "flag ok";
-      $("flagText").innerHTML = "<b>You're set.</b> Listing at " + money(roundUp) + " clears a " + (mar * 100).toFixed(0) + "% margin (" + money(profit) + " profit per item). Enter a market price above to check it's competitive.";
+      $("flagText").innerHTML = "<b>You're set.</b> Listing at " + money(roundUp) + " clears a " + (mar * 100).toFixed(0) + "% margin (" + money(profit) + " profit per item). Sell " + breakeven + " of these to cover the $40 plan. Enter a market price above to check it's competitive.";
     } else if (market >= price) {
-      const mProfit = market - cost - transport - fixedPer - market * ref - market * ful;
+      const mFbaFee = isFba ? (feeMode === "pct" ? market * fbaPctRate : fbaFlat) : 0;
+      const mProfit = market - cost - transport - storage - market * ref - mFbaFee;
       const mMar = mProfit / market;
       $("flag").className = "flag ok";
       $("flagText").innerHTML = "<b>Profitable.</b> At the market price " + money(market) + " you'd make " + money(mProfit) + "/item — a " + (mMar * 100).toFixed(0) + "% margin, above your " + (mar * 100).toFixed(0) + "% floor. List it.";
@@ -412,28 +499,31 @@
       $("flagText").innerHTML = "<b>Don't list on Amazon.</b> The market price " + money(market) + " is " + money(shortfall) + " below your break-even floor of " + money(price) + ". You'd miss your margin. Sell it in-store or on eBay instead.";
     }
 
-    buildCompare(cost, transport, fixedPer, mar);
+    buildCompare(cost, transport, storage, fbaFlat, fbaPctRate, mar, isFba);
     saveState();
   }
 
-  function buildCompare(cost, transport, fixedPer, mar) {
+  function buildCompare(cost, transport, storage, fbaFlat, fbaPctRate, mar, isFba) {
+    // FBA rows use current fee setting (pct or flat); FBM rows drop FBA fee + storage.
     const scenarios = [
-      { label: "Low fee · you ship", ref: 0.08, ful: 0, key: "8-fbm" },
-      { label: "Low fee · Amazon ships", ref: 0.08, ful: 0.10, key: "8-fba" },
-      { label: "Typical · you ship", ref: 0.15, ful: 0, key: "15-fbm" },
-      { label: "Typical · Amazon ships", ref: 0.15, ful: 0.10, key: "15-fba" },
+      { label: "Low fee · you ship (FBM)", ref: 0.08, fba: false },
+      { label: "Low fee · Amazon ships (FBA)", ref: 0.08, fba: true },
+      { label: "Typical · you ship (FBM)", ref: 0.15, fba: false },
+      { label: "Typical · Amazon ships (FBA)", ref: 0.15, fba: true },
     ];
     const curRef = Math.round((+$("referral").value || 0));
-    const curKey = curRef + "-" + fulfillment;
     $("cmpBody").innerHTML = scenarios.map(s => {
-      const p = priceFor(cost, transport, fixedPer, s.ref, s.ful, mar);
-      const here = s.key === curKey ? " class=\"here\"" : "";
+      const fixed = cost + transport + (s.fba ? storage + fbaFlat : 0);
+      const pctRate = s.fba ? fbaPctRate : 0;
+      const p = priceFor(fixed, s.ref, pctRate, mar);
+      const isHere = (Math.round(s.ref * 100) === curRef) && (s.fba === isFba);
+      const here = isHere ? " class=\"here\"" : "";
       if (p === null) {
-        return "<tr" + here + "><td>" + s.label + "</td><td>" + (s.ref * 100) + "%</td><td>" + (s.ful ? "FBA" : "FBM") + "</td><td class=\"num\">n/a</td><td class=\"num\">n/a</td></tr>";
+        return "<tr" + here + "><td>" + s.label + "</td><td>" + (s.ref * 100) + "%</td><td>" + (s.fba ? "FBA" : "FBM") + "</td><td class=\"num\">n/a</td><td class=\"num\">n/a</td></tr>";
       }
       const profit = p * mar;
       return "<tr" + here + "><td>" + s.label + "</td><td>" + (s.ref * 100) + "%</td><td>" +
-        (s.ful ? "FBA +10%" : "FBM") + "</td><td class=\"num\"><span class=\"price-cell\">" + money(p) + "</span></td>" +
+        (s.fba ? "FBA" : "FBM") + "</td><td class=\"num\"><span class=\"price-cell\">" + money(p) + "</span></td>" +
         "<td class=\"num\">" + money(profit) + "</td></tr>";
     }).join("");
   }
